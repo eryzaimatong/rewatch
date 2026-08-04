@@ -1,0 +1,9 @@
+# Copy to `application-local.properties` (same directory) and fill in.
+# That file is gitignored — real secrets never get committed.
+#
+#   cp application-local.properties.example application-local.properties
+#
+# Then run from this directory:  mvn spring-boot:run
+
+spring.datasource.password=your_local_postgres_password
+tmdb.api.key=your_tmdb_api_key

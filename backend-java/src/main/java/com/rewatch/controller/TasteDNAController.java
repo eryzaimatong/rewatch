@@ -1,52 +1,114 @@
 package com.rewatch.controller;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.rewatch.model.TasteDNA;
-import com.rewatch.repository.TasteDNARepository;
+import com.rewatch.model.Trait;
+import com.rewatch.model.TraitNode;
+import com.rewatch.repository.RatingRepository;
+import com.rewatch.security.SecurityUtil;
+import com.rewatch.service.ArchetypeService;
+import com.rewatch.service.HistoryService;
+import com.rewatch.service.ProfileService;
 
+/**
+ * Every value returned here traces to a real, persisted rating. The old version
+ * of this controller returned ten hardcoded TraitNode literals identical for
+ * every user id; this one reads (and can force-recompute, via /replay) the actual
+ * per-user profile built by ProfileService.
+ */
 @RestController
-@RequestMapping("/api/taste")
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/tastedna")
 public class TasteDNAController {
 
-    private final TasteDNARepository tasteRepo;
+    private final ProfileService profileService;
+    private final ArchetypeService archetypeService;
+    private final HistoryService historyService;
+    private final RatingRepository ratingRepo;
 
-    public TasteDNAController(TasteDNARepository tasteRepo) {
-        this.tasteRepo = tasteRepo;
+    public TasteDNAController(ProfileService profileService, ArchetypeService archetypeService,
+                              HistoryService historyService, RatingRepository ratingRepo) {
+        this.profileService = profileService;
+        this.archetypeService = archetypeService;
+        this.historyService = historyService;
+        this.ratingRepo = ratingRepo;
     }
 
-    @GetMapping("/{userId}")
-    public ResponseEntity<?> getDna(@PathVariable Long userId) {
-        TasteDNA dna = tasteRepo.findByUserId(userId);
-        if (dna == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("TasteDNA profile not found");
+    @GetMapping("/profile/{id}")
+    public Map<String, Object> getprofile(@PathVariable("id") Long id, Authentication authentication) {
+        if (id == null) {
+            return Map.of();
         }
-        return ResponseEntity.ok(dna);
+        SecurityUtil.requireSelf(authentication, id);
+
+        Map<Trait, TraitNode> profile = profileService.currentProfile(id);
+        long ratingCount = ratingRepo.countByUserId(id);
+        ArchetypeService.Result archetype = archetypeService.classify(profile);
+
+        Map<String, Object> traits = new LinkedHashMap<>();
+        for (Trait t : Trait.values()) {
+            TraitNode n = profile.get(t);
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("val", n.getVal());
+            node.put("conf", n.getConf());
+            node.put("trend", n.getTrend());
+            node.put("evid", n.getEvid());
+            node.put("updated", n.getUpdated());
+            node.put("label", t.label());
+            traits.put(t.key(), node);
+        }
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("userId", id);
+        res.put("personalized", ratingCount > 0);
+        res.put("ratingCount", ratingCount);
+        res.put("meanConfidence", profileService.meanConfidence(profile));
+        res.put("archetype", archetype.archetype());
+        res.put("archetypeBlurb", archetype.blurb());
+        res.put("updatedAt", Instant.now());
+        res.put("traits", traits);
+        return res;
     }
 
-    @PutMapping("/{userId}")
-    public ResponseEntity<?> updateDna(@PathVariable Long userId, @RequestBody TasteDNA body) {
-        TasteDNA dna = tasteRepo.findByUserId(userId);
-        if (dna == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("TasteDNA profile not found");
+    @GetMapping("/history/{id}")
+    public HistoryService.Timeline getHistory(
+            @PathVariable("id") Long id,
+            @RequestParam(defaultValue = "day") String granularity,
+            @RequestParam(required = false) List<String> traits,
+            Authentication authentication) {
+
+        SecurityUtil.requireSelf(authentication, id);
+
+        HistoryService.Granularity g;
+        try {
+            g = HistoryService.Granularity.valueOf(granularity.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            g = HistoryService.Granularity.DAY;
         }
 
-        dna.setComfort(body.getComfort());
-        dna.setRomance(body.getRomance());
-        dna.setSlowBurn(body.getSlowBurn());
-        dna.setNostalgia(body.getNostalgia());
-        dna.setSadness(body.getSadness());
+        List<Trait> filter = traits == null ? null : traits.stream()
+                .map(Trait::fromKey)
+                .filter(java.util.Objects::nonNull)
+                .toList();
 
-        TasteDNA saved = tasteRepo.save(dna);
-        return ResponseEntity.ok(saved);
+        return historyService.build(id, g, filter);
+    }
+
+    /** Forces a full replay from the rating log. Useful after a lexicon change. */
+    @PostMapping("/replay/{id}")
+    public Map<String, Object> replay(@PathVariable("id") Long id, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, id);
+        profileService.replay(id);
+        return Map.of("status", "success", "message", "Profile recomputed from rating history.");
     }
 }

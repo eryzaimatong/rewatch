@@ -1,123 +1,126 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
 import MovieFeed from "./MovieFeed";
-import Search from "./Search";
-import TasteDNA from "./TasteDNA";
+import Onboarding from "./Onboarding";
+import TasteProfile from "./TasteProfile";
 import Dashboard from "./Dashboard";
+import Community from "./Community";
+import SocialProfile from "./SocialProfile";
 import Login from "./Login";
+import BrandMark from "./BrandMark";
+import { getToken, clearSession } from "./auth";
 import "./App.css";
 
-export default function App() {
-  const [currentview, setcurrentview] = useState("movies");
-  const [userid, setuserid] = useState(null);
+function NavLinks({ linkClassName }) {
+  return (
+    <>
+      <NavLink to="/" end className={linkClassName}>
+        Home Feed
+      </NavLink>
+      <NavLink to="/watchlist" className={linkClassName}>
+        My Watchlist
+      </NavLink>
+      <NavLink to="/community" className={linkClassName}>
+        Community
+      </NavLink>
+      <NavLink to="/profile" className={linkClassName}>
+        TasteDNA Profile
+      </NavLink>
+    </>
+  );
+}
 
-  useEffect(() => {
-    checklogin();
-  }, []);
-
-  function checklogin() {
-    const savedid = localStorage.getItem("userId");
-    if (savedid) {
-      setuserid(savedid);
-    }
-  }
-
-  function handlelogout() {
-    localStorage.removeItem("userId");
-    localStorage.removeItem("username");
-    setuserid(null);
-    setcurrentview("login");
-  }
-
-  function handlelogin(id) {
-    setuserid(id);
-    setcurrentview("movies");
-  }
-
-  const username = localStorage.getItem("username") || "friend";
+function AppShell({ onLogout }) {
+  const navLinkClass = ({ isActive }) => `app-nav-link${isActive ? " active" : ""}`;
+  const mobileNavLinkClass = ({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`;
 
   return (
     <div>
-      {/* GLOBAL NAVBAR */}
-      <nav>
-        <button
-          type="button"
-          onClick={() => setcurrentview("movies")}
-          style={{
-            color: currentview === "movies" ? "#fff" : "#a1a1aa",
-            background: currentview === "movies" ? "rgba(255, 255, 255, 0.1)" : "transparent"
-          }}
-        >
-          movies
-        </button>
+      {/* Visually hidden until focused — the first Tab stop for a keyboard
+          user, letting them jump past the header/nav straight to the page
+          content instead of tabbing through three nav links every time. */}
+      <a href="#main-content" className="skip-link">Skip to main content</a>
 
-        <button
-          type="button"
-          onClick={() => setcurrentview("search")}
-          style={{
-            color: currentview === "search" ? "#fff" : "#a1a1aa",
-            background: currentview === "search" ? "rgba(255, 255, 255, 0.1)" : "transparent"
-          }}
-        >
-          search & vibe check
-        </button>
+      <header className="app-header">
+        <NavLink to="/" className="brand-mark">
+          <BrandMark />
+          RE:WATCH
+          <span className="brand-tagline header-tagline">Stories chosen for how you feel.</span>
+        </NavLink>
 
-        <button
-          type="button"
-          onClick={() => setcurrentview("tastedna")}
-          style={{
-            color: currentview === "tastedna" ? "#fff" : "#a1a1aa",
-            background: currentview === "tastedna" ? "rgba(255, 255, 255, 0.1)" : "transparent"
-          }}
-        >
-          taste dna
-        </button>
+        <nav className="app-nav" aria-label="Primary">
+          <NavLinks linkClassName={navLinkClass} />
+        </nav>
 
-        <button
-          type="button"
-          onClick={() => setcurrentview("dashboard")}
-          style={{
-            color: currentview === "dashboard" ? "#fff" : "#a1a1aa",
-            background: currentview === "dashboard" ? "rgba(255, 255, 255, 0.1)" : "transparent"
-          }}
-        >
-          my dashboard
+        <button type="button" className="logout-button" onClick={onLogout}>
+          Logout
         </button>
+      </header>
 
-        {userid ? (
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "10px" }}>
-            <span>hi {username}</span>
-            <button
-              type="button"
-              onClick={handlelogout}
-              style={{
-                background: "rgba(239, 68, 68, 0.15)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
-                color: "#fca5a5",
-                padding: "6px 12px",
-                fontSize: "12px",
-                borderRadius: "8px"
-              }}
-            >
-              logout
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setcurrentview("login")}
-            style={{ marginLeft: "auto", color: "#a855f7" }}
-          >
-            login
-          </button>
-        )}
+      <div id="main-content" tabIndex={-1} style={{ paddingTop: "20px", outline: "none" }}>
+        <Routes>
+          <Route path="/" element={<MovieFeed />} />
+          <Route path="/watchlist" element={<Dashboard />} />
+          <Route path="/community" element={<Community />} />
+          <Route path="/social/:userId" element={<SocialProfile />} />
+          <Route path="/profile" element={<TasteProfile />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+
+      {/* Bottom tab bar — only shown below the mobile breakpoint (see App.css).
+          The top nav stays in the DOM for larger viewports; both share the
+          same NavLink active-state logic via NavLinks above. */}
+      <nav className="mobile-bottom-nav" aria-label="Primary">
+        <NavLinks linkClassName={mobileNavLinkClass} />
       </nav>
-
-      {/* ACTIVE VIEW RENDERING */}
-      {currentview === "login" && <Login onLogin={handlelogin} />}
-      {currentview === "movies" && <MovieFeed />}
-      {currentview === "search" && <Search />}
-      {currentview === "tastedna" && <TasteDNA />}
-      {currentview === "dashboard" && <Dashboard />}
     </div>
+  );
+}
+
+function AuthenticatedApp({ onLogout }) {
+  const [onboarded, setonboarded] = useState(
+    localStorage.getItem("onboarded") ? true : false
+  );
+
+  function finishonboard() {
+    localStorage.setItem("onboarded", "yes");
+    setonboarded(true);
+  }
+
+  if (!onboarded) {
+    const userid = Number(localStorage.getItem("userId")) || 1;
+    return <Onboarding userid={userid} onFinish={finishonboard} />;
+  }
+
+  return <AppShell onLogout={onLogout} />;
+}
+
+function Root() {
+  const [logged, setlogged] = useState(!!getToken());
+  const navigate = useNavigate();
+
+  function handlelogin() {
+    setlogged(true);
+    navigate("/");
+  }
+
+  function dologout() {
+    clearSession();
+    setlogged(false);
+  }
+
+  if (!logged) {
+    return <Login onLogin={handlelogin} />;
+  }
+
+  return <AuthenticatedApp onLogout={dologout} />;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Root />
+    </BrowserRouter>
   );
 }

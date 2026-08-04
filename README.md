@@ -32,32 +32,31 @@ Re:Watch solves this by building a personalized Taste DNA and Story Fingerprint 
 
 ## Project Status
 
-🟡 Planning
+🟢 Working end-to-end — real auth, real recommendations, real evolving taste
+profiles. See [`docs/CASE-STUDY.md`](docs/CASE-STUDY.md) for the engineering
+detail: how a movie's emotional vector is derived, why the match score's
+explanation is guaranteed to add up, why the taste profile is replayed from
+a rating log rather than mutated in place, and an honest list of what's
+still limited.
 
 ---
 
 ## Tech Stack
 
 Frontend
-- React
-- TypeScript
-- TailwindCSS
+- React (Vite), plain CSS (no framework), `react-router-dom`, `framer-motion`
 
 Backend
-- Spring Boot
-- Java
+- Spring Boot 3 / Java 17
 
 Database
 - PostgreSQL
 
 Authentication
-- JWT
-
-AI
-- OpenAI API (Planned)
+- BCrypt password hashing + stateless JWT sessions (`spring-boot-starter-security`)
 
 Movie Data
-- TMDB API
+- TMDB API (genres + keywords, hand-authored lexicon — no LLM in the recommendation path)
 
 ---
 

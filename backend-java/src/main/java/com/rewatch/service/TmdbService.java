@@ -1,142 +1,137 @@
 package com.rewatch.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.rewatch.dto.MovieDTO;
+import com.rewatch.model.Title;
+import com.rewatch.repository.TitleRepository;
 
+/**
+ * Orchestrates the "browse TMDB" surface. Delegates HTTP to {@link TmdbClient},
+ * vector derivation to {@link EnrichmentService}, and scoring to {@link Recommender}
+ * — this class only decides which titles to show and in what order.
+ *
+ * The old version of this class computed a "match score" from a title's array
+ * index (`75 + (i*3%20)`), which meant reordering the response changed the score
+ * and the same movie could score differently in two different lists. Everything
+ * here now goes through one Recommender, so a title's score is the same wherever
+ * it appears.
+ */
 @Service
 public class TmdbService {
 
-    @Value("${tmdb.api.url}")
-    private String baseurl;
+    /** A neutral placeholder profile for anonymous / logged-out browsing. */
+    private static final long GUEST_USER_ID = 0L;
 
-    @Value("${tmdb.api.key}")
-    private String apikey;
+    private final TmdbClient tmdb;
+    private final EnrichmentService enrichmentService;
+    private final Recommender recommender;
+    private final TitleRepository titleRepo;
+    private final NlpQueryParser nlpQueryParser;
 
-    private final RestTemplate rest = new RestTemplate();
-
-    public List<MovieDTO> searchmovies(String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        String url = baseurl + "/search/movie?api_key=" + apikey + "&query=" + query;
-        Map res = rest.getForObject(url, Map.class);
-
-        if (res == null || !res.containsKey("results")) {
-            return new ArrayList<>();
-        }
-
-        List<Map<String, Object>> rawlist = (List<Map<String, Object>>) res.get("results");
-        List<MovieDTO> found = new ArrayList<>();
-
-        for (int i = 0; i < rawlist.size(); i++) {
-            Map<String, Object> item = rawlist.get(i);
-            MovieDTO m = new MovieDTO();
-
-            Object idobj = item.get("id");
-            if (idobj != null) {
-                m.setId(Long.valueOf(idobj.toString()));
-            }
-
-            Object titleobj = item.get("title");
-            if (titleobj != null) {
-                m.setTitle(titleobj.toString());
-            } else {
-                m.setTitle("Untitled");
-            }
-
-            Object overobj = item.get("overview");
-            if (overobj != null) {
-                m.setOverview(overobj.toString());
-            } else {
-                m.setOverview("No storyline available yet.");
-            }
-
-            Object posterobj = item.get("poster_path");
-            if (posterobj != null) {
-                m.setPosterPath(posterobj.toString());
-            }
-
-            Object backobj = item.get("backdrop_path");
-            if (backobj != null) {
-                m.setBackdropPath(backobj.toString());
-            }
-
-            Object dateobj = item.get("release_date");
-            if (dateobj != null) {
-                m.setReleaseDate(dateobj.toString());
-            }
-
-            m.setMatchScore(85.0 + (i % 10));
-            m.setReasons(Arrays.asList("Balanced storytelling fit", "Matches emotional tone"));
-
-            found.add(m);
-        }
-
-        return found;
+    public TmdbService(TmdbClient tmdb, EnrichmentService enrichmentService,
+                       Recommender recommender, TitleRepository titleRepo,
+                       NlpQueryParser nlpQueryParser) {
+        this.tmdb = tmdb;
+        this.enrichmentService = enrichmentService;
+        this.recommender = recommender;
+        this.titleRepo = titleRepo;
+        this.nlpQueryParser = nlpQueryParser;
     }
 
-    public List<MovieDTO> getpopular() {
-        String url = baseurl + "/movie/popular?api_key=" + apikey;
-        Map res = rest.getForObject(url, Map.class);
+    /**
+     * The main feed. Reads only the local catalog — TMDB is never called on this
+     * path, so the feed's latency and availability don't depend on it. Freshness
+     * comes from {@link EnrichmentService}'s background ingestion instead.
+     */
+    public List<MovieDTO> getpopular(Long userId) {
+        long effectiveUserId = userId == null ? GUEST_USER_ID : userId;
+        return recommender.recommend(effectiveUserId, 30, false, true);
+    }
 
-        if (res == null || !res.containsKey("results")) {
-            return new ArrayList<>();
+    @Transactional
+    public List<MovieDTO> searchmovies(String query, Long userId) {
+        if (query == null || query.trim().isEmpty()) {
+            return getpopular(userId);
+        }
+        List<Title> titles = ingestLive(tmdb.search(query), "movie");
+        return scoreAndSort(titles, userId, 30);
+    }
+
+    /**
+     * Free-text mood search. Parses the query into a target trait vector (see
+     * {@link NlpQueryParser}) and scores the LOCAL catalog against it directly,
+     * rather than against the user's profile — so "cozy anime" surfaces cozy anime
+     * regardless of what the logged-in user's taste looks like.
+     *
+     * This is the honestly-labelled "semantic search" tier: a real keyword/phrase
+     * lexicon with negation and comparative handling, not an LLM. Full comparative
+     * queries ("like Your Name but happier") are handled by {@link NlpQueryParser}.
+     */
+    @Transactional
+    public List<MovieDTO> nlpsearch(String query, Long userId) {
+        if (query == null || query.trim().isEmpty()) {
+            return getpopular(userId);
         }
 
-        List<Map<String, Object>> rawlist = (List<Map<String, Object>>) res.get("results");
-        List<MovieDTO> poplist = new ArrayList<>();
+        NlpQueryParser.ParsedQuery parsed = nlpQueryParser.parse(query, titleRepo.findAll());
+        List<Title> candidates = titleRepo.findAll();
 
-        for (int i = 0; i < rawlist.size(); i++) {
-            Map<String, Object> item = rawlist.get(i);
-            MovieDTO m = new MovieDTO();
-
-            Object idobj = item.get("id");
-            if (idobj != null) {
-                m.setId(Long.valueOf(idobj.toString()));
-            }
-
-            Object titleobj = item.get("title");
-            if (titleobj != null) {
-                m.setTitle(titleobj.toString());
-            } else {
-                m.setTitle("Untitled");
-            }
-
-            Object overobj = item.get("overview");
-            if (overobj != null) {
-                m.setOverview(overobj.toString());
-            }
-
-            Object posterobj = item.get("poster_path");
-            if (posterobj != null) {
-                m.setPosterPath(posterobj.toString());
-            }
-
-            Object backobj = item.get("backdrop_path");
-            if (backobj != null) {
-                m.setBackdropPath(backobj.toString());
-            }
-
-            Object dateobj = item.get("release_date");
-            if (dateobj != null) {
-                m.setReleaseDate(dateobj.toString());
-            }
-
-            m.setMatchScore(88.0);
-            m.setReasons(Arrays.asList("Trending masterpiece", "High emotional payoff"));
-
-            poplist.add(m);
+        List<MovieDTO> scored = new ArrayList<>(candidates.size());
+        for (Title t : candidates) {
+            MovieDTO dto = recommender.scoreAgainstVector(t, parsed.targetVector(), parsed.confidence());
+            dto.getReasons().add(0, "Matches your search: \"" + query.trim() + "\"");
+            scored.add(dto);
         }
+        scored.sort(Comparator.comparingDouble(MovieDTO::getMatchScore).reversed());
+        return scored.subList(0, Math.min(30, scored.size()));
+    }
 
-        return poplist;
+    @Transactional
+    public List<MovieDTO> getTrending(Long userId) {
+        List<Title> titles = ingestLive(tmdb.trending(), "movie");
+        return scoreKeepingOrder(titles, userId);
+    }
+
+    @Transactional
+    public List<MovieDTO> getTopRated(Long userId) {
+        List<Title> titles = ingestLive(tmdb.topRated(), "movie");
+        return scoreKeepingOrder(titles, userId);
+    }
+
+    private List<Title> ingestLive(List<TmdbClient.TmdbMovie> movies, String type) {
+        List<Title> out = new ArrayList<>(movies.size());
+        for (TmdbClient.TmdbMovie m : movies) {
+            Title t = enrichmentService.ingest(m, type);
+            if (t != null) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    private List<MovieDTO> scoreAndSort(List<Title> titles, Long userId, int limit) {
+        long effectiveUserId = userId == null ? GUEST_USER_ID : userId;
+        List<MovieDTO> scored = new ArrayList<>(titles.size());
+        for (Title t : titles) {
+            scored.add(recommender.scoreForUser(t, effectiveUserId));
+        }
+        scored.sort(Comparator.comparingDouble(MovieDTO::getMatchScore).reversed());
+        return scored.subList(0, Math.min(limit, scored.size()));
+    }
+
+    /** Scores each title but preserves TMDB's own ordering (trending/top-rated rank). */
+    private List<MovieDTO> scoreKeepingOrder(List<Title> titles, Long userId) {
+        long effectiveUserId = userId == null ? GUEST_USER_ID : userId;
+        List<MovieDTO> scored = new ArrayList<>(titles.size());
+        for (Title t : titles) {
+            scored.add(recommender.scoreForUser(t, effectiveUserId));
+        }
+        return scored;
     }
 }

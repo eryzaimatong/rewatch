@@ -1,0 +1,463 @@
+import { useEffect, useState } from "react";
+import TraitRadar from "./TraitRadar";
+import EvolutionTimeline from "./EvolutionTimeline";
+import BrandMark from "./BrandMark";
+import useModalA11y from "./useModalA11y";
+import { authHeaders } from "./auth";
+import "./App.css";
+
+function getpercent(node) {
+  if (!node) {
+    return 50;
+  }
+  return Math.round(node.val * 100);
+}
+
+// A separate component (rather than inline JSX gated by `showcard &&`) so
+// useModalA11y's mount/unmount lifecycle — the focus trap, the body scroll
+// lock — actually matches the modal's real open/close lifecycle, instead of
+// running for as long as the whole TasteProfile page is mounted.
+function ShareCardModal({
+  username, archetype, archetypeBlurb, topthree,
+  radarTraits, radarValues, radarConfidences,
+  exporting, onExport, onClose
+}) {
+  const modalRef = useModalA11y(onClose);
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="modal-card modal-card--narrow share-card"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-card-title"
+        tabIndex={-1}
+      >
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
+          <BrandMark size={30} />
+        </div>
+        <span className="eyebrow" style={{ letterSpacing: "0.2em" }}>Re:Watch TasteDNA</span>
+        <h2 id="share-card-title" style={{ margin: "0 0 6px" }}>{username}'s Card</h2>
+        <span className="share-card-badge">{archetype}</span>
+        <p className="brand-tagline" style={{ marginBottom: "var(--sp-2)" }}>
+          Stories chosen for how you feel.
+        </p>
+
+        <TraitRadar
+          traits={radarTraits}
+          primary={{ label: "Your TasteDNA", color: "#a855f7", values: radarValues, confidences: radarConfidences }}
+          size={220}
+        />
+
+        <div className="share-card-traits">
+          <p style={{ fontSize: "0.72rem", margin: "0 0 10px", textTransform: "uppercase", color: "var(--text-faint)" }}>
+            Top Storytelling Traits
+          </p>
+          {topthree.map((item, i) => (
+            <div key={item.key} className="share-card-trait-row">
+              <span>#{i + 1} {item.name}</span>
+              <span style={{ color: "var(--primary-light)", fontWeight: "700" }}>{getpercent(item.node)}%</span>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ fontSize: "0.85rem", lineHeight: "1.6", marginBottom: "var(--sp-3)", textAlign: "left" }}>
+          "{archetypeBlurb}"
+        </p>
+
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button type="button" onClick={onClose} className="btn-block">
+            Close
+          </button>
+          <button type="button" onClick={onExport} className="btn-primary btn-block" disabled={exporting}>
+            {exporting ? "Exporting..." : "Download PNG"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Fallback labels for the offline backup profile below, where the API's own
+// `label` field (the source of truth once loaded) isn't available yet.
+const TRAIT_ORDER = [
+  "nostalgia", "family", "growth", "comfort", "pacing",
+  "hope", "bitter", "humor", "romance", "intensity"
+];
+const FALLBACK_LABELS = {
+  nostalgia: "Nostalgia & Memory",
+  family: "Found Family",
+  growth: "Character Growth",
+  comfort: "Comfort & Warmth",
+  pacing: "Slow Burn Pacing",
+  hope: "Hopeful Payoff",
+  bitter: "Bittersweet Drama",
+  humor: "Humor & Lightheartedness",
+  romance: "Romance",
+  intensity: "Emotional Intensity"
+};
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(" ");
+  let line = "";
+  let cursorY = y;
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, cursorY);
+      line = word;
+      cursorY += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) {
+    ctx.fillText(line, x, cursorY);
+  }
+  return cursorY + lineHeight;
+}
+
+export default function TasteProfile() {
+  const [traits, settraits] = useState({});
+  const [archetype, setarchetype] = useState("Emotional Storyteller");
+  const [archetypeBlurb, setarchetypeBlurb] = useState("You enjoy balanced storytelling across multiple emotional tones.");
+  const [meanConfidence, setmeanConfidence] = useState(0.1);
+  const [personalized, setpersonalized] = useState(false);
+  const [loading, setloading] = useState(true);
+  const [msg, setmsg] = useState("");
+  const [err, seterr] = useState("");
+  const [showcard, setshowcard] = useState(false);
+  const [recalculating, setrecalculating] = useState(false);
+  const [exporting, setexporting] = useState(false);
+
+  const username = localStorage.getItem("username") || "friend";
+  const userid = localStorage.getItem("userId") || 1;
+
+  useEffect(() => {
+    loadprofile();
+  }, []);
+
+  async function loadprofile() {
+    setloading(true);
+    seterr("");
+
+    const res = await fetch("http://localhost:8080/api/tastedna/profile/" + userid, { headers: authHeaders() }).catch(() => null);
+
+    if (res && res.ok) {
+      const data = await res.json();
+      settraits(data.traits ?? {});
+      setarchetype(data.archetype || "Emotional Storyteller");
+      setarchetypeBlurb(data.archetypeBlurb || "");
+      setmeanConfidence(typeof data.meanConfidence === "number" ? data.meanConfidence : 0.1);
+      setpersonalized(!!data.personalized);
+      setloading(false);
+      return;
+    }
+
+    seterr("Could not reach the server — showing a sample profile instead.");
+    const backup = {
+      comfort: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.comfort },
+      family: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.family },
+      nostalgia: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.nostalgia },
+      hope: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.hope },
+      romance: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.romance },
+      bitter: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.bitter },
+      growth: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.growth },
+      pacing: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.pacing },
+      humor: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.humor },
+      intensity: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.intensity }
+    };
+    settraits(backup);
+    setloading(false);
+  }
+
+  function gettrendtext(node) {
+    if (!node || node.trend === 0) {
+      return "→ Stable";
+    }
+    return node.trend > 0 ? "↑ Rising" : "↓ Falling";
+  }
+
+  const list = TRAIT_ORDER.map((key) => ({
+    key,
+    name: traits[key]?.label || FALLBACK_LABELS[key],
+    node: traits[key]
+  }));
+
+  const sorted = [...list].sort((a, b) => getpercent(b.node) - getpercent(a.node));
+  const topthree = sorted.slice(0, 3);
+
+  const radarTraits = TRAIT_ORDER.map((key) => ({ key, label: traits[key]?.label || FALLBACK_LABELS[key] }));
+  const radarValues = {};
+  const radarConfidences = {};
+  TRAIT_ORDER.forEach((key) => {
+    radarValues[key] = traits[key]?.val ?? 0.5;
+    radarConfidences[key] = traits[key]?.conf ?? 0.1;
+  });
+
+  async function syncall() {
+    setmsg("");
+    seterr("");
+    setrecalculating(true);
+
+    const res = await fetch("http://localhost:8080/api/tastedna/replay/" + userid, {
+      method: "POST",
+      headers: authHeaders()
+    }).catch(() => null);
+
+    setrecalculating(false);
+
+    if (!res || !res.ok) {
+      seterr("Could not recompute your profile right now.");
+      return;
+    }
+
+    setmsg("Your taste profile was recomputed from your full rating history.");
+    loadprofile();
+  }
+
+  function exportTasteCardPNG() {
+    const svg = document.getElementById("profile-radar-svg");
+    if (!svg) {
+      return;
+    }
+    setexporting(true);
+
+    // A serialized SVG loaded standalone (via a blob: URL into an <img>) has no
+    // access to this page's external stylesheet — only inline styles and any
+    // <style> embedded IN the SVG itself survive. The radar's series colors are
+    // already inline (see TraitRadar.jsx), but the grid/spokes/axis-label/dot
+    // classes live in App.css and would render unstyled (or invisible) without
+    // this. Clone the node and inject a small self-contained stylesheet with
+    // literal resolved values — CSS custom properties (var(--x)) also wouldn't
+    // resolve in a detached document, so these are hex, not tokens.
+    const clone = svg.cloneNode(true);
+    const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.textContent = `
+      .radar-grid-ring { stroke: rgba(255,255,255,0.15); stroke-width: 1; }
+      .radar-spoke { stroke: rgba(255,255,255,0.085); stroke-width: 1; }
+      .radar-confidence-band { stroke: none; opacity: 0.16; }
+      .radar-series-path { stroke-width: 2; fill-opacity: 0.1; }
+      .radar-dot { stroke: #1f2029; stroke-width: 2; paint-order: stroke fill; }
+      .radar-axis-label { fill: #71717a; font-size: 0.62rem; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; }
+    `;
+    clone.insertBefore(style, clone.firstChild);
+
+    const svgData = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+
+    img.onload = () => {
+      const scale = 2;
+      const cardW = 560;
+      const cardH = 660;
+      const imgSize = 300;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = cardW * scale;
+      canvas.height = cardH * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      const grad = ctx.createLinearGradient(0, 0, cardW, cardH);
+      grad.addColorStop(0, "#1f2029");
+      grad.addColorStop(1, "#14151a");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, cardW, cardH);
+      ctx.strokeStyle = "rgba(168,85,247,0.5)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, cardW - 2, cardH - 2);
+
+      // Small aperture + inner decagon, echoing BrandMark.jsx — drawn with
+      // Canvas 2D primitives since this is a flat raster, not DOM/SVG.
+      const markCx = cardW / 2;
+      const markCy = 20;
+      const markR = 13;
+      ctx.strokeStyle = "#a855f7";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(markCx, markCy, markR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.55;
+      for (let i = 0; i < 6; i++) {
+        const a = (i * 60 * Math.PI) / 180;
+        ctx.beginPath();
+        ctx.moveTo(markCx + 10 * Math.cos(a), markCy + 10 * Math.sin(a));
+        ctx.lineTo(markCx + markR * Math.cos(a), markCy + markR * Math.sin(a));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = "#a855f7";
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 10;
+        const r = i % 2 === 0 ? 7 : 4.8;
+        const px = markCx + r * Math.cos(a);
+        const py = markCy + r * Math.sin(a);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#a855f7";
+      ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText("RE:WATCH TASTEDNA", cardW / 2, 56);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 24px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(`${username}'s Card`, cardW / 2, 92);
+
+      ctx.fillStyle = "#d8b4fe";
+      ctx.font = "bold 14px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(archetype, cardW / 2, 116);
+
+      const imgTop = 134;
+      ctx.drawImage(img, (cardW - imgSize) / 2, imgTop, imgSize, imgSize);
+
+      ctx.fillStyle = "#a1a1aa";
+      ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
+      ctx.textAlign = "left";
+      wrapText(ctx, archetypeBlurb, 32, imgTop + imgSize + 30, cardW - 64, 17);
+
+      URL.revokeObjectURL(url);
+      setexporting(false);
+
+      canvas.toBlob((blob) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `${username}-tastedna-card.png`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setexporting(false);
+    };
+
+    img.src = url;
+  }
+
+  return (
+    <div className="page-shell">
+      <div className="page-panel taste-panel">
+        <div className="taste-panel-head">
+          <div>
+            <span className="eyebrow">Evolving TasteDNA</span>
+            <h1>{username}'s Storytelling Vector</h1>
+          </div>
+
+          <button type="button" onClick={() => setshowcard(true)} className="btn-primary">
+            Export Taste Card
+          </button>
+        </div>
+
+        <p className="taste-panel-intro">
+          {personalized
+            ? "Your TasteDNA evolves from every rating you submit."
+            : "This is your starting profile — rate a few titles and it will start to move."}
+        </p>
+
+        <div className="archetype-banner">
+          <div className="archetype-banner-row">
+            <span className="archetype-label">Active Archetype: {archetype}</span>
+            <span className="archetype-confidence">{Math.round(meanConfidence * 100)}% system confidence</span>
+          </div>
+          <p className="archetype-blurb">{archetypeBlurb}</p>
+        </div>
+
+        {loading && (
+          <div className="feed-state">
+            <div className="loading-orb" />
+            <p>Loading your trait nodes...</p>
+          </div>
+        )}
+
+        {!loading && (
+          <>
+            <TraitRadar
+              svgId="profile-radar-svg"
+              traits={radarTraits}
+              primary={{ label: "Your TasteDNA", color: "#a855f7", values: radarValues, confidences: radarConfidences }}
+              size={360}
+              className="taste-panel-radar"
+            />
+
+            <EvolutionTimeline
+              userId={userid}
+              allTraits={TRAIT_ORDER.map((key) => ({ key, label: traits[key]?.label || FALLBACK_LABELS[key] }))}
+              defaultKeys={topthree.map((t) => t.key)}
+            />
+
+            <div className="trait-list" style={{ marginTop: "var(--sp-3)" }}>
+              {list.map((item) => {
+                const p = getpercent(item.node);
+                const conf = item.node ? Math.round(item.node.conf * 100) : 10;
+                const evid = item.node ? item.node.evid : 0;
+                const trendstr = gettrendtext(item.node);
+
+                return (
+                  <div key={item.key} className="trait-card">
+                    <div className="trait-card-row">
+                      <div>
+                        <span className="trait-name">{item.name}</span>
+                        <span className="trait-trend">{trendstr}</span>
+                      </div>
+                      <span className="trait-percent">{p}%</span>
+                    </div>
+
+                    <div className="trait-bar-track">
+                      <div className="trait-bar-fill" style={{ width: `${p}%` }}></div>
+                    </div>
+
+                    <div className="trait-meta-row">
+                      <span>Confidence: {conf}%</span>
+                      <span>{evid === 0 ? "No ratings yet" : `From ${evid} rating${evid === 1 ? "" : "s"}`}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {err && <p className="status-message status-message--error">{err}</p>}
+        {msg && <p className="status-message status-message--success">{msg}</p>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button type="button" onClick={syncall} className="btn-primary" disabled={recalculating}>
+            {recalculating ? "Recalculating..." : "Force Vector Recalculation"}
+          </button>
+        </div>
+      </div>
+
+      {showcard && (
+        <ShareCardModal
+          username={username}
+          archetype={archetype}
+          archetypeBlurb={archetypeBlurb}
+          topthree={topthree}
+          radarTraits={radarTraits}
+          radarValues={radarValues}
+          radarConfidences={radarConfidences}
+          exporting={exporting}
+          onExport={exportTasteCardPNG}
+          onClose={() => setshowcard(false)}
+        />
+      )}
+    </div>
+  );
+}
