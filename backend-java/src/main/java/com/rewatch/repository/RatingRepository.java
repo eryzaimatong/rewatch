@@ -22,4 +22,6 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     /** Activity feed: recent ratings from the set of users the caller follows. */
     List<Rating> findByUserIdInOrderByCreatedAtDesc(List<Long> userIds,
             org.springframework.data.domain.Pageable pageable);
+
+    void deleteByUserId(Long userId);
 }

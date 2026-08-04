@@ -6,7 +6,7 @@
 
 ## Overview
 
-Re:Watch is an AI-powered entertainment discovery platform that recommends movies, TV shows, anime, K-dramas, and books based on emotions, storytelling, cinematic style, and personal taste—not just genres.
+Re:Watch is an AI-powered entertainment discovery platform that recommends movies, TV shows, anime, and K-dramas based on emotions, storytelling, cinematic style, and personal taste—not just genres.
 
 Instead of asking:
 

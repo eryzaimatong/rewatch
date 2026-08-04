@@ -1,6 +1,7 @@
 package com.rewatch.service;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -27,15 +28,20 @@ public class RatingService {
     private final TmdbClient tmdb;
     private final EnrichmentService enrichmentService;
     private final ProfileService profileService;
+    private final NotificationService notificationService;
+
+    /** |delta| a single rating must move a trait to count as a "milestone." */
+    private static final double MILESTONE_THRESHOLD = 0.08;
 
     public RatingService(RatingRepository ratingRepo, TitleRepository titleRepo,
                          TmdbClient tmdb, EnrichmentService enrichmentService,
-                         ProfileService profileService) {
+                         ProfileService profileService, NotificationService notificationService) {
         this.ratingRepo = ratingRepo;
         this.titleRepo = titleRepo;
         this.tmdb = tmdb;
         this.enrichmentService = enrichmentService;
         this.profileService = profileService;
+        this.notificationService = notificationService;
     }
 
     public record Result(Rating rating, List<ProfileService.Shift> shifts) {}
@@ -57,7 +63,16 @@ public class RatingService {
         r.setCreatedAt(Instant.now());
         r = ratingRepo.save(r);
 
+        // replay() is also called from TasteDNAController's manual recompute and
+        // from onboarding seeding — neither of those is "a new rating just
+        // happened," so the milestone notification is fired here, not inside
+        // ProfileService.replay() itself.
         List<ProfileService.Shift> shifts = profileService.replay(dto.getUserId());
+        shifts.stream()
+                .filter(s -> Math.abs(s.delta()) >= MILESTONE_THRESHOLD)
+                .max(Comparator.comparingDouble(s -> Math.abs(s.delta())))
+                .ifPresent(s -> notificationService.notifyTasteMilestone(dto.getUserId(), s.trait(), s.delta()));
+
         return new Result(r, shifts);
     }
 

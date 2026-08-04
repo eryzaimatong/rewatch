@@ -8,7 +8,11 @@ import Dashboard from "./Dashboard";
 import Community from "./Community";
 import SocialProfile from "./SocialProfile";
 import Login from "./Login";
+import ForgotPassword from "./ForgotPassword";
+import ResetPassword from "./ResetPassword";
+import Settings from "./Settings";
 import BrandMark from "./BrandMark";
+import NotificationBell from "./NotificationBell";
 import { getToken, clearSession } from "./auth";
 import "./App.css";
 
@@ -30,6 +34,9 @@ function NavLinks({ linkClassName }) {
       <NavLink to="/wrapped" className={linkClassName}>
         Wrapped
       </NavLink>
+      <NavLink to="/settings" className={linkClassName}>
+        Settings
+      </NavLink>
     </>
   );
 }
@@ -37,6 +44,7 @@ function NavLinks({ linkClassName }) {
 function AppShell({ onLogout }) {
   const navLinkClass = ({ isActive }) => `app-nav-link${isActive ? " active" : ""}`;
   const mobileNavLinkClass = ({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`;
+  const userid = localStorage.getItem("userId");
 
   return (
     <div>
@@ -56,9 +64,12 @@ function AppShell({ onLogout }) {
           <NavLinks linkClassName={navLinkClass} />
         </nav>
 
-        <button type="button" className="logout-button" onClick={onLogout}>
-          Logout
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+          <NotificationBell userId={userid} />
+          <button type="button" className="logout-button" onClick={onLogout}>
+            Logout
+          </button>
+        </div>
       </header>
 
       <div id="main-content" tabIndex={-1} style={{ paddingTop: "20px", outline: "none" }}>
@@ -69,6 +80,7 @@ function AppShell({ onLogout }) {
           <Route path="/social/:userId" element={<SocialProfile />} />
           <Route path="/profile" element={<TasteProfile />} />
           <Route path="/wrapped" element={<Wrapped />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
@@ -115,11 +127,19 @@ function Root() {
     setlogged(false);
   }
 
-  if (!logged) {
-    return <Login onLogin={handlelogin} />;
-  }
-
-  return <AuthenticatedApp onLogout={dologout} />;
+  return (
+    <Routes>
+      {/* Reachable regardless of login state — a still-logged-in user clicking
+          an old reset-password email link should also land here, not get
+          shunted back into the app. */}
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route
+        path="/*"
+        element={logged ? <AuthenticatedApp onLogout={dologout} /> : <Login onLogin={handlelogin} />}
+      />
+    </Routes>
+  );
 }
 
 export default function App() {

@@ -159,7 +159,8 @@ public class SocialService {
                 .forEach(u -> {
                     var archetype = archetypeService.classify(profileService.currentProfile(u.getId()));
                     ranked.add(new UserSummaryDTO(u.getId(), u.getUsername(), archetype.archetype(),
-                            followRepo.existsByFollowerIdAndFolloweeId(callerId, u.getId())));
+                            followRepo.existsByFollowerIdAndFolloweeId(callerId, u.getId()),
+                            scores.get(u.getId())));
                 });
         return ranked;
     }

@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.rewatch.dto.UserSummaryDTO;
+import com.rewatch.repository.UserRepository;
 import com.rewatch.security.SecurityUtil;
+import com.rewatch.service.NotificationService;
 import com.rewatch.service.SocialService;
 
 /**
@@ -30,9 +32,14 @@ import com.rewatch.service.SocialService;
 public class SocialController {
 
     private final SocialService socialService;
+    private final NotificationService notificationService;
+    private final UserRepository userRepo;
 
-    public SocialController(SocialService socialService) {
+    public SocialController(SocialService socialService, NotificationService notificationService,
+                            UserRepository userRepo) {
         this.socialService = socialService;
+        this.notificationService = notificationService;
+        this.userRepo = userRepo;
     }
 
     @GetMapping("/profile/{userId}")
@@ -54,7 +61,13 @@ public class SocialController {
     public ResponseEntity<?> follow(@PathVariable Long userId, Authentication authentication) {
         Long callerId = requireAuth(authentication);
         try {
-            return ResponseEntity.ok(socialService.follow(callerId, userId));
+            Map<String, Object> result = socialService.follow(callerId, userId);
+            // Composed here, not inside SocialService, so NotificationService (which
+            // depends on SocialService for the DNA-match piggyback) doesn't create a
+            // circular bean dependency by also being depended on by SocialService.
+            userRepo.findById(callerId).ifPresent(caller ->
+                    notificationService.notifyNewFollower(userId, callerId, caller.getUsername()));
+            return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("status", "error", "message", e.getMessage()));

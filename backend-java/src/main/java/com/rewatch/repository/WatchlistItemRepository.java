@@ -22,4 +22,6 @@ public interface WatchlistItemRepository extends JpaRepository<WatchlistItem, Lo
     long countByUserId(Long userId);
 
     List<WatchlistItem> findByFolderIdOrderByAddedAtDesc(Long folderId);
+
+    void deleteByUserId(Long userId);
 }

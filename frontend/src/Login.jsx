@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { login, register } from "./api";
 import { saveSession } from "./auth";
 import BrandMark from "./BrandMark";
@@ -101,6 +102,12 @@ export default function Login({ onLogin }) {
             {loading ? "Please wait..." : isreg ? "Register & Enter" : "Sign In"}
           </button>
         </form>
+
+        {!isreg && (
+          <div className="auth-toggle">
+            <Link to="/forgot-password" className="auth-toggle-link">Forgot password?</Link>
+          </div>
+        )}
 
         <div className="auth-toggle">
           {isreg ? "Already have an account? " : "New to Re:Watch? "}

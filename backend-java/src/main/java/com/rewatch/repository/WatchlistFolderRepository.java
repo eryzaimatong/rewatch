@@ -16,4 +16,6 @@ public interface WatchlistFolderRepository extends JpaRepository<WatchlistFolder
     Optional<WatchlistFolder> findByUserIdAndName(Long userId, String name);
 
     boolean existsByIdAndUserId(Long id, Long userId);
+
+    void deleteByUserId(Long userId);
 }

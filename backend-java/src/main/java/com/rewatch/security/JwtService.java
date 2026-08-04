@@ -29,27 +29,37 @@ public class JwtService {
         this.expirationMs = expirationMs;
     }
 
-    public String issue(Long userId, String username) {
+    /**
+     * @param tokenVersion the issuing user's User.tokenVersion at issue time, embedded
+     *                     as the "tv" claim. JwtAuthFilter rejects the token once this
+     *                     no longer matches the live column — see User.tokenVersion's
+     *                     javadoc for why this is the app's whole revocation mechanism.
+     */
+    public String issue(Long userId, String username, int tokenVersion) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
+                .claim("tv", tokenVersion)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith((SecretKey) signingKey)
                 .compact();
     }
 
-    /** Returns the authenticated user id, or null if the token is missing/expired/invalid. */
-    public Long validateAndGetUserId(String token) {
+    public record ValidatedToken(Long userId, int tokenVersion) {}
+
+    /** Returns the parsed userId+tokenVersion, or null if the token is missing/expired/invalid. */
+    public ValidatedToken validate(String token) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith((SecretKey) signingKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            return Long.valueOf(claims.getSubject());
+            Integer tv = claims.get("tv", Integer.class);
+            return new ValidatedToken(Long.valueOf(claims.getSubject()), tv == null ? 0 : tv);
         } catch (JwtException | IllegalArgumentException e) {
             return null;
         }

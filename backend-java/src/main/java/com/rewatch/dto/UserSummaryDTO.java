@@ -8,13 +8,21 @@ public class UserSummaryDTO {
     private String archetype;
     private boolean isFollowing;
 
+    /** Only populated by dnaMatches() — 0 elsewhere (followers/following lists don't rank by it). */
+    private double matchScore;
+
     public UserSummaryDTO() {}
 
     public UserSummaryDTO(Long userId, String username, String archetype, boolean isFollowing) {
+        this(userId, username, archetype, isFollowing, 0.0);
+    }
+
+    public UserSummaryDTO(Long userId, String username, String archetype, boolean isFollowing, double matchScore) {
         this.userId = userId;
         this.username = username;
         this.archetype = archetype;
         this.isFollowing = isFollowing;
+        this.matchScore = matchScore;
     }
 
     public Long getUserId() { return userId; }
@@ -28,4 +36,7 @@ public class UserSummaryDTO {
 
     public boolean isFollowing() { return isFollowing; }
     public void setFollowing(boolean v) { this.isFollowing = v; }
+
+    public double getMatchScore() { return matchScore; }
+    public void setMatchScore(double v) { this.matchScore = v; }
 }

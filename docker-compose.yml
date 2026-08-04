@@ -28,6 +28,10 @@ services:
       TMDB_API_KEY: ${TMDB_API_KEY:?TMDB_API_KEY must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set — generate one with e.g. openssl rand -base64 48}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME must be set (a Gmail address)}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD must be set (a Gmail App Password)}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:5173}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     ports:
       - "8080:8080"
     healthcheck:

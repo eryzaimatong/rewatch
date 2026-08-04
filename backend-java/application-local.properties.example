@@ -7,3 +7,11 @@
 
 spring.datasource.password=your_local_postgres_password
 tmdb.api.key=your_tmdb_api_key
+
+# Gmail address + an App Password (myaccount.google.com/apppasswords), not your
+# real Gmail password. Needed for the forgot-password flow to actually send mail.
+spring.mail.username=your_gmail_address@gmail.com
+spring.mail.password=your_16_char_app_password
+
+# Your own email, to test the admin-role bootstrap (see AuthController).
+rewatch.admin.emails=your_gmail_address@gmail.com

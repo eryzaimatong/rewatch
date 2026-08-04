@@ -59,6 +59,12 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Password-reset emails -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- JWT issuing/parsing for the stateless auth filter -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

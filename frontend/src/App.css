@@ -506,6 +506,103 @@ input[type="range"] {
 }
 
 /* ==========================================
+   NOTIFICATION BELL
+   ========================================== */
+
+.notification-bell-wrap {
+  position: relative;
+}
+
+.notification-bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--neutral-border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.notification-bell:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 1050;
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-elevated, var(--surface));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.notification-panel-title {
+  margin: 4px 8px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.notification-panel-empty {
+  margin: 12px 8px;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.notification-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 8px;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.notification-item:hover {
+  background: var(--surface-soft);
+}
+
+.notification-item-message {
+  font-size: 0.84rem;
+  color: var(--text);
+}
+
+.notification-item-time {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+/* ==========================================
    ACCESSIBILITY: SKIP LINK
    ========================================== */
 
@@ -1657,6 +1754,33 @@ input[type="range"] {
 
 .shift-toast-text strong {
   color: var(--primary-light);
+}
+
+/* Floats over the page rather than sitting in a modal's document flow —
+   unlike the in-modal shift-toast above, this one needs to survive after
+   whatever triggered it (e.g. a watchlist card) has already re-rendered. */
+.undo-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1100;
+  max-width: 360px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.undo-toast-action {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary-light);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.undo-toast-action:hover {
+  background: rgba(168, 85, 247, 0.15);
 }
 
 /* ==========================================

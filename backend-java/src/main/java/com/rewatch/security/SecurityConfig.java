@@ -48,16 +48,26 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> {})
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
-                // Spring Security's own default here is 403, which conflates "not
-                // logged in" with "logged in as the wrong user" (the latter is
-                // SecurityUtil.requireSelf's 403). Split them: missing/invalid/
-                // expired token is 401, so the frontend knows to send the user to
-                // login rather than just showing a generic error.
-                response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.getWriter().write("{\"status\":\"error\",\"message\":\"Login required\"}");
-            }))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    // Spring Security's own default here is 403, which conflates "not
+                    // logged in" with "logged in as the wrong user" (the latter is
+                    // SecurityUtil.requireSelf's 403). Split them: missing/invalid/
+                    // expired token is 401, so the frontend knows to send the user to
+                    // login rather than just showing a generic error.
+                    response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.getWriter().write("{\"status\":\"error\",\"message\":\"Login required\"}");
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    // Explicit, not left to Spring's default: a real, non-anonymous
+                    // ROLE_USER token hitting /api/admin/** (hasRole("ADMIN")) needs to
+                    // land here as a genuine 403 ("you're someone, just not allowed"),
+                    // not get folded into the 401 authenticationEntryPoint above.
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.getWriter().write("{\"status\":\"error\",\"message\":\"Forbidden\"}");
+                }))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
@@ -66,6 +76,7 @@ public class SecurityConfig {
                         "/api/movies/nlp-search", "/api/movies/search-suggestions",
                         "/api/movies/trending", "/api/movies/top-rated")
                     .permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

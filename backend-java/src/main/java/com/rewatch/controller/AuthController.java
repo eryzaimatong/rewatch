@@ -1,8 +1,11 @@
 package com.rewatch.controller;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.rewatch.model.User;
 import com.rewatch.repository.UserRepository;
 import com.rewatch.security.JwtService;
+import com.rewatch.service.PasswordResetService;
 
 /**
  * Real auth: passwords are BCrypt-hashed at rest, compared via the encoder (not
@@ -28,11 +32,21 @@ public class AuthController {
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final PasswordResetService passwordResetService;
+    private final List<String> adminEmails;
 
-    public AuthController(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthController(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtService jwtService,
+                          PasswordResetService passwordResetService,
+                          @Value("${rewatch.admin.emails}") String adminEmailsCsv) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.passwordResetService = passwordResetService;
+        this.adminEmails = Arrays.stream(adminEmailsCsv.split(","))
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .filter(s -> !s.isBlank())
+                .toList();
     }
 
     @PostMapping("/register")
@@ -51,6 +65,9 @@ public class AuthController {
         }
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        if (isAdminEmail(user.getEmail())) {
+            user.setRole(User.Role.ADMIN);
+        }
 
         // No TasteDNA row to seed anymore: a freshly registered user simply has no
         // UserTrait rows yet, and ProfileService.currentProfile() correctly falls
@@ -70,11 +87,40 @@ public class AuthController {
         }
 
         if (user != null && password != null && passwordEncoder.matches(password, user.getPassword())) {
+            // Self-healing admin grant: covers the realistic case of ADMIN_EMAILS
+            // being set (or changed) after the account already exists, since you
+            // can't register against an env var that isn't set yet on a fresh deploy.
+            if (isAdminEmail(user.getEmail()) && user.getRole() != User.Role.ADMIN) {
+                user.setRole(User.Role.ADMIN);
+                user = userRepo.save(user);
+            }
             return ResponseEntity.ok(sessionResponse(user, "Login successful"));
         }
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("status", "error", "message", "Invalid username/email or password"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
+        passwordResetService.requestReset(body.get("email"));
+        return ResponseEntity.ok(Map.of("status", "success",
+                "message", "If that email is registered, a reset link is on its way."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
+        try {
+            passwordResetService.resetPassword(body.get("token"), body.get("newPassword"));
+            return ResponseEntity.ok(Map.of("status", "success", "message", "Password reset. Please log in."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    private boolean isAdminEmail(String email) {
+        return email != null && adminEmails.contains(email.trim().toLowerCase());
     }
 
     private Map<String, Object> sessionResponse(User user, String message) {
@@ -83,7 +129,7 @@ public class AuthController {
         response.put("userId", user.getId());
         response.put("username", user.getUsername());
         response.put("email", user.getEmail());
-        response.put("token", jwtService.issue(user.getId(), user.getUsername()));
+        response.put("token", jwtService.issue(user.getId(), user.getUsername(), user.getTokenVersion()));
         return response;
     }
 }

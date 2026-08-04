@@ -4,7 +4,11 @@ import { authHeaders } from "./auth";
 import MatchRing from "./MatchRing";
 import MovieModal from "./MovieModal";
 import EvolutionTimeline from "./EvolutionTimeline";
+import ConfirmDialog from "./ConfirmDialog";
+import UndoToast from "./UndoToast";
 import "./App.css";
+
+const UNDO_WINDOW_MS = 5000;
 
 const FALLBACK_POSTER = "https://placehold.co/500x750/191a21/a855f7?text=Re:Watch";
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -74,6 +78,9 @@ export default function Dashboard() {
   const [discoveries, setdiscoveries] = useState([]);
   const [selectedmovie, setselectedmovie] = useState(null);
 
+  const [confirmingRemoveId, setconfirmingRemoveId] = useState(null);
+  const [pendingRemoval, setpendingRemoval] = useState(null); // { item, timerId }
+
   const username = localStorage.getItem("username") || "friend";
   const userid = localStorage.getItem("userId");
 
@@ -141,15 +148,55 @@ export default function Dashboard() {
     setselectedmovie({ ...item, id: item.tmdbId ?? item.titleId });
   }
 
-  async function removeitem(itemId) {
+  function requestremove(itemId) {
+    setconfirmingRemoveId(itemId);
+  }
+
+  // Optimistic remove with a delayed commit: the item disappears immediately
+  // and an undo toast appears; the actual DELETE only fires if the toast
+  // expires without Undo being clicked. No backend soft-delete needed for this.
+  function confirmremove() {
+    const itemId = confirmingRemoveId;
+    setconfirmingRemoveId(null);
+    if (!itemId) return;
+
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    // Only one pending-removal slot: removing a second item while the first's
+    // undo window is still open flushes the first immediately rather than
+    // juggling multiple timers.
+    if (pendingRemoval) {
+      clearTimeout(pendingRemoval.timerId);
+      doRemoveOnBackend(pendingRemoval.item.id);
+    }
+
+    setitems((current) => current.filter((i) => i.id !== itemId));
+
+    const timerId = setTimeout(() => {
+      doRemoveOnBackend(itemId);
+      setpendingRemoval(null);
+    }, UNDO_WINDOW_MS);
+
+    setpendingRemoval({ item, timerId });
+  }
+
+  function undoremove() {
+    if (!pendingRemoval) return;
+    clearTimeout(pendingRemoval.timerId);
+    setitems((current) => [pendingRemoval.item, ...current]);
+    setpendingRemoval(null);
+  }
+
+  async function doRemoveOnBackend(itemId) {
     if (!userid) return;
-    const res = await fetch(`${BASE}/api/watchlist/items/${itemId}?userId=${userid}`, {
+    // No rollback UI on failure — matches this component's existing
+    // error-handling depth for background mutations (moveitem/createfolder
+    // also don't surface a failure message).
+    await fetch(`${BASE}/api/watchlist/items/${itemId}?userId=${userid}`, {
       method: "DELETE",
       headers: authHeaders()
     }).catch(() => null);
-    if (res && res.ok) {
-      setitems((current) => current.filter((item) => item.id !== itemId));
-    }
   }
 
   async function moveitem(itemId, folderId) {
@@ -405,7 +452,7 @@ export default function Dashboard() {
                   >
                     ▶ Watch Trailer
                   </button>
-                  <button type="button" className="details-button" onClick={() => removeitem(item.id)}>
+                  <button type="button" className="details-button" onClick={() => requestremove(item.id)}>
                     Remove
                   </button>
                 </div>
@@ -417,6 +464,20 @@ export default function Dashboard() {
 
       {selectedmovie && (
         <MovieModal movie={selectedmovie} onClose={() => setselectedmovie(null)} />
+      )}
+
+      {confirmingRemoveId && (
+        <ConfirmDialog
+          title="Remove this from your watchlist?"
+          message="You'll have a few seconds to undo this after removing."
+          confirmLabel="Remove"
+          onConfirm={confirmremove}
+          onCancel={() => setconfirmingRemoveId(null)}
+        />
+      )}
+
+      {pendingRemoval && (
+        <UndoToast message={`Removed "${pendingRemoval.item.title}"`} onUndo={undoremove} />
       )}
     </div>
   );
