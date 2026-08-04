@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { getrecs, gettitles } from "./api";
+import { getrecs, gettitles, BASE } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
 import MatchRing from "./MatchRing";
@@ -248,7 +248,7 @@ export default function MovieFeed() {
       return;
     }
 
-    const res = await fetch(`http://localhost:8080/api/tastedna/profile/${userId}`, { headers: authHeaders() }).catch(() => null);
+    const res = await fetch(`${BASE}/api/tastedna/profile/${userId}`, { headers: authHeaders() }).catch(() => null);
     const data = res && res.ok ? await res.json() : null;
 
     if (!data || !data.personalized || !data.traits) {
@@ -267,7 +267,7 @@ export default function MovieFeed() {
     const userId = localStorage.getItem("userId");
     if (!userId) return;
 
-    const res = await fetch(`http://localhost:8080/api/watchlist/${userId}`, { headers: authHeaders() }).catch(() => null);
+    const res = await fetch(`${BASE}/api/watchlist/${userId}`, { headers: authHeaders() }).catch(() => null);
     const items = res && res.ok ? await res.json() : null;
     if (!Array.isArray(items)) return;
 
@@ -284,9 +284,9 @@ export default function MovieFeed() {
     if (!userId) return;
 
     const [trendingRes, lovedRes, dnaRes] = await Promise.all([
-      fetch(`http://localhost:8080/api/movies/trending`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/discovery/because-you-loved/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/discovery/similar-dna/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null)
+      fetch(`${BASE}/api/movies/trending`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/discovery/because-you-loved/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/discovery/similar-dna/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null)
     ]);
 
     if (trendingRes && trendingRes.ok) {
@@ -325,7 +325,7 @@ export default function MovieFeed() {
     // The backend derives the personalizing id from the JWT (see TmdbController),
     // not a query param — a permitAll route that trusted `?userId=` would let
     // anyone read anyone's personalized feed without logging in.
-    const tmdbRes = await fetch("http://localhost:8080/api/movies/popular", { headers: authHeaders() }).catch(() => null);
+    const tmdbRes = await fetch(`${BASE}/api/movies/popular`, { headers: authHeaders() }).catch(() => null);
 
     if (tmdbRes && tmdbRes.ok) {
       const liveData = await tmdbRes.json();
@@ -364,7 +364,7 @@ export default function MovieFeed() {
         setsuggestions([]);
         return;
       }
-      fetch(`http://localhost:8080/api/movies/search-suggestions?query=${encodeURIComponent(query)}`, { headers: authHeaders() })
+      fetch(`${BASE}/api/movies/search-suggestions?query=${encodeURIComponent(query)}`, { headers: authHeaders() })
         .then((res) => (res.ok ? res.json() : []))
         .then((data) => setsuggestions(Array.isArray(data) ? data : []))
         .catch(() => setsuggestions([]));
@@ -384,10 +384,10 @@ export default function MovieFeed() {
     setLoading(true);
     setError("");
 
-    let res = await fetch("http://localhost:8080/api/movies/nlp-search?query=" + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
+    let res = await fetch(`${BASE}/api/movies/nlp-search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
 
     if (!res || !res.ok) {
-      res = await fetch("http://localhost:8080/api/movies/search?query=" + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
+      res = await fetch(`${BASE}/api/movies/search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
     }
 
     if (!res || !res.ok) {
@@ -450,7 +450,7 @@ export default function MovieFeed() {
     const existingItemId = saveditemsbymovieid[key];
 
     if (existingItemId) {
-      const res = await fetch(`http://localhost:8080/api/watchlist/items/${existingItemId}?userId=${userId}`, {
+      const res = await fetch(`${BASE}/api/watchlist/items/${existingItemId}?userId=${userId}`, {
         method: "DELETE",
         headers: authHeaders()
       }).catch(() => null);
@@ -464,7 +464,7 @@ export default function MovieFeed() {
       return;
     }
 
-    const res = await fetch("http://localhost:8080/api/watchlist/items", {
+    const res = await fetch(`${BASE}/api/watchlist/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({

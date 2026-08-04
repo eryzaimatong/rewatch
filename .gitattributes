@@ -1,0 +1,3 @@
+# mvnw's shebang breaks if checked out with CRLF on a Windows contributor's
+# machine (default when core.autocrlf=true) and then run in CI on Linux.
+backend-java/mvnw text eol=lf

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { gettastedna } from "./api";
+import { gettastedna, BASE } from "./api";
 import { authHeaders } from "./auth";
 import MatchRing from "./MatchRing";
 import MovieModal from "./MovieModal";
@@ -98,10 +98,10 @@ export default function Dashboard() {
     }
 
     const [watchlistRes, foldersRes, recsRes, gemsRes] = await Promise.all([
-      fetch(`http://localhost:8080/api/watchlist/${userid}`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/watchlist/${userid}/folders`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/recommendations/${userid}?limit=1`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/discovery/hidden-gems/${userid}?limit=4`, { headers: authHeaders() }).catch(() => null)
+      fetch(`${BASE}/api/watchlist/${userid}`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/watchlist/${userid}/folders`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/recommendations/${userid}?limit=1`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/discovery/hidden-gems/${userid}?limit=4`, { headers: authHeaders() }).catch(() => null)
     ]);
 
     if (watchlistRes && watchlistRes.ok) {
@@ -143,7 +143,7 @@ export default function Dashboard() {
 
   async function removeitem(itemId) {
     if (!userid) return;
-    const res = await fetch(`http://localhost:8080/api/watchlist/items/${itemId}?userId=${userid}`, {
+    const res = await fetch(`${BASE}/api/watchlist/items/${itemId}?userId=${userid}`, {
       method: "DELETE",
       headers: authHeaders()
     }).catch(() => null);
@@ -154,7 +154,7 @@ export default function Dashboard() {
 
   async function moveitem(itemId, folderId) {
     if (!userid) return;
-    const res = await fetch(`http://localhost:8080/api/watchlist/items/${itemId}/folder`, {
+    const res = await fetch(`${BASE}/api/watchlist/items/${itemId}/folder`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ userId: userid, folderId })
@@ -167,7 +167,7 @@ export default function Dashboard() {
 
   async function createfolder() {
     if (!userid || !newfoldername.trim()) return;
-    const res = await fetch("http://localhost:8080/api/watchlist/folders", {
+    const res = await fetch(`${BASE}/api/watchlist/folders`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ userId: userid, name: newfoldername.trim() })

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import TraitRadar from "./TraitRadar";
 import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
+import { BASE } from "./api";
 import "./App.css";
 
 // Matches the validated pair in TraitRadar.jsx: purple (user) vs #0284c7
@@ -73,7 +74,7 @@ export default function MovieModal({ movie, onClose }) {
     setmatchLoading(true);
     setmatchError("");
 
-    const res = await fetch(`http://localhost:8080/api/titles/${titleId}/match?userId=${encodeURIComponent(uid)}`, { headers: authHeaders() }).catch(() => null);
+    const res = await fetch(`${BASE}/api/titles/${titleId}/match?userId=${encodeURIComponent(uid)}`, { headers: authHeaders() }).catch(() => null);
     const data = res && res.ok ? await res.json() : null;
 
     if (!data) {
@@ -131,7 +132,7 @@ export default function MovieModal({ movie, onClose }) {
       moment: moment
     };
 
-    const res = await fetch("http://localhost:8080/api/movies/rate", {
+    const res = await fetch(`${BASE}/api/movies/rate`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload)

@@ -4,6 +4,7 @@ import EvolutionTimeline from "./EvolutionTimeline";
 import BrandMark from "./BrandMark";
 import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
+import { BASE } from "./api";
 import "./App.css";
 
 function getpercent(node) {
@@ -149,7 +150,7 @@ export default function TasteProfile() {
     setloading(true);
     seterr("");
 
-    const res = await fetch("http://localhost:8080/api/tastedna/profile/" + userid, { headers: authHeaders() }).catch(() => null);
+    const res = await fetch(`${BASE}/api/tastedna/profile/` + userid, { headers: authHeaders() }).catch(() => null);
 
     if (res && res.ok) {
       const data = await res.json();
@@ -208,7 +209,7 @@ export default function TasteProfile() {
     seterr("");
     setrecalculating(true);
 
-    const res = await fetch("http://localhost:8080/api/tastedna/replay/" + userid, {
+    const res = await fetch(`${BASE}/api/tastedna/replay/` + userid, {
       method: "POST",
       headers: authHeaders()
     }).catch(() => null);

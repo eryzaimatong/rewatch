@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { authHeaders } from "./auth";
+import { BASE } from "./api";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
@@ -29,8 +30,8 @@ export default function Community() {
     setloading(true);
     seterr("");
     const [matchesRes, feedRes] = await Promise.all([
-      fetch(`http://localhost:8080/api/social/dna-matches/${userid}`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/social/${userid}/activity-feed`, { headers: authHeaders() }).catch(() => null)
+      fetch(`${BASE}/api/social/dna-matches/${userid}`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/social/${userid}/activity-feed`, { headers: authHeaders() }).catch(() => null)
     ]);
     if (matchesRes && matchesRes.ok) {
       setmatches(await matchesRes.json());

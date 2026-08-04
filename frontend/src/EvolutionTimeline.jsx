@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { authHeaders } from "./auth";
+import { BASE } from "./api";
 
 /**
  * Multi-line evolution chart, reading `/api/tastedna/history/{userId}` —
@@ -48,7 +49,7 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
 
   async function loadHistory() {
     setLoading(true);
-    const res = await fetch(`http://localhost:8080/api/tastedna/history/${userId}?granularity=day`, { headers: authHeaders() }).catch(() => null);
+    const res = await fetch(`${BASE}/api/tastedna/history/${userId}?granularity=day`, { headers: authHeaders() }).catch(() => null);
     const data = res && res.ok ? await res.json() : null;
     setHistory(data);
     setLoading(false);

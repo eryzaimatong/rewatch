@@ -60,6 +60,7 @@ public class SecurityConfig {
             }))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/titles").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/movies/popular", "/api/movies/search",
                         "/api/movies/nlp-search", "/api/movies/search-suggestions",

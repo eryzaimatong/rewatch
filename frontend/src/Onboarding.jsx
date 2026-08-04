@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authHeaders } from "./auth";
+import { BASE } from "./api";
 import "./App.css";
 
 const MOVIES = [
@@ -73,7 +74,7 @@ export default function Onboarding({ onFinish }) {
       runtime: runtime
     };
 
-    const res = await fetch("http://localhost:8080/api/movies/onboard", {
+    const res = await fetch(`${BASE}/api/movies/onboard`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload)

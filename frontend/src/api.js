@@ -1,6 +1,6 @@
 import { authHeaders } from "./auth";
 
-const BASE = "http://localhost:8080";
+export const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
 
 export async function gettitles() {
   const res = await fetch(`${BASE}/api/titles`);

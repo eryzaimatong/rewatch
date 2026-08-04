@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import TraitRadar from "./TraitRadar";
 import { authHeaders } from "./auth";
+import { BASE } from "./api";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
@@ -31,9 +32,9 @@ export default function SocialProfile() {
     setloading(true);
     seterr("");
     const [profileRes, listsRes, reviewsRes] = await Promise.all([
-      fetch(`http://localhost:8080/api/social/profile/${userId}`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/social/${userId}/lists`, { headers: authHeaders() }).catch(() => null),
-      fetch(`http://localhost:8080/api/social/${userId}/reviews`, { headers: authHeaders() }).catch(() => null)
+      fetch(`${BASE}/api/social/profile/${userId}`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/social/${userId}/lists`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/social/${userId}/reviews`, { headers: authHeaders() }).catch(() => null)
     ]);
 
     if (profileRes && profileRes.ok) {
@@ -57,7 +58,7 @@ export default function SocialProfile() {
     if (!profile || followBusy) return;
     setfollowBusy(true);
     const method = profile.isFollowing ? "DELETE" : "POST";
-    const res = await fetch(`http://localhost:8080/api/social/follow/${userId}`, {
+    const res = await fetch(`${BASE}/api/social/follow/${userId}`, {
       method,
       headers: authHeaders()
     }).catch(() => null);
