@@ -1,6 +1,8 @@
 package com.rewatch.controller;
 
 import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.ArchetypeService;
 import com.rewatch.service.HistoryService;
 import com.rewatch.service.ProfileService;
+import com.rewatch.service.WrappedService;
 
 /**
  * Every value returned here traces to a real, persisted rating. The old version
@@ -35,13 +38,16 @@ public class TasteDNAController {
     private final ArchetypeService archetypeService;
     private final HistoryService historyService;
     private final RatingRepository ratingRepo;
+    private final WrappedService wrappedService;
 
     public TasteDNAController(ProfileService profileService, ArchetypeService archetypeService,
-                              HistoryService historyService, RatingRepository ratingRepo) {
+                              HistoryService historyService, RatingRepository ratingRepo,
+                              WrappedService wrappedService) {
         this.profileService = profileService;
         this.archetypeService = archetypeService;
         this.historyService = historyService;
         this.ratingRepo = ratingRepo;
+        this.wrappedService = wrappedService;
     }
 
     @GetMapping("/profile/{id}")
@@ -102,6 +108,31 @@ public class TasteDNAController {
                 .toList();
 
         return historyService.build(id, g, filter);
+    }
+
+    /**
+     * "Your month" recap. `month` is `YYYY-MM`; defaults to the current calendar
+     * month (UTC) when omitted. Everything in the response is a read over data
+     * that already exists for the profile/history endpoints — see WrappedService.
+     */
+    @GetMapping("/wrapped/{id}")
+    public WrappedService.WrappedSummary wrapped(
+            @PathVariable("id") Long id,
+            @RequestParam(required = false) String month,
+            Authentication authentication) {
+
+        SecurityUtil.requireSelf(authentication, id);
+
+        YearMonth ym;
+        try {
+            ym = month == null || month.isBlank()
+                    ? YearMonth.now(ZoneOffset.UTC)
+                    : YearMonth.parse(month);
+        } catch (java.time.format.DateTimeParseException e) {
+            ym = YearMonth.now(ZoneOffset.UTC);
+        }
+
+        return wrappedService.build(id, ym);
     }
 
     /** Forces a full replay from the rating log. Useful after a lexicon change. */

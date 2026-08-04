@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "re
 import MovieFeed from "./MovieFeed";
 import Onboarding from "./Onboarding";
 import TasteProfile from "./TasteProfile";
+import Wrapped from "./Wrapped";
 import Dashboard from "./Dashboard";
 import Community from "./Community";
 import SocialProfile from "./SocialProfile";
@@ -25,6 +26,9 @@ function NavLinks({ linkClassName }) {
       </NavLink>
       <NavLink to="/profile" className={linkClassName}>
         TasteDNA Profile
+      </NavLink>
+      <NavLink to="/wrapped" className={linkClassName}>
+        Wrapped
       </NavLink>
     </>
   );
@@ -64,6 +68,7 @@ function AppShell({ onLogout }) {
           <Route path="/community" element={<Community />} />
           <Route path="/social/:userId" element={<SocialProfile />} />
           <Route path="/profile" element={<TasteProfile />} />
+          <Route path="/wrapped" element={<Wrapped />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

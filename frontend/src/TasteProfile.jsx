@@ -5,6 +5,7 @@ import BrandMark from "./BrandMark";
 import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
+import { drawBrandMark } from "./canvasBrandMark";
 import "./App.css";
 
 function getpercent(node) {
@@ -280,36 +281,7 @@ export default function TasteProfile() {
 
       // Small aperture + inner decagon, echoing BrandMark.jsx — drawn with
       // Canvas 2D primitives since this is a flat raster, not DOM/SVG.
-      const markCx = cardW / 2;
-      const markCy = 20;
-      const markR = 13;
-      ctx.strokeStyle = "#a855f7";
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.arc(markCx, markCy, markR, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 0.55;
-      for (let i = 0; i < 6; i++) {
-        const a = (i * 60 * Math.PI) / 180;
-        ctx.beginPath();
-        ctx.moveTo(markCx + 10 * Math.cos(a), markCy + 10 * Math.sin(a));
-        ctx.lineTo(markCx + markR * Math.cos(a), markCy + markR * Math.sin(a));
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = "#a855f7";
-      ctx.beginPath();
-      for (let i = 0; i < 10; i++) {
-        const a = -Math.PI / 2 + (i * 2 * Math.PI) / 10;
-        const r = i % 2 === 0 ? 7 : 4.8;
-        const px = markCx + r * Math.cos(a);
-        const py = markCy + r * Math.sin(a);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      drawBrandMark(ctx, cardW / 2, 20, 13);
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#a855f7";

@@ -62,13 +62,20 @@ Movie Data
 
 ## Core Features
 
-- Mood Search
-- Taste DNA
-- Story Fingerprint
-- Explainable Recommendations
+Shipped:
+- Mood Search (natural-language query → titles, with a keyword-search fallback)
+- Taste DNA (per-user trait profile, replayed from a rating log)
+- Story Fingerprint / Explainable Recommendations (every match score comes
+  with the trait contributions that produced it)
+- Taste Evolution (trait profile plotted over time, with milestones)
+- Discovery (hidden gems, "because you loved X", similar-DNA titles)
+- Social (public profiles, follow, DNA-based match suggestions, activity feed)
+- Watchlist (folders, items)
+- Monthly Wrapped (a calendar-month recap: trait movement, top-rated titles,
+  exportable as a share card)
+
+Planned, not yet built:
 - Watch Together
-- Monthly Wrapped
-- Taste Evolution
 
 ---
 
