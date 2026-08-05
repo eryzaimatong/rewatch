@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { login, register } from "./api";
 import { saveSession } from "./auth";
 import BrandMark from "./BrandMark";
+import Footer from "./Footer";
 import "./App.css";
 
 export default function Login({ onLogin }) {
@@ -57,6 +58,7 @@ export default function Login({ onLogin }) {
   }
 
   return (
+    <>
     <div className="auth-shell">
       <div className="auth-card">
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
@@ -124,5 +126,7 @@ export default function Login({ onLogin }) {
         </div>
       </div>
     </div>
+    <Footer />
+    </>
   );
 }

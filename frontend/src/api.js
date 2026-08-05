@@ -104,6 +104,39 @@ export async function markAllNotificationsRead(userId) {
   }).catch(() => null);
 }
 
+export async function blockUser(userId) {
+  const res = await fetch(`${BASE}/api/social/block/${userId}`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function unblockUser(userId) {
+  const res = await fetch(`${BASE}/api/social/block/${userId}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function getBlockedUsers() {
+  const res = await fetch(`${BASE}/api/social/blocked`, { headers: authHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function fileReport(reportedUserId, reason, details) {
+  const res = await fetch(`${BASE}/api/reports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ reportedUserId, reason, details })
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function gettastedna(id) {
   const res = await fetch(`${BASE}/api/tastedna/profile/${id}`, { headers: authHeaders() });
   if (!res.ok) {

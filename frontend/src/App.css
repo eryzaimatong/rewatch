@@ -656,6 +656,33 @@ input[type="range"] {
 }
 
 /* ==========================================
+   FOOTER
+   ========================================== */
+
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+
+  padding: var(--sp-3);
+  margin-top: var(--sp-4);
+
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+
+.app-footer a {
+  color: var(--text-faint);
+  text-decoration: underline;
+}
+
+.app-footer a:hover {
+  color: var(--text-muted);
+}
+
+/* ==========================================
    AUTH (LOGIN / REGISTER)
    ========================================== */
 
@@ -2699,6 +2726,12 @@ input[type="range"] {
 
     background: rgba(10, 10, 14, 0.92);
     backdrop-filter: blur(18px);
+  }
+
+  /* .mobile-bottom-nav is fixed to the viewport bottom at this breakpoint —
+     without this the footer's last line sits underneath it. */
+  .app-footer {
+    margin-bottom: 64px;
   }
 
   /* Touch targets ≥44px (WCAG 2.5.5 / Apple HIG), tighter than the desktop

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { forgotPassword } from "./api";
 import BrandMark from "./BrandMark";
+import Footer from "./Footer";
 import "./App.css";
 
 export default function ForgotPassword() {
@@ -23,6 +24,7 @@ export default function ForgotPassword() {
   }
 
   return (
+    <>
     <div className="auth-shell">
       <div className="auth-card">
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
@@ -69,5 +71,7 @@ export default function ForgotPassword() {
         )}
       </div>
     </div>
+    <Footer />
+    </>
   );
 }

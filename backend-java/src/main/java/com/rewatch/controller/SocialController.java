@@ -103,8 +103,8 @@ public class SocialController {
     public List<Map<String, Object>> reviews(@PathVariable Long userId,
                                              @RequestParam(defaultValue = "20") int limit,
                                              Authentication authentication) {
-        requireAuth(authentication);
-        return socialService.reviews(userId, limit);
+        Long callerId = requireAuth(authentication);
+        return socialService.reviews(userId, callerId, limit);
     }
 
     /** Self-only: the caller's own feed of what people they follow have been rating. */
@@ -118,8 +118,32 @@ public class SocialController {
 
     @GetMapping("/{userId}/lists")
     public List<Map<String, Object>> lists(@PathVariable Long userId, Authentication authentication) {
-        requireAuth(authentication);
-        return socialService.publicLists(userId);
+        Long callerId = requireAuth(authentication);
+        return socialService.publicLists(userId, callerId);
+    }
+
+    @PostMapping("/block/{userId}")
+    public ResponseEntity<?> block(@PathVariable Long userId, Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        try {
+            return ResponseEntity.ok(socialService.block(callerId, userId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/block/{userId}")
+    public ResponseEntity<?> unblock(@PathVariable Long userId, Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        return ResponseEntity.ok(socialService.unblock(callerId, userId));
+    }
+
+    /** Self-only: the caller's own list of who they've blocked, for the Settings page. */
+    @GetMapping("/blocked")
+    public List<UserSummaryDTO> blocked(Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        return socialService.listBlocked(callerId);
     }
 
     private Long requireAuth(Authentication authentication) {

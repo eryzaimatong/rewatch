@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.rewatch.dto.UserSummaryDTO;
+import com.rewatch.model.Block;
 import com.rewatch.model.Follow;
 import com.rewatch.model.Rating;
 import com.rewatch.model.Title;
@@ -23,6 +24,7 @@ import com.rewatch.model.TraitVector;
 import com.rewatch.model.User;
 import com.rewatch.model.WatchlistFolder;
 import com.rewatch.model.WatchlistItem;
+import com.rewatch.repository.BlockRepository;
 import com.rewatch.repository.FollowRepository;
 import com.rewatch.repository.RatingRepository;
 import com.rewatch.repository.TitleRepository;
@@ -46,6 +48,7 @@ public class SocialService {
 
     private final UserRepository userRepo;
     private final FollowRepository followRepo;
+    private final BlockRepository blockRepo;
     private final RatingRepository ratingRepo;
     private final TitleRepository titleRepo;
     private final WatchlistFolderRepository folderRepo;
@@ -53,12 +56,13 @@ public class SocialService {
     private final ProfileService profileService;
     private final ArchetypeService archetypeService;
 
-    public SocialService(UserRepository userRepo, FollowRepository followRepo, RatingRepository ratingRepo,
-                         TitleRepository titleRepo, WatchlistFolderRepository folderRepo,
-                         WatchlistItemRepository itemRepo, ProfileService profileService,
-                         ArchetypeService archetypeService) {
+    public SocialService(UserRepository userRepo, FollowRepository followRepo, BlockRepository blockRepo,
+                         RatingRepository ratingRepo, TitleRepository titleRepo,
+                         WatchlistFolderRepository folderRepo, WatchlistItemRepository itemRepo,
+                         ProfileService profileService, ArchetypeService archetypeService) {
         this.userRepo = userRepo;
         this.followRepo = followRepo;
+        this.blockRepo = blockRepo;
         this.ratingRepo = ratingRepo;
         this.titleRepo = titleRepo;
         this.folderRepo = folderRepo;
@@ -67,9 +71,59 @@ public class SocialService {
         this.archetypeService = archetypeService;
     }
 
+    /** Mutual: true if either side has blocked the other. Every visibility check below relies on this. */
+    public boolean isBlocked(Long a, Long b) {
+        return blockRepo.existsByBlockerIdAndBlockedId(a, b) || blockRepo.existsByBlockerIdAndBlockedId(b, a);
+    }
+
+    @Transactional
+    public Map<String, Object> block(Long blockerId, Long blockedId) {
+        if (blockerId.equals(blockedId)) {
+            throw new IllegalArgumentException("Cannot block yourself");
+        }
+        if (userRepo.findById(blockedId).isEmpty()) {
+            throw new IllegalArgumentException("Unknown user " + blockedId);
+        }
+        if (!blockRepo.existsByBlockerIdAndBlockedId(blockerId, blockedId)) {
+            blockRepo.save(new Block(blockerId, blockedId, Instant.now()));
+        }
+        // A block supersedes any existing follow relationship in either direction.
+        followRepo.deleteByFollowerIdAndFolloweeId(blockerId, blockedId);
+        followRepo.deleteByFollowerIdAndFolloweeId(blockedId, blockerId);
+        return Map.of("status", "success", "blocked", true);
+    }
+
+    @Transactional
+    public Map<String, Object> unblock(Long blockerId, Long blockedId) {
+        blockRepo.deleteByBlockerIdAndBlockedId(blockerId, blockedId);
+        return Map.of("status", "success", "blocked", false);
+    }
+
+    public List<UserSummaryDTO> listBlocked(Long blockerId) {
+        List<Long> ids = blockRepo.findByBlockerIdOrderByCreatedAtDesc(blockerId).stream()
+                .map(Block::getBlockedId).toList();
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, User> users = new HashMap<>();
+        userRepo.findAllById(ids).forEach(u -> users.put(u.getId(), u));
+        return ids.stream()
+                .map(users::get)
+                .filter(java.util.Objects::nonNull)
+                .map(u -> new UserSummaryDTO(u.getId(), u.getUsername(), null, false))
+                .collect(Collectors.toList());
+    }
+
     public Map<String, Object> publicProfile(Long targetId, Long callerId) {
         User user = userRepo.findById(targetId).orElse(null);
         if (user == null) {
+            return null;
+        }
+        // A blocked profile 404s exactly like a nonexistent one (see
+        // SocialController.profile()) rather than a distinguishable 403 — that
+        // would let a blocked user fingerprint "this profile exists, I'm just
+        // blocked," a mild info leak most block features avoid.
+        if (callerId != null && isBlocked(targetId, callerId)) {
             return null;
         }
 
@@ -103,6 +157,9 @@ public class SocialService {
         }
         if (userRepo.findById(followeeId).isEmpty()) {
             throw new IllegalArgumentException("Unknown user " + followeeId);
+        }
+        if (isBlocked(followerId, followeeId)) {
+            throw new IllegalArgumentException("Cannot follow this user");
         }
         if (!followRepo.existsByFollowerIdAndFolloweeId(followerId, followeeId)) {
             followRepo.save(new Follow(followerId, followeeId, Instant.now()));
@@ -145,6 +202,7 @@ public class SocialService {
         List<User> candidates = userRepo.findAll().stream()
                 .filter(u -> !u.getId().equals(callerId))
                 .filter(u -> ratingRepo.countByUserId(u.getId()) >= 3)
+                .filter(u -> !isBlocked(callerId, u.getId()))
                 .toList();
 
         List<UserSummaryDTO> ranked = new ArrayList<>();
@@ -170,7 +228,10 @@ public class SocialService {
      * treated as the implicit "publish this as a review" signal, since ratings
      * with no moment are just private telemetry the user never meant to share.
      */
-    public List<Map<String, Object>> reviews(Long targetId, int limit) {
+    public List<Map<String, Object>> reviews(Long targetId, Long callerId, int limit) {
+        if (callerId != null && isBlocked(targetId, callerId)) {
+            return List.of();
+        }
         List<Rating> ratings = ratingRepo.findByUserIdOrderByCreatedAtDescIdDesc(targetId).stream()
                 .filter(r -> r.getMoment() != null && !r.getMoment().isBlank())
                 .limit(limit)
@@ -181,7 +242,9 @@ public class SocialService {
     /** Recent reviews from people the caller follows, newest first. */
     public List<Map<String, Object>> activityFeed(Long callerId, int limit) {
         List<Long> followedIds = followRepo.findByFollowerIdOrderByCreatedAtDesc(callerId).stream()
-                .map(Follow::getFolloweeId).toList();
+                .map(Follow::getFolloweeId)
+                .filter(id -> !isBlocked(callerId, id))
+                .toList();
         if (followedIds.isEmpty()) {
             return List.of();
         }
@@ -194,7 +257,10 @@ public class SocialService {
     }
 
     /** Public (owner-marked-shareable) folders with their items. */
-    public List<Map<String, Object>> publicLists(Long targetId) {
+    public List<Map<String, Object>> publicLists(Long targetId, Long callerId) {
+        if (callerId != null && isBlocked(targetId, callerId)) {
+            return List.of();
+        }
         List<WatchlistFolder> folders = folderRepo.findByUserIdOrderByNameAsc(targetId).stream()
                 .filter(WatchlistFolder::isPublic)
                 .toList();
@@ -230,6 +296,7 @@ public class SocialService {
         return userIds.stream()
                 .map(users::get)
                 .filter(java.util.Objects::nonNull)
+                .filter(u -> callerId == null || !isBlocked(callerId, u.getId()))
                 .map(u -> {
                     var archetype = archetypeService.classify(profileService.currentProfile(u.getId()));
                     boolean following = callerId != null

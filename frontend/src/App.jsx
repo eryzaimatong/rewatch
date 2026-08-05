@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import MovieFeed from "./MovieFeed";
 import Onboarding from "./Onboarding";
 import TasteProfile from "./TasteProfile";
@@ -11,6 +11,10 @@ import Login from "./Login";
 import ForgotPassword from "./ForgotPassword";
 import ResetPassword from "./ResetPassword";
 import Settings from "./Settings";
+import NotFound from "./NotFound";
+import PrivacyPolicy from "./PrivacyPolicy";
+import TermsOfService from "./TermsOfService";
+import Footer from "./Footer";
 import BrandMark from "./BrandMark";
 import NotificationBell from "./NotificationBell";
 import { getToken, clearSession } from "./auth";
@@ -81,9 +85,11 @@ function AppShell({ onLogout }) {
           <Route path="/profile" element={<TasteProfile />} />
           <Route path="/wrapped" element={<Wrapped />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
+
+      <Footer />
 
       {/* Bottom tab bar — only shown below the mobile breakpoint (see App.css).
           The top nav stays in the DOM for larger viewports; both share the
@@ -134,6 +140,8 @@ function Root() {
           shunted back into the app. */}
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
       <Route
         path="/*"
         element={logged ? <AuthenticatedApp onLogout={dologout} /> : <Login onLogin={handlelogin} />}

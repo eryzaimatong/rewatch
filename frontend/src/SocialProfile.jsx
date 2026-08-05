@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import TraitRadar from "./TraitRadar";
 import { authHeaders } from "./auth";
-import { BASE } from "./api";
+import { BASE, blockUser, fileReport } from "./api";
+import ConfirmDialog from "./ConfirmDialog";
+import ReportDialog from "./ReportDialog";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
@@ -21,12 +23,17 @@ function poster(path) {
 
 export default function SocialProfile() {
   const { userId } = useParams();
+  const navigate = useNavigate();
   const [profile, setprofile] = useState(null);
   const [lists, setlists] = useState([]);
   const [reviews, setreviews] = useState([]);
   const [loading, setloading] = useState(true);
   const [err, seterr] = useState("");
   const [followBusy, setfollowBusy] = useState(false);
+  const [showblockconfirm, setshowblockconfirm] = useState(false);
+  const [showreport, setshowreport] = useState(false);
+  const [reportSubmitting, setreportSubmitting] = useState(false);
+  const [reportDone, setreportDone] = useState(false);
 
   async function load() {
     setloading(true);
@@ -72,6 +79,25 @@ export default function SocialProfile() {
     setfollowBusy(false);
   }
 
+  async function confirmBlock() {
+    setshowblockconfirm(false);
+    await blockUser(userId);
+    // Blocking is mutual-hiding — this profile will 404 on any refetch after
+    // this, so there's nothing to stay on. Community is the same landing spot
+    // used elsewhere after a destructive social action.
+    navigate("/community");
+  }
+
+  async function submitReport(reason, details) {
+    setreportSubmitting(true);
+    const res = await fileReport(userId, reason, details);
+    setreportSubmitting(false);
+    if (res?.status === "success") {
+      setshowreport(false);
+      setreportDone(true);
+    }
+  }
+
   if (loading) {
     return <div className="feed-state">Loading profile...</div>;
   }
@@ -101,18 +127,41 @@ export default function SocialProfile() {
             </div>
           </div>
           {!profile.isSelf && (
-            <button
-              type="button"
-              className={profile.isFollowing ? "btn-block" : "btn-primary btn-block"}
-              style={{ marginLeft: "auto", maxWidth: "160px" }}
-              onClick={toggleFollow}
-              disabled={followBusy}
-            >
-              {profile.isFollowing ? "Following" : "Follow"}
-            </button>
+            <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+              <button
+                type="button"
+                className={profile.isFollowing ? "btn-block" : "btn-primary btn-block"}
+                style={{ maxWidth: "160px" }}
+                onClick={toggleFollow}
+                disabled={followBusy}
+              >
+                {profile.isFollowing ? "Following" : "Follow"}
+              </button>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  className="auth-toggle-link"
+                  style={{ fontSize: "0.76rem", background: "none", border: "none" }}
+                  onClick={() => setshowreport(true)}
+                >
+                  Report
+                </button>
+                <button
+                  type="button"
+                  className="auth-toggle-link"
+                  style={{ fontSize: "0.76rem", background: "none", border: "none", color: "#f87171" }}
+                  onClick={() => setshowblockconfirm(true)}
+                >
+                  Block
+                </button>
+              </div>
+            </div>
           )}
         </div>
         <p style={{ color: "var(--text-muted)" }}>"{profile.archetypeBlurb}"</p>
+        {reportDone && (
+          <p className="status-message status-message--success">Report submitted. Thanks for letting us know.</p>
+        )}
 
         <TraitRadar
           traits={radarTraits}
@@ -168,6 +217,25 @@ export default function SocialProfile() {
           </div>
         )}
       </section>
+
+      {showblockconfirm && (
+        <ConfirmDialog
+          title={`Block ${profile.username}?`}
+          message="You won't see each other's profiles, activity, or DNA matches anymore. You can unblock them later from Settings."
+          confirmLabel="Block"
+          onConfirm={confirmBlock}
+          onCancel={() => setshowblockconfirm(false)}
+        />
+      )}
+
+      {showreport && (
+        <ReportDialog
+          username={profile.username}
+          submitting={reportSubmitting}
+          onSubmit={submitReport}
+          onCancel={() => setshowreport(false)}
+        />
+      )}
     </div>
   );
 }

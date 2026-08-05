@@ -5,10 +5,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.rewatch.model.User;
+import com.rewatch.repository.BlockRepository;
 import com.rewatch.repository.FollowRepository;
 import com.rewatch.repository.NotificationRepository;
 import com.rewatch.repository.PasswordResetTokenRepository;
 import com.rewatch.repository.RatingRepository;
+import com.rewatch.repository.ReportRepository;
 import com.rewatch.repository.TraitEventRepository;
 import com.rewatch.repository.UserRepository;
 import com.rewatch.repository.UserTraitRepository;
@@ -32,6 +34,8 @@ public class AccountService {
     private final WatchlistItemRepository watchlistItemRepo;
     private final WatchlistFolderRepository watchlistFolderRepo;
     private final FollowRepository followRepo;
+    private final BlockRepository blockRepo;
+    private final ReportRepository reportRepo;
     private final UserTraitRepository userTraitRepo;
     private final TraitEventRepository traitEventRepo;
     private final PasswordResetTokenRepository passwordResetTokenRepo;
@@ -40,6 +44,7 @@ public class AccountService {
     public AccountService(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtService jwtService,
                           RatingRepository ratingRepo, WatchlistItemRepository watchlistItemRepo,
                           WatchlistFolderRepository watchlistFolderRepo, FollowRepository followRepo,
+                          BlockRepository blockRepo, ReportRepository reportRepo,
                           UserTraitRepository userTraitRepo, TraitEventRepository traitEventRepo,
                           PasswordResetTokenRepository passwordResetTokenRepo,
                           NotificationRepository notificationRepo) {
@@ -50,6 +55,8 @@ public class AccountService {
         this.watchlistItemRepo = watchlistItemRepo;
         this.watchlistFolderRepo = watchlistFolderRepo;
         this.followRepo = followRepo;
+        this.blockRepo = blockRepo;
+        this.reportRepo = reportRepo;
         this.userTraitRepo = userTraitRepo;
         this.traitEventRepo = traitEventRepo;
         this.passwordResetTokenRepo = passwordResetTokenRepo;
@@ -106,6 +113,10 @@ public class AccountService {
         watchlistFolderRepo.deleteByUserId(userId);
         followRepo.deleteByFollowerId(userId);
         followRepo.deleteByFolloweeId(userId);
+        blockRepo.deleteByBlockerId(userId);
+        blockRepo.deleteByBlockedId(userId);
+        reportRepo.deleteByReporterId(userId);
+        reportRepo.deleteByReportedUserId(userId);
         passwordResetTokenRepo.deleteByUserId(userId);
         notificationRepo.deleteByUserId(userId);
         userRepo.delete(user);

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { changePassword, deleteAccount } from "./api";
+import { useEffect, useState } from "react";
+import { changePassword, deleteAccount, getBlockedUsers, unblockUser } from "./api";
 import { saveSession, clearSession } from "./auth";
 import ConfirmDialog from "./ConfirmDialog";
 import "./App.css";
@@ -18,6 +18,28 @@ export default function Settings() {
   const [showconfirmdelete, setshowconfirmdelete] = useState(false);
   const [delerr, setdelerr] = useState("");
   const [delloading, setdelloading] = useState(false);
+
+  const [blocked, setblocked] = useState([]);
+  const [blockedloading, setblockedloading] = useState(true);
+  const [unblockingId, setunblockingId] = useState(null);
+
+  async function loadblocked() {
+    setblockedloading(true);
+    setblocked(await getBlockedUsers());
+    setblockedloading(false);
+  }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadblocked();
+  }, []);
+
+  async function handleunblock(id) {
+    setunblockingId(id);
+    await unblockUser(id);
+    setblocked((current) => current.filter((u) => u.userId !== id));
+    setunblockingId(null);
+  }
 
   async function handlechangepassword(e) {
     e.preventDefault();
@@ -117,6 +139,32 @@ export default function Settings() {
               {pwloading ? "Saving..." : "Change Password"}
             </button>
           </form>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Blocked users</p>
+          {blockedloading ? (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
+          ) : blocked.length === 0 ? (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>You haven't blocked anyone.</p>
+          ) : (
+            <div className="trait-list">
+              {blocked.map((u) => (
+                <div key={u.userId} className="trait-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="trait-name">{u.username}</span>
+                  <button
+                    type="button"
+                    className="btn-block"
+                    style={{ maxWidth: "120px", padding: "8px 14px" }}
+                    onClick={() => handleunblock(u.userId)}
+                    disabled={unblockingId === u.userId}
+                  >
+                    {unblockingId === u.userId ? "..." : "Unblock"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="feed-section">

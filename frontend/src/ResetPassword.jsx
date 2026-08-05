@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { resetPassword } from "./api";
 import BrandMark from "./BrandMark";
+import Footer from "./Footer";
 import "./App.css";
 
 export default function ResetPassword() {
@@ -45,6 +46,7 @@ export default function ResetPassword() {
   }
 
   return (
+    <>
     <div className="auth-shell">
       <div className="auth-card">
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
@@ -97,5 +99,7 @@ export default function ResetPassword() {
         )}
       </div>
     </div>
+    <Footer />
+    </>
   );
 }
