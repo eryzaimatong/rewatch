@@ -40,4 +40,20 @@ public class RecommendationController {
         }
         return ResponseEntity.ok(recs);
     }
+
+    /** Cheap count only — fetched alongside the main feed for the "N hidden — show anyway" line. */
+    @GetMapping("/{userId}/dealbreaker-hidden-count")
+    public ResponseEntity<?> dealbreakerHiddenCount(@PathVariable Long userId, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        return ResponseEntity.ok(java.util.Map.of("count", recommender.dealbreakerHiddenCount(userId)));
+    }
+
+    /** The actual hidden titles — fetched lazily, only when the user clicks "show anyway". */
+    @GetMapping("/{userId}/dealbreaker-hidden")
+    public List<MovieDTO> dealbreakerHidden(@PathVariable Long userId,
+                                            @RequestParam(defaultValue = "12") int limit,
+                                            Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        return recommender.hiddenByDealbreakers(userId, limit);
+    }
 }

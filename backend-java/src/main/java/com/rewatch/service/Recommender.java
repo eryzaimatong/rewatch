@@ -1,11 +1,15 @@
 package com.rewatch.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -16,8 +20,10 @@ import com.rewatch.model.Title;
 import com.rewatch.model.Trait;
 import com.rewatch.model.TraitNode;
 import com.rewatch.model.TraitVector;
+import com.rewatch.model.User;
 import com.rewatch.repository.RatingRepository;
 import com.rewatch.repository.TitleRepository;
+import com.rewatch.repository.UserRepository;
 
 /**
  * Ranks the local catalog for a user and attaches the explanation for each result.
@@ -33,23 +39,57 @@ public class Recommender {
     /** Diversity strength for the MMR re-rank. 0 = pure score order. */
     private static final double DIVERSITY_LAMBDA = 0.3;
 
+    /**
+     * A dealbreaker only gets a real hard-filter entry here if a title's own
+     * TraitVector can honestly signal it — checked against exactly what
+     * OnboardingService.DEALBREAKER_SENTIMENT already routes each one to.
+     * "Love Triangle", "Animal Death", and "Cheating" have no per-title proxy
+     * (ROMANCE/BITTER alone can't tell a triangle from any other romance, or
+     * an animal death from any other bittersweet beat) — those stay a soft
+     * trait nudge only rather than a fake heuristic, same reasoning as
+     * dropping onboarding's Visual Style screen and the Runtime field.
+     */
+    /**
+     * Below this, a title is common enough in TMDB's own catalog to have basically
+     * no real audience signal — the kind of thing that lets a 4,000-episode regional
+     * daytime soap or a barely-catalogued local talk show slip into "Tonight's Pick"
+     * on a raw keyword-genre match. Not a hard cutoff by itself — see {@link
+     * #candidatePool}, which falls back to the full renderable set if too few
+     * titles clear this bar, so a thin catalog (e.g. anime/kdrama right now) never
+     * gets starved by a threshold tuned for a much bigger one.
+     */
+    private static final int MIN_VOTE_COUNT_FOR_RECOMMENDATION = 150;
+
+    private static final Map<String, Predicate<TraitVector>> DEALBREAKER_THRESHOLDS = new HashMap<>();
+    static {
+        DEALBREAKER_THRESHOLDS.put("excessive gore", v -> v.get(Trait.INTENSITY) >= 0.75);
+        DEALBREAKER_THRESHOLDS.put("jump scares", v -> v.get(Trait.INTENSITY) >= 0.75);
+        DEALBREAKER_THRESHOLDS.put("sad ending", v -> v.get(Trait.BITTER) >= 0.7 && v.get(Trait.HOPE) <= 0.4);
+        DEALBREAKER_THRESHOLDS.put("open ending", v -> v.get(Trait.BITTER) >= 0.65);
+        DEALBREAKER_THRESHOLDS.put("unresolved ending", v -> v.get(Trait.BITTER) >= 0.65);
+        DEALBREAKER_THRESHOLDS.put("slow start", v -> v.get(Trait.PACING) >= 0.75);
+    }
+
     private final TitleRepository titleRepo;
     private final RatingRepository ratingRepo;
+    private final UserRepository userRepo;
     private final ProfileService profileService;
     private final ScoringService scoringService;
 
     public Recommender(TitleRepository titleRepo,
                        RatingRepository ratingRepo,
+                       UserRepository userRepo,
                        ProfileService profileService,
                        ScoringService scoringService) {
         this.titleRepo = titleRepo;
         this.ratingRepo = ratingRepo;
+        this.userRepo = userRepo;
         this.profileService = profileService;
         this.scoringService = scoringService;
     }
 
     public List<MovieDTO> recommend(Long userId, int limit, boolean excludeRated, boolean diversify) {
-        List<Title> candidates = titleRepo.findAll();
+        List<Title> candidates = candidatePool(limit);
         if (candidates.isEmpty()) {
             return List.of();
         }
@@ -59,15 +99,19 @@ public class Recommender {
         double[] confidence = profileService.confidencesOf(profile);
         double meanConf = profileService.meanConfidence(profile);
 
-        Set<Long> ratedTitleIds = new HashSet<>();
-        for (Rating r : ratingRepo.findByUserIdOrderByCreatedAtAscIdAsc(userId)) {
-            ratedTitleIds.add(r.getTitleId());
-        }
+        Set<Long> ratedTitleIds = ratedIds(userId);
+        Set<String> dealbreakers = dealbreakersFor(userId);
 
         List<MovieDTO> scored = new ArrayList<>(candidates.size());
         for (Title t : candidates) {
             boolean isRated = ratedTitleIds.contains(t.getId());
             if (excludeRated && isRated) {
+                continue;
+            }
+            // Hard-filtered here, not just scored down — a dealbreaker is an
+            // explicit "never show me this," not a soft preference. Applied
+            // to the main feed only (not every Discovery row) for now.
+            if (!passesDealbreakers(t, dealbreakers)) {
                 continue;
             }
             MovieDTO dto = score(t, user, confidence, meanConf);
@@ -81,6 +125,102 @@ public class Recommender {
             return mmrRerank(scored, limit);
         }
         return scored.subList(0, Math.min(limit, scored.size()));
+    }
+
+    /**
+     * The candidate set for {@link #recommend}: real, renderable titles, biased
+     * toward ones with actual audience signal — but never at the cost of starving
+     * the feed. A title missing a synopsis or poster is broken data and is dropped
+     * unconditionally (no card should ever render with nothing in it); the vote-count
+     * bias only applies if enough titles clear it to still fill {@code limit * 3}
+     * (the same pool size {@link #mmrRerank} already draws from).
+     */
+    /** Package-private for direct testing — see RecommenderTest. */
+    List<Title> candidatePool(int limit) {
+        List<Title> renderable = titleRepo.findAll().stream()
+                .filter(this::hasRenderableData)
+                .toList();
+        List<Title> wellKnown = renderable.stream()
+                .filter(t -> t.getVoteCount() != null && t.getVoteCount() >= MIN_VOTE_COUNT_FOR_RECOMMENDATION)
+                .toList();
+        return wellKnown.size() >= limit * 3 ? wellKnown : renderable;
+    }
+
+    private boolean hasRenderableData(Title t) {
+        return t.getSynopsis() != null && !t.getSynopsis().isBlank()
+                && t.getPoster() != null && !t.getPoster().isBlank();
+    }
+
+    /** How many titles the user's dealbreakers are currently hiding from recommend(). */
+    public int dealbreakerHiddenCount(Long userId) {
+        Set<String> dealbreakers = dealbreakersFor(userId);
+        if (dealbreakers.isEmpty()) {
+            return 0;
+        }
+        Set<Long> ratedTitleIds = ratedIds(userId);
+        return (int) titleRepo.findAll().stream()
+                .filter(t -> !ratedTitleIds.contains(t.getId()))
+                .filter(t -> !passesDealbreakers(t, dealbreakers))
+                .count();
+    }
+
+    /** The titles a dealbreaker is currently hiding, scored and ranked the same way recommend() would. */
+    public List<MovieDTO> hiddenByDealbreakers(Long userId, int limit) {
+        Set<String> dealbreakers = dealbreakersFor(userId);
+        if (dealbreakers.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Trait, TraitNode> profile = profileService.currentProfile(userId);
+        TraitVector user = profileService.vectorOf(profile);
+        double[] confidence = profileService.confidencesOf(profile);
+        double meanConf = profileService.meanConfidence(profile);
+        Set<Long> ratedTitleIds = ratedIds(userId);
+
+        List<MovieDTO> hidden = new ArrayList<>();
+        for (Title t : titleRepo.findAll()) {
+            if (ratedTitleIds.contains(t.getId()) || passesDealbreakers(t, dealbreakers)) {
+                continue;
+            }
+            hidden.add(score(t, user, confidence, meanConf));
+        }
+        hidden.sort(Comparator.comparingDouble(MovieDTO::getMatchScore).reversed());
+        return hidden.subList(0, Math.min(limit, hidden.size()));
+    }
+
+    /** Package-private for direct testing — see RecommenderTest. */
+    boolean passesDealbreakers(Title t, Set<String> dealbreakers) {
+        if (dealbreakers.isEmpty()) {
+            return true;
+        }
+        TraitVector v = t.traitVector();
+        for (String d : dealbreakers) {
+            Predicate<TraitVector> check = DEALBREAKER_THRESHOLDS.get(d);
+            if (check != null && check.test(v)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Set<String> dealbreakersFor(Long userId) {
+        User user = userRepo.findById(userId).orElse(null);
+        if (user == null || user.getDealbreakers() == null || user.getDealbreakers().isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(user.getDealbreakers().split(","))
+                .map(String::trim)
+                .map(s -> s.toLowerCase(java.util.Locale.ROOT))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Long> ratedIds(Long userId) {
+        Set<Long> ids = new HashSet<>();
+        for (Rating r : ratingRepo.findByUserIdOrderByCreatedAtAscIdAsc(userId)) {
+            ids.add(r.getTitleId());
+        }
+        return ids;
     }
 
     public MovieDTO scoreForUser(Title title, Long userId) {
@@ -119,6 +259,7 @@ public class Recommender {
         dto.setType(t.getType());
         dto.setYear(t.getYear());
         dto.setVoteAverage(t.getVoteAverage());
+        dto.setOriginalLanguage(t.getOriginalLanguage());
         dto.setMatchScore(s.score());
         dto.setExplanation(s.explanation());
         dto.setStoryVector(movie.toKeyedMap());

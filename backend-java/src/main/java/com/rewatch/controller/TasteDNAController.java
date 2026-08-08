@@ -19,9 +19,11 @@ import com.rewatch.model.Trait;
 import com.rewatch.model.TraitNode;
 import com.rewatch.repository.RatingRepository;
 import com.rewatch.security.SecurityUtil;
+import com.rewatch.service.AchievementService;
 import com.rewatch.service.ArchetypeService;
 import com.rewatch.service.HistoryService;
 import com.rewatch.service.ProfileService;
+import com.rewatch.service.TasteJourneyService;
 import com.rewatch.service.WrappedService;
 
 /**
@@ -39,15 +41,20 @@ public class TasteDNAController {
     private final HistoryService historyService;
     private final RatingRepository ratingRepo;
     private final WrappedService wrappedService;
+    private final AchievementService achievementService;
+    private final TasteJourneyService tasteJourneyService;
 
     public TasteDNAController(ProfileService profileService, ArchetypeService archetypeService,
                               HistoryService historyService, RatingRepository ratingRepo,
-                              WrappedService wrappedService) {
+                              WrappedService wrappedService, AchievementService achievementService,
+                              TasteJourneyService tasteJourneyService) {
         this.profileService = profileService;
         this.archetypeService = archetypeService;
         this.historyService = historyService;
         this.ratingRepo = ratingRepo;
         this.wrappedService = wrappedService;
+        this.achievementService = achievementService;
+        this.tasteJourneyService = tasteJourneyService;
     }
 
     @GetMapping("/profile/{id}")
@@ -133,6 +140,28 @@ public class TasteDNAController {
         }
 
         return wrappedService.build(id, ym);
+    }
+
+    /**
+     * Milestone badges over data that already backs the profile/wrapped views —
+     * see AchievementService for why nothing here is fabricated.
+     */
+    @GetMapping("/achievements/{id}")
+    public AchievementService.Summary achievements(@PathVariable("id") Long id, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, id);
+        return achievementService.build(id);
+    }
+
+    /**
+     * "Your Taste Journey" — one plain-language sentence per calendar month
+     * that had ratings, built from the same real per-month trait shifts as
+     * /wrapped/{id}. See TasteJourneyService for why nothing here is inferred
+     * beyond what a real TraitShift or rating count supports.
+     */
+    @GetMapping("/journey/{id}")
+    public List<TasteJourneyService.JourneyEntry> journey(@PathVariable("id") Long id, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, id);
+        return tasteJourneyService.build(id);
     }
 
     /** Forces a full replay from the rating log. Useful after a lexicon change. */

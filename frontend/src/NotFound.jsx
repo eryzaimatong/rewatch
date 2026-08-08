@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import EmptyState from "./EmptyState";
 import "./App.css";
 
 /**
@@ -10,13 +11,15 @@ export default function NotFound() {
   return (
     <div className="page-shell">
       <div className="page-panel">
-        <div className="feed-state">
-          <h3>Page not found</h3>
-          <p>There's nothing here — the link might be broken, or the page may have moved.</p>
-          <Link to="/" className="btn-primary" style={{ display: "inline-block", marginTop: "var(--sp-2)" }}>
-            Back to Home Feed
-          </Link>
-        </div>
+        <EmptyState
+          title="Page not found"
+          message="There's nothing here — the link might be broken, or the page may have moved."
+          action={
+            <Link to="/" className="btn-primary" style={{ display: "inline-block", marginTop: "var(--sp-2)" }}>
+              Back to Home Feed
+            </Link>
+          }
+        />
       </div>
     </div>
   );

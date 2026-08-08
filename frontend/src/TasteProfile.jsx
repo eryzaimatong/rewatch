@@ -94,6 +94,11 @@ const TRAIT_ORDER = [
   "nostalgia", "family", "growth", "comfort", "pacing",
   "hope", "bitter", "humor", "romance", "intensity"
 ];
+// The 6 axes that carry the most signal for "what kind of stories do you
+// respond to" at a glance — full 10-axis detail (nostalgia/family/humor/
+// romance included) stays one click away via the Advanced toggle rather
+// than crowding the default view.
+const MACRO_TRAIT_KEYS = ["pacing", "intensity", "comfort", "bitter", "growth", "hope"];
 const FALLBACK_LABELS = {
   nostalgia: "Nostalgia & Memory",
   family: "Found Family",
@@ -139,6 +144,7 @@ export default function TasteProfile() {
   const [showcard, setshowcard] = useState(false);
   const [recalculating, setrecalculating] = useState(false);
   const [exporting, setexporting] = useState(false);
+  const [advancedRadar, setadvancedRadar] = useState(false);
 
   const username = localStorage.getItem("username") || "friend";
   const userid = localStorage.getItem("userId") || 1;
@@ -197,10 +203,11 @@ export default function TasteProfile() {
   const sorted = [...list].sort((a, b) => getpercent(b.node) - getpercent(a.node));
   const topthree = sorted.slice(0, 3);
 
-  const radarTraits = TRAIT_ORDER.map((key) => ({ key, label: traits[key]?.label || FALLBACK_LABELS[key] }));
+  const radarKeys = advancedRadar ? TRAIT_ORDER : MACRO_TRAIT_KEYS;
+  const radarTraits = radarKeys.map((key) => ({ key, label: traits[key]?.label || FALLBACK_LABELS[key] }));
   const radarValues = {};
   const radarConfidences = {};
-  TRAIT_ORDER.forEach((key) => {
+  radarKeys.forEach((key) => {
     radarValues[key] = traits[key]?.val ?? 0.5;
     radarConfidences[key] = traits[key]?.conf ?? 0.1;
   });
@@ -222,7 +229,7 @@ export default function TasteProfile() {
       return;
     }
 
-    setmsg("Your taste profile was recomputed from your full rating history.");
+    setmsg("Done — your TasteDNA has been rebuilt from your complete rating history.");
     loadprofile();
   }
 
@@ -368,6 +375,13 @@ export default function TasteProfile() {
               size={360}
               className="taste-panel-radar"
             />
+            <button
+              type="button"
+              className="pill radar-detail-toggle"
+              onClick={() => setadvancedRadar((v) => !v)}
+            >
+              {advancedRadar ? "Show 6-axis summary" : "Show all 10 axes"}
+            </button>
 
             <EvolutionTimeline
               userId={userid}

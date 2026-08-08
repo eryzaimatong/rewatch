@@ -80,6 +80,24 @@ public class NotificationService {
         notificationRepo.save(new Notification(userId, Notification.Type.TASTE_MILESTONE, message, null, Instant.now()));
     }
 
+    @Transactional
+    public void notifyAchievementUnlocked(Long userId, String achievementTitle) {
+        notificationRepo.save(new Notification(userId, Notification.Type.ACHIEVEMENT_UNLOCKED,
+                "Achievement unlocked: " + achievementTitle, null, Instant.now()));
+    }
+
+    @Transactional
+    public void notifyReviewLiked(Long reviewOwnerId, Long likerId, String likerUsername, String titleName) {
+        notificationRepo.save(new Notification(reviewOwnerId, Notification.Type.REVIEW_LIKED,
+                likerUsername + " liked your review of " + titleName, likerId, Instant.now()));
+    }
+
+    @Transactional
+    public void notifyReviewCommented(Long reviewOwnerId, Long commenterId, String commenterUsername, String titleName) {
+        notificationRepo.save(new Notification(reviewOwnerId, Notification.Type.REVIEW_COMMENTED,
+                commenterUsername + " commented on your review of " + titleName, commenterId, Instant.now()));
+    }
+
     /**
      * O(all users) per call, via SocialService.dnaMatches — already the cost of
      * that feature today, just now also paid on every notification-list fetch.

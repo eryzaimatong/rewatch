@@ -24,6 +24,12 @@ function colorForScore(score) {
 }
 
 export default function MatchRing({ score, size = 44 }) {
+  // No fallback default — an absent score renders nothing rather than a
+  // fabricated number (this ring used to be fed `?? 60`/`?? 50` upstream).
+  if (score === null || score === undefined || Number.isNaN(Number(score))) {
+    return null;
+  }
+
   const clamped = Math.max(0, Math.min(100, Math.round(score)));
   const offset = CIRCUMFERENCE * (1 - clamped / 100);
   const color = colorForScore(clamped);

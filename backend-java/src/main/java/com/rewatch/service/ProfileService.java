@@ -244,9 +244,12 @@ public class ProfileService {
     }
 
     @Transactional
-    public void seedFromOnboarding(Long userId, TraitVector seed) {
+    public void seedFromOnboarding(Long userId, TraitVector seed, List<String> dealbreakers) {
         userRepo.findById(userId).ifPresent(user -> {
             user.setSeedVector(encode(seed));
+            if (dealbreakers != null && !dealbreakers.isEmpty()) {
+                user.setDealbreakers(String.join(",", dealbreakers));
+            }
             userRepo.save(user);
         });
         replay(userId);

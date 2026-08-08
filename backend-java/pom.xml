@@ -65,6 +65,15 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+        <!-- OpenAPI/Swagger UI, generated from the existing controllers/DTOs —
+             no annotations required to get a real spec, though a few are added
+             where the auto-generated description would otherwise be misleading. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
         <!-- JWT issuing/parsing for the stateless auth filter -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

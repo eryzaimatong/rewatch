@@ -24,6 +24,8 @@ import com.rewatch.model.Title;
 import com.rewatch.model.TraitVector;
 import com.rewatch.repository.TitleRepository;
 import com.rewatch.security.SecurityUtil;
+import com.rewatch.service.AchievementService;
+import com.rewatch.service.NotificationService;
 import com.rewatch.service.OnboardingService;
 import com.rewatch.service.ProfileService;
 import com.rewatch.service.RatingService;
@@ -38,15 +40,20 @@ public class TmdbController {
     private final ProfileService profileService;
     private final RatingService ratingService;
     private final TitleRepository titleRepo;
+    private final AchievementService achievementService;
+    private final NotificationService notificationService;
 
     public TmdbController(TmdbService tmdbservice, OnboardingService onboardingService,
                           ProfileService profileService, RatingService ratingService,
-                          TitleRepository titleRepo) {
+                          TitleRepository titleRepo, AchievementService achievementService,
+                          NotificationService notificationService) {
         this.tmdbservice = tmdbservice;
         this.onboardingService = onboardingService;
         this.profileService = profileService;
         this.ratingService = ratingService;
         this.titleRepo = titleRepo;
+        this.achievementService = achievementService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -69,6 +76,12 @@ public class TmdbController {
     @GetMapping("/nlp-search")
     public List<MovieDTO> nlpsearch(@RequestParam("query") String query, Authentication authentication) {
         return tmdbservice.nlpsearch(query, SecurityUtil.currentUserId(authentication));
+    }
+
+    /** Additive — doesn't change nlp-search's existing response shape. See TmdbService.understand. */
+    @GetMapping("/nlp-search/understand")
+    public Map<String, Object> understand(@RequestParam("query") String query) {
+        return Map.of("understood", tmdbservice.understand(query));
     }
 
     /**
@@ -110,8 +123,14 @@ public class TmdbController {
     @PostMapping("/onboard")
     public ResponseEntity<?> onboard(@Valid @RequestBody OnboardingRequest req, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, req.getUserId());
+        Map<String, String> unlockedBefore = achievementService.unlockedTitles(req.getUserId());
         TraitVector seed = onboardingService.deriveSeed(req);
-        profileService.seedFromOnboarding(req.getUserId(), seed);
+        profileService.seedFromOnboarding(req.getUserId(), seed, req.getAvoid());
+        achievementService.unlockedTitles(req.getUserId()).forEach((key, title) -> {
+            if (!unlockedBefore.containsKey(key)) {
+                notificationService.notifyAchievementUnlocked(req.getUserId(), title);
+            }
+        });
 
         Map<String, Object> res = new HashMap<>();
         res.put("status", "success");

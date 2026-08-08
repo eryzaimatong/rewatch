@@ -195,4 +195,95 @@ public class EnrichmentService {
         tmdb.trending().forEach(m -> touched.add(ingest(m, "movie")));
         return (int) touched.stream().filter(java.util.Objects::nonNull).count();
     }
+
+    // TMDB's primary movie genre ids. Pulling per-genre (not just
+    // popularity-sorted) is what keeps the catalog from being 1,500 more
+    // copies of the same dozen blockbusters — a popularity-only pull
+    // reproduces exactly the thin-catalog symptom this expansion exists to
+    // fix (see the "Slow Cinema" collection mis-serving example).
+    private static final int[] MOVIE_GENRES = {
+        28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27, 10402, 9648, 10749, 878, 53, 10752, 37
+    };
+    // TMDB's TV genre ids are a DIFFERENT id space than movie genres.
+    private static final int[] TV_GENRES = {10759, 16, 35, 80, 99, 18, 10751, 9648, 10765, 10768, 37};
+
+    private static final int PAGES_PER_GENRE = 6;
+    private static final int PAGES_GENERAL = 8;
+    // Hard safety cap on TMDB calls regardless of how close to target we are
+    // — this is a live operation against a real API key, not something that
+    // should be able to loop unbounded from a bad response shape.
+    private static final int MAX_PAGE_CALLS = 400;
+    private static final long RATE_LIMIT_DELAY_MS = 300;
+
+    /**
+     * One-time (explicitly triggered, not scheduled) catalog-breadth
+     * expansion. Not @Transactional at this level — a run this size takes
+     * real wall-clock time (rate-limit delays between hundreds of TMDB
+     * calls), and holding one long-lived DB transaction open for that whole
+     * span would be a real risk, not a nice-to-have to avoid. Each ingest()
+     * call below already carries its own short transaction.
+     */
+    public java.util.Map<String, Object> bulkExpand(int targetCount) {
+        int before = (int) titleRepo.count();
+        int pageCalls = 0;
+        int ingested = 0;
+
+        pageCalls = pullGenres(MOVIE_GENRES, "movie", PAGES_PER_GENRE, targetCount, pageCalls);
+        pageCalls = pullGenres(TV_GENRES, "series", PAGES_PER_GENRE, targetCount, pageCalls);
+
+        for (int page = 1; page <= PAGES_GENERAL && titleRepo.count() < targetCount && pageCalls < MAX_PAGE_CALLS; page++) {
+            pageCalls++;
+            sleep();
+            for (TmdbClient.TmdbMovie m : tmdb.discoverMoviesPage(page, java.util.Map.of("sort_by", "popularity.desc"))) {
+                if (ingest(m, "movie") != null) {
+                    ingested++;
+                }
+            }
+        }
+        for (int page = 1; page <= PAGES_GENERAL && titleRepo.count() < targetCount && pageCalls < MAX_PAGE_CALLS; page++) {
+            pageCalls++;
+            sleep();
+            for (TmdbClient.TmdbMovie m : tmdb.discoverMoviesPage(page,
+                    java.util.Map.of("sort_by", "vote_average.desc", "vote_count.gte", "200"))) {
+                if (ingest(m, "movie") != null) {
+                    ingested++;
+                }
+            }
+        }
+
+        int after = (int) titleRepo.count();
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("titlesBefore", before);
+        result.put("titlesAfter", after);
+        result.put("titlesAdded", after - before);
+        result.put("pageCallsMade", pageCalls);
+        return result;
+    }
+
+    private int pullGenres(int[] genreIds, String type, int pagesPerGenre, int targetCount, int pageCalls) {
+        for (int genreId : genreIds) {
+            for (int page = 1; page <= pagesPerGenre; page++) {
+                if (titleRepo.count() >= targetCount || pageCalls >= MAX_PAGE_CALLS) {
+                    return pageCalls;
+                }
+                pageCalls++;
+                sleep();
+                List<TmdbClient.TmdbMovie> results = "series".equals(type)
+                        ? tmdb.discoverTvPage(page, java.util.Map.of("with_genres", String.valueOf(genreId), "sort_by", "popularity.desc"))
+                        : tmdb.discoverMoviesPage(page, java.util.Map.of("with_genres", String.valueOf(genreId), "sort_by", "popularity.desc"));
+                for (TmdbClient.TmdbMovie m : results) {
+                    ingest(m, type);
+                }
+            }
+        }
+        return pageCalls;
+    }
+
+    private void sleep() {
+        try {
+            Thread.sleep(RATE_LIMIT_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
 }

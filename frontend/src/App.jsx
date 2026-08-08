@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import MovieFeed from "./MovieFeed";
 import Onboarding from "./Onboarding";
 import TasteProfile from "./TasteProfile";
 import Wrapped from "./Wrapped";
+import Achievements from "./Achievements";
 import Dashboard from "./Dashboard";
 import Community from "./Community";
 import SocialProfile from "./SocialProfile";
@@ -17,9 +18,23 @@ import TermsOfService from "./TermsOfService";
 import Footer from "./Footer";
 import BrandMark from "./BrandMark";
 import NotificationBell from "./NotificationBell";
-import { getToken, clearSession } from "./auth";
+import AccountMenu from "./AccountMenu";
+import { getToken, clearSession, applyAccentColor } from "./auth";
+import { applyAccessibilityPrefs } from "./accessibility";
 import "./App.css";
 
+// Runs once, synchronously, before the first paint — so a page reload with
+// an existing session shows the right accent immediately instead of a flash
+// of default purple. saveSession() handles every subsequent change.
+applyAccentColor(localStorage.getItem("accentColor"));
+applyAccessibilityPrefs();
+
+// The four core destinations someone reaches for every session. Everything
+// periodic or administrative (Wrapped, Achievements, Settings) lives in
+// AccountMenu's dropdown instead — a flat list mixing "where I live" with
+// "things I check once a month" is what made the old 7-item nav feel bloated,
+// especially on the mobile bottom bar, where 7 cramped text labels were
+// barely legible.
 function NavLinks({ linkClassName }) {
   return (
     <>
@@ -35,12 +50,6 @@ function NavLinks({ linkClassName }) {
       <NavLink to="/profile" className={linkClassName}>
         TasteDNA Profile
       </NavLink>
-      <NavLink to="/wrapped" className={linkClassName}>
-        Wrapped
-      </NavLink>
-      <NavLink to="/settings" className={linkClassName}>
-        Settings
-      </NavLink>
     </>
   );
 }
@@ -49,6 +58,21 @@ function AppShell({ onLogout }) {
   const navLinkClass = ({ isActive }) => `app-nav-link${isActive ? " active" : ""}`;
   const mobileNavLinkClass = ({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`;
   const userid = localStorage.getItem("userId");
+  const username = localStorage.getItem("username") || "You";
+  // localStorage writes elsewhere (Settings.jsx's upload/remove) don't trigger
+  // a re-render here on their own — this component only reads the value once
+  // at mount otherwise, so the header would keep showing the old avatar (or
+  // the initials fallback) until a full page reload. Settings.jsx dispatches
+  // this event right after a successful save/remove so the header updates
+  // immediately, same tab, no reload.
+  const [avatarUrl, setavatarUrl] = useState(() => localStorage.getItem("avatarUrl"));
+  useEffect(() => {
+    function handleavatarchange() {
+      setavatarUrl(localStorage.getItem("avatarUrl"));
+    }
+    window.addEventListener("rewatch:avatar-changed", handleavatarchange);
+    return () => window.removeEventListener("rewatch:avatar-changed", handleavatarchange);
+  }, []);
 
   return (
     <div>
@@ -70,9 +94,7 @@ function AppShell({ onLogout }) {
 
         <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
           <NotificationBell userId={userid} />
-          <button type="button" className="logout-button" onClick={onLogout}>
-            Logout
-          </button>
+          <AccountMenu userId={userid} username={username} avatarUrl={avatarUrl} onLogout={onLogout} />
         </div>
       </header>
 
@@ -84,6 +106,7 @@ function AppShell({ onLogout }) {
           <Route path="/social/:userId" element={<SocialProfile />} />
           <Route path="/profile" element={<TasteProfile />} />
           <Route path="/wrapped" element={<Wrapped />} />
+          <Route path="/achievements" element={<Achievements />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

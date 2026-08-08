@@ -100,6 +100,29 @@ public class TmdbClient {
     }
 
     /**
+     * Paginated, uncached discover — used for the one-time catalog-expansion
+     * operation (AdminController#expandCatalog). Not @Cacheable: caching
+     * would only ever serve page 1 back for every subsequent page requested,
+     * which is exactly wrong for a "give me the next 20" call.
+     */
+    public List<TmdbMovie> discoverMoviesPage(int page, Map<String, String> extraParams) {
+        Map<String, String> params = new java.util.HashMap<>(extraParams);
+        params.put("page", String.valueOf(page));
+        return list("/discover/movie", params);
+    }
+
+    /**
+     * TV/show discover — TMDB's TV JSON shape differs from movies (name not
+     * title, first_air_date not release_date), so this goes through
+     * listTv()/parseTv() rather than the movie-shaped list()/parse().
+     */
+    public List<TmdbMovie> discoverTvPage(int page, Map<String, String> extraParams) {
+        Map<String, String> params = new java.util.HashMap<>(extraParams);
+        params.put("page", String.valueOf(page));
+        return listTv("/discover/tv", params);
+    }
+
+    /**
      * Keywords for one title.
      *
      * Uses append_to_response so details and keywords cost ONE request rather than
@@ -143,6 +166,232 @@ public class TmdbClient {
         }
     }
 
+    public record CastMember(String name, String character, String profilePath) {}
+
+    /** Supplementary movie-page data — cast/director/trailer/where-to-watch/runtime/certification. */
+    public record TmdbDetails(
+            List<CastMember> cast,
+            String director,
+            String trailerUrl,
+            List<String> watchProviders,
+            Integer runtimeMinutes,
+            String certification) {}
+
+    private static final int CAST_LIMIT = 6;
+    private static final String WATCH_REGION = "US";
+
+    /**
+     * One combined request via append_to_response — the same "details cost one
+     * request, not four" approach as keywords(). Not stored on Title/enriched into
+     * the catalog: this is supplementary movie-page data fetched on demand when a
+     * user opens a title, not something the scoring engine needs for every one of
+     * 1,500+ titles.
+     */
+    @SuppressWarnings("unchecked")
+    @Cacheable(value = "tmdbDetails", unless = "#result == null")
+    public TmdbDetails details(int tmdbId, boolean isTv) {
+        if (!isConfigured()) {
+            return null;
+        }
+        try {
+            String path = (isTv ? "/tv/" : "/movie/") + tmdbId;
+            // release_dates (certification) is movie-only, content_ratings is
+            // TV-only — TMDB's append_to_response silently drops values that
+            // don't apply to the endpoint, but requesting only the relevant
+            // one keeps this explicit rather than relying on that leniency.
+            String extras = "credits,videos,watch/providers," + (isTv ? "content_ratings" : "release_dates");
+            String url = UriComponentsBuilder.fromHttpUrl(baseUrl + path)
+                    .queryParam("api_key", apiKey)
+                    .queryParam("append_to_response", extras)
+                    .toUriString();
+
+            Map<String, Object> res = rest.getForObject(url, Map.class);
+            if (res == null) {
+                return null;
+            }
+
+            return new TmdbDetails(
+                    extractCast(res),
+                    extractDirector(res, isTv),
+                    extractTrailer(res),
+                    extractWatchProviders(res),
+                    extractRuntimeMinutes(res, isTv),
+                    extractCertification(res, isTv));
+        } catch (RestClientException | ClassCastException e) {
+            log.warn("TMDB details lookup failed for {} (tv={}): {}", tmdbId, isTv, e.getMessage());
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<CastMember> extractCast(Map<String, Object> res) {
+        Map<String, Object> credits = (Map<String, Object>) res.get("credits");
+        if (credits == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> cast = (List<Map<String, Object>>) credits.get("cast");
+        if (cast == null) {
+            return List.of();
+        }
+        List<CastMember> out = new ArrayList<>();
+        for (Map<String, Object> member : cast) {
+            if (out.size() >= CAST_LIMIT) {
+                break;
+            }
+            String name = str(member.get("name"));
+            if (name != null) {
+                out.add(new CastMember(name, str(member.get("character")), str(member.get("profile_path"))));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Movies: the crew member with job=="Director". TV: TMDB puts showrunners in
+     * top-level created_by rather than credits.crew, so that's checked first.
+     */
+    @SuppressWarnings("unchecked")
+    private String extractDirector(Map<String, Object> res, boolean isTv) {
+        if (isTv) {
+            List<Map<String, Object>> createdBy = (List<Map<String, Object>>) res.get("created_by");
+            if (createdBy != null && !createdBy.isEmpty()) {
+                return str(createdBy.get(0).get("name"));
+            }
+        }
+        Map<String, Object> credits = (Map<String, Object>) res.get("credits");
+        if (credits == null) {
+            return null;
+        }
+        List<Map<String, Object>> crew = (List<Map<String, Object>>) credits.get("crew");
+        if (crew == null) {
+            return null;
+        }
+        for (Map<String, Object> member : crew) {
+            if ("Director".equals(member.get("job"))) {
+                return str(member.get("name"));
+            }
+        }
+        return null;
+    }
+
+    /** First official YouTube trailer, falling back to the first YouTube trailer of any kind. */
+    @SuppressWarnings("unchecked")
+    private String extractTrailer(Map<String, Object> res) {
+        Map<String, Object> videos = (Map<String, Object>) res.get("videos");
+        if (videos == null) {
+            return null;
+        }
+        List<Map<String, Object>> results = (List<Map<String, Object>>) videos.get("results");
+        if (results == null) {
+            return null;
+        }
+        String fallback = null;
+        for (Map<String, Object> v : results) {
+            if (!"YouTube".equals(v.get("site")) || !"Trailer".equals(v.get("type"))) {
+                continue;
+            }
+            String key = str(v.get("key"));
+            if (key == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(v.get("official"))) {
+                return "https://www.youtube.com/watch?v=" + key;
+            }
+            if (fallback == null) {
+                fallback = "https://www.youtube.com/watch?v=" + key;
+            }
+        }
+        return fallback;
+    }
+
+    /** Streaming ("flatrate") provider names for WATCH_REGION — not rent/buy, just what's included in a subscription. */
+    @SuppressWarnings("unchecked")
+    private List<String> extractWatchProviders(Map<String, Object> res) {
+        Map<String, Object> wrapper = (Map<String, Object>) res.get("watch/providers");
+        if (wrapper == null) {
+            return List.of();
+        }
+        Map<String, Object> byRegion = (Map<String, Object>) wrapper.get("results");
+        if (byRegion == null) {
+            return List.of();
+        }
+        Map<String, Object> region = (Map<String, Object>) byRegion.get(WATCH_REGION);
+        if (region == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> flatrate = (List<Map<String, Object>>) region.get("flatrate");
+        if (flatrate == null) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> provider : flatrate) {
+            String name = str(provider.get("provider_name"));
+            if (name != null) {
+                out.add(name);
+            }
+        }
+        return out;
+    }
+
+    /** Movies carry a flat `runtime`; TV carries `episode_run_time` (an array — one episode's length, not the series total). */
+    @SuppressWarnings("unchecked")
+    private Integer extractRuntimeMinutes(Map<String, Object> res, boolean isTv) {
+        if (!isTv) {
+            return asInt(res.get("runtime"));
+        }
+        Object raw = res.get("episode_run_time");
+        if (raw instanceof List<?> times && !times.isEmpty()) {
+            return asInt(times.get(0));
+        }
+        return null;
+    }
+
+    /** US content rating/certification — "PG-13", "TV-MA", etc. Movies and TV use differently-shaped TMDB payloads. */
+    @SuppressWarnings("unchecked")
+    private String extractCertification(Map<String, Object> res, boolean isTv) {
+        if (isTv) {
+            Map<String, Object> wrapper = (Map<String, Object>) res.get("content_ratings");
+            if (wrapper == null) {
+                return null;
+            }
+            List<Map<String, Object>> results = (List<Map<String, Object>>) wrapper.get("results");
+            if (results == null) {
+                return null;
+            }
+            for (Map<String, Object> entry : results) {
+                if (WATCH_REGION.equals(entry.get("iso_3166_1"))) {
+                    return str(entry.get("rating"));
+                }
+            }
+            return null;
+        }
+
+        Map<String, Object> wrapper = (Map<String, Object>) res.get("release_dates");
+        if (wrapper == null) {
+            return null;
+        }
+        List<Map<String, Object>> results = (List<Map<String, Object>>) wrapper.get("results");
+        if (results == null) {
+            return null;
+        }
+        for (Map<String, Object> entry : results) {
+            if (!WATCH_REGION.equals(entry.get("iso_3166_1"))) {
+                continue;
+            }
+            List<Map<String, Object>> dates = (List<Map<String, Object>>) entry.get("release_dates");
+            if (dates == null) {
+                continue;
+            }
+            for (Map<String, Object> date : dates) {
+                String cert = str(date.get("certification"));
+                if (cert != null && !cert.isBlank()) {
+                    return cert;
+                }
+            }
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private List<TmdbMovie> list(String path, Map<String, String> params) {
         if (!isConfigured()) {
@@ -172,6 +421,69 @@ public class TmdbClient {
             log.warn("TMDB request to {} failed: {}", path, e.getMessage());
             return List.of();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<TmdbMovie> listTv(String path, Map<String, String> params) {
+        if (!isConfigured()) {
+            log.debug("TMDB api key not configured; skipping {}", path);
+            return List.of();
+        }
+        try {
+            UriComponentsBuilder b = UriComponentsBuilder.fromHttpUrl(baseUrl + path)
+                    .queryParam("api_key", apiKey);
+            params.forEach(b::queryParam);
+
+            Map<String, Object> res = rest.getForObject(b.toUriString(), Map.class);
+            if (res == null || !res.containsKey("results")) {
+                return List.of();
+            }
+
+            List<Map<String, Object>> raw = (List<Map<String, Object>>) res.get("results");
+            List<TmdbMovie> out = new ArrayList<>(raw.size());
+            for (Map<String, Object> item : raw) {
+                TmdbMovie m = parseTv(item);
+                if (m != null) {
+                    out.add(m);
+                }
+            }
+            return out;
+        } catch (RestClientException | ClassCastException e) {
+            log.warn("TMDB request to {} failed: {}", path, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /** Same shape as parse(), but TV list items use "name"/"first_air_date" instead of "title"/"release_date". */
+    @SuppressWarnings("unchecked")
+    private TmdbMovie parseTv(Map<String, Object> item) {
+        Object idObj = item.get("id");
+        if (idObj == null) {
+            return null;
+        }
+        List<Integer> genres = Collections.emptyList();
+        Object g = item.get("genre_ids");
+        if (g instanceof List<?> raw) {
+            genres = new ArrayList<>(raw.size());
+            for (Object o : raw) {
+                if (o instanceof Number num) {
+                    genres.add(num.intValue());
+                }
+            }
+        }
+
+        return new TmdbMovie(
+                asInt(idObj),
+                str(item.get("name")),
+                str(item.get("overview")),
+                str(item.get("poster_path")),
+                str(item.get("backdrop_path")),
+                str(item.get("first_air_date")),
+                genres,
+                str(item.get("original_language")),
+                asDouble(item.get("vote_average")),
+                asInt(item.get("vote_count")),
+                asDouble(item.get("popularity")));
     }
 
     @SuppressWarnings("unchecked")

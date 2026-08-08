@@ -19,6 +19,8 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
 
     boolean existsByUserIdAndTitleId(Long userId, Long titleId);
 
+    boolean existsByIdAndUserId(Long id, Long userId);
+
     /** Activity feed: recent ratings from the set of users the caller follows. */
     List<Rating> findByUserIdInOrderByCreatedAtDesc(List<Long> userIds,
             org.springframework.data.domain.Pageable pageable);

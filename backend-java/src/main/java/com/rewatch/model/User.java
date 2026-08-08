@@ -71,6 +71,108 @@ public class User {
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private int tokenVersion = 0;
 
+    /**
+     * Defaults to public — matches the app's existing live behaviour (no
+     * profile has ever been private) and preserves DNA-matching/discovery,
+     * this app's core differentiator, for every existing account. A user
+     * opts INTO privacy, rather than every account silently going dark the
+     * moment this column is added. Same READ_ONLY mass-assignment guard as
+     * `role`/`tokenVersion` above, changed only via AccountController.
+     */
+    @Column(name = "profile_public", nullable = false, columnDefinition = "boolean not null default true")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private boolean profilePublic = true;
+
+    /**
+     * Comma-separated dealbreaker keys picked at onboarding (e.g.
+     * "excessive gore,sad ending") — persisted so Recommender can keep
+     * applying the hard filter on every later request, not just at
+     * seed time. Same simple string-list style as seedVector.
+     */
+    @Column(length = 500)
+    private String dealbreakers;
+
+    /**
+     * Personalizes interactive UI chrome (buttons, active chips, links, focus
+     * rings) — one of "purple" (default, null reads as this), "blue",
+     * "orange", "emerald". Deliberately does NOT recolor the brand mark or
+     * TraitRadar's "your TasteDNA" line: that purple/cyan pairing is a
+     * validated CVD-safe pair (see App.css's palette-discipline notes), and
+     * the brand mark is the one fixed anchor everything else is allowed to
+     * personalize around.
+     */
+    @Column(name = "accent_color", length = 20)
+    private String accentColor;
+
+    /**
+     * A skin for this user's OWN /social/:id page only (what visitors see when
+     * they land on it) — deliberately scoped there, not app-wide like
+     * accentColor, so this doesn't fight the rest of the app's deliberately
+     * restrained one-accent-per-screen palette. One of AccountService.
+     * VALID_PROFILE_THEMES, null reads as "cinema" (the default look).
+     */
+    @Column(name = "profile_theme", length = 20)
+    private String profileTheme;
+
+    /**
+     * A base64 `data:image/...` URL, client-resized/compressed before upload
+     * (see Settings.jsx) — this app has no S3/CDN, so the image lives directly
+     * in the row rather than as a stored-file reference. columnDefinition=TEXT
+     * because a resized-but-still-real photo can run well past a VARCHAR's
+     * practical length; AccountService caps the decoded size server-side.
+     * READ_ONLY for the same reason as role/tokenVersion/profilePublic above —
+     * AuthController.register binds a request body straight onto this entity,
+     * so an unguarded field is settable from registration JSON, bypassing
+     * AccountService's size/format validation entirely.
+     */
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String avatarUrl;
+
+    /**
+     * One of AccountService.FRAME_REQUIREMENTS's keys, or null for none.
+     * READ_ONLY for the same mass-assignment reason as avatarUrl/role — only
+     * settable via AccountService.setAvatarFrame, which re-checks eligibility
+     * against AchievementService on every write rather than trusting a
+     * previously-valid value (an achievement's underlying data, e.g. a
+     * deleted rating, could in principle make a user newly ineligible).
+     */
+    @Column(name = "avatar_frame", length = 40)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String avatarFrame;
+
+    /**
+     * An expressive display line shown under the @username on the profile
+     * header (e.g. "the girl who cries at movies") — purely decorative, never
+     * used for lookup/auth/@mentions, so it carries none of username's
+     * uniqueness or format constraints. Null renders nothing extra.
+     * READ_ONLY for the same mass-assignment reason as avatarUrl/avatarFrame —
+     * AccountService.setNickname is the only path that enforces the length cap.
+     */
+    @Column(length = 60)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String nickname;
+
+    /**
+     * Up to 4 comma-separated Title ids the user chose to feature on their
+     * profile — validated (see AccountService.setPinnedContent) against titles
+     * they've actually rated, so "pinned" always means "something real I
+     * watched," never an arbitrary catalog pick.
+     */
+    @Column(name = "pinned_title_ids", length = 60)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String pinnedTitleIds;
+
+    /** Must be one of this user's own Rating rows with a real (non-blank) moment. */
+    @Column(name = "pinned_rating_id")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private Long pinnedRatingId;
+
+    /** Must be one of this user's own WatchlistFolder rows. */
+    @Column(name = "pinned_folder_id")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private Long pinnedFolderId;
+
     public User() {}
 
     public Long getId() { return id; }
@@ -93,4 +195,34 @@ public class User {
 
     public int getTokenVersion() { return tokenVersion; }
     public void setTokenVersion(int tokenVersion) { this.tokenVersion = tokenVersion; }
+
+    public boolean isProfilePublic() { return profilePublic; }
+    public void setProfilePublic(boolean v) { this.profilePublic = v; }
+
+    public String getDealbreakers() { return dealbreakers; }
+    public void setDealbreakers(String v) { this.dealbreakers = v; }
+
+    public String getAccentColor() { return accentColor; }
+    public void setAccentColor(String v) { this.accentColor = v; }
+
+    public String getProfileTheme() { return profileTheme; }
+    public void setProfileTheme(String v) { this.profileTheme = v; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String v) { this.avatarUrl = v; }
+
+    public String getAvatarFrame() { return avatarFrame; }
+    public void setAvatarFrame(String v) { this.avatarFrame = v; }
+
+    public String getNickname() { return nickname; }
+    public void setNickname(String v) { this.nickname = v; }
+
+    public String getPinnedTitleIds() { return pinnedTitleIds; }
+    public void setPinnedTitleIds(String v) { this.pinnedTitleIds = v; }
+
+    public Long getPinnedRatingId() { return pinnedRatingId; }
+    public void setPinnedRatingId(Long v) { this.pinnedRatingId = v; }
+
+    public Long getPinnedFolderId() { return pinnedFolderId; }
+    public void setPinnedFolderId(Long v) { this.pinnedFolderId = v; }
 }

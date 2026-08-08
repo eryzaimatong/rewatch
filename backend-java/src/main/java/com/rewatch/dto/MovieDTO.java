@@ -32,6 +32,7 @@ public class MovieDTO {
     private String featuresSource;
     private Double voteAverage;
     private boolean rated;
+    private String originalLanguage;
 
     public MovieDTO() {}
 
@@ -96,4 +97,7 @@ public class MovieDTO {
 
     public boolean isRated() { return rated; }
     public void setRated(boolean rated) { this.rated = rated; }
+
+    public String getOriginalLanguage() { return originalLanguage; }
+    public void setOriginalLanguage(String v) { this.originalLanguage = v; }
 }

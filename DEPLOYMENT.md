@@ -34,10 +34,20 @@ refuse to start rather than fall back to the insecure dev JWT secret.
 | `JWT_SECRET` | backend | no default in prod; `openssl rand -base64 48` |
 | `CORS_ALLOWED_ORIGINS` | backend | comma-separated, must match the frontend's actual origin |
 | `VITE_API_BASE` | frontend (build-time) | the URL the *browser* uses to reach the backend — baked into the JS bundle at build time, not read at container start |
+| `MAIL_USERNAME` | backend | no default in prod; a Gmail address used to send password-reset emails |
+| `MAIL_PASSWORD` | backend | no default in prod; a Gmail [App Password](https://myaccount.google.com/apppasswords), not the account password |
+| `FRONTEND_BASE_URL` | backend | the origin the SPA is served from — embedded in reset-password email links; defaults to `http://localhost:5173` |
+| `ADMIN_EMAILS` | backend | comma-separated emails auto-promoted to ADMIN on login; optional, empty is fine |
 
 `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME` have working defaults for the
 docker-compose setup; override them if pointing at a managed Postgres
 instance instead of the bundled container.
+
+Every one of these must be set for `docker compose up` to start at all —
+`docker-compose.yml` uses `${VAR:?message}` for anything with no safe
+default, so a missing `MAIL_USERNAME`/`MAIL_PASSWORD`/`TMDB_API_KEY`/
+`JWT_SECRET`/`DB_PASSWORD` fails the compose run immediately with that
+message, rather than starting a broken backend.
 
 ## Deploying frontend and backend separately (not docker-compose)
 
@@ -58,8 +68,16 @@ cd backend-java
 SPRING_PROFILES_ACTIVE=prod \
   DB_HOST=... DB_PASSWORD=... TMDB_API_KEY=... JWT_SECRET=... \
   CORS_ALLOWED_ORIGINS=https://yourdomain.com \
+  MAIL_USERNAME=... MAIL_PASSWORD=... FRONTEND_BASE_URL=https://yourdomain.com \
   java -jar target/backend-java-1.0.0.jar
 ```
+
+## API docs
+
+`GET /swagger-ui/index.html` (no auth required — it's documentation, not
+data) — generated from the controllers/DTOs via springdoc, not hand-written,
+so it can't drift from the actual routes. `GET /v3/api-docs` is the raw
+OpenAPI 3.0 JSON if you want to feed it to another tool.
 
 ## Health check
 

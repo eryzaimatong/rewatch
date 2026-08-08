@@ -71,6 +71,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+                // API documentation — read-only, no user data, standard to leave public.
+                .requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                    .permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/titles").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/movies/popular", "/api/movies/search",
                         "/api/movies/nlp-search", "/api/movies/search-suggestions",

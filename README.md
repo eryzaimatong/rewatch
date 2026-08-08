@@ -48,6 +48,7 @@ Frontend
 
 Backend
 - Spring Boot 3 / Java 17
+- OpenAPI/Swagger UI at `/swagger-ui/index.html`, generated from the controllers — no hand-maintained spec to drift
 
 Database
 - PostgreSQL

@@ -10,6 +10,8 @@ public class ReportRequest {
     @NotNull private Long reportedUserId;
     @NotNull private Report.Reason reason;
     private String details;
+    /** Set when reporting a specific comment rather than the user in general — see Report.commentId. */
+    private Long commentId;
 
     public Long getReportedUserId() { return reportedUserId; }
     public void setReportedUserId(Long v) { this.reportedUserId = v; }
@@ -17,4 +19,6 @@ public class ReportRequest {
     public void setReason(Report.Reason v) { this.reason = v; }
     public String getDetails() { return details; }
     public void setDetails(String v) { this.details = v; }
+    public Long getCommentId() { return commentId; }
+    public void setCommentId(Long v) { this.commentId = v; }
 }

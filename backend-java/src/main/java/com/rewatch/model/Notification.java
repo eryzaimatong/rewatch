@@ -28,7 +28,15 @@ import jakarta.persistence.Table;
 )
 public class Notification {
 
-    public enum Type { NEW_FOLLOWER, TASTE_MILESTONE, DNA_MATCH }
+    /**
+     * The database carries a hand-written Postgres CHECK constraint
+     * (notifications_type_check) enumerating these literals — ddl-auto=update
+     * only adds columns/tables, it never alters an existing constraint. Adding a
+     * value here also means updating SchemaFixupService.widenNotificationsTypeCheck
+     * so the constraint gets re-asserted on next boot in every environment,
+     * otherwise every insert of the new type 500s with a check-constraint violation.
+     */
+    public enum Type { NEW_FOLLOWER, TASTE_MILESTONE, DNA_MATCH, ACHIEVEMENT_UNLOCKED, REVIEW_LIKED, REVIEW_COMMENTED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

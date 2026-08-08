@@ -11,6 +11,8 @@ public class UserSummaryDTO {
     /** Only populated by dnaMatches() — 0 elsewhere (followers/following lists don't rank by it). */
     private double matchScore;
 
+    private String avatarUrl;
+
     public UserSummaryDTO() {}
 
     public UserSummaryDTO(Long userId, String username, String archetype, boolean isFollowing) {
@@ -39,4 +41,7 @@ public class UserSummaryDTO {
 
     public double getMatchScore() { return matchScore; }
     public void setMatchScore(double v) { this.matchScore = v; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String v) { this.avatarUrl = v; }
 }

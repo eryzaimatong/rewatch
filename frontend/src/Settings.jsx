@@ -1,8 +1,75 @@
-import { useEffect, useState } from "react";
-import { changePassword, deleteAccount, getBlockedUsers, unblockUser } from "./api";
-import { saveSession, clearSession } from "./auth";
+import { useEffect, useRef, useState } from "react";
+import {
+  changePassword, deleteAccount, getBlockedUsers, unblockUser,
+  getProfileVisibility, setProfileVisibility, setAccentColor, setAvatar,
+  setAvatarFrame, getAchievements, setNickname, setPinnedContent, setProfileTheme, BASE
+} from "./api";
+import { saveSession, clearSession, applyAccentColor, authHeaders } from "./auth";
+import { getAccessibilityPrefs, setAccessibilityPref } from "./accessibility";
 import ConfirmDialog from "./ConfirmDialog";
+import Avatar from "./Avatar";
+import InstallAppButton from "./InstallAppButton";
 import "./App.css";
+
+// Interactive-chrome accents only — the brand mark and TasteDNA radar
+// intentionally keep their validated purple/cyan pairing (see User.java's
+// accentColor javadoc). Swatch hexes mirror what App.css defines for each
+// [data-accent] value.
+const ACCENT_OPTIONS = [
+  { key: "purple", label: "Purple", swatch: "#a855f7" },
+  { key: "blue", label: "Blue", swatch: "#3b82f6" },
+  { key: "orange", label: "Orange", swatch: "#f97316" },
+  { key: "emerald", label: "Emerald", swatch: "#10b981" }
+];
+
+// A skin for your own /social/:id page only — see User.profileTheme. Swatch
+// gradients mirror what App.css's [data-profile-theme] overrides actually paint.
+const PROFILE_THEME_OPTIONS = [
+  { key: "cinema", label: "Cinema", swatch: "linear-gradient(135deg, #14151a, #7e22ce)" },
+  { key: "vhs", label: "VHS", swatch: "linear-gradient(135deg, #1a1425, #be185d)" },
+  { key: "dreamy", label: "Dreamy", swatch: "linear-gradient(135deg, #2e1a47, #f0abfc)" },
+  { key: "midnight", label: "Midnight", swatch: "linear-gradient(135deg, #020617, #1d4ed8)" },
+  { key: "indie", label: "Indie", swatch: "linear-gradient(135deg, #d6c7a8, #92714f)" }
+];
+
+const AVATAR_TARGET_SIZE = 256;
+const AVATAR_JPEG_QUALITY = 0.82;
+
+// Mirrors AccountService.FRAME_REQUIREMENTS — the backend is the actual
+// source of truth (and re-validates on every save), this is just what's
+// needed to render locked/unlocked state without an extra round trip.
+const FRAME_OPTIONS = [
+  { key: "bronze", label: "Bronze", achievementKey: "rating_15", achievementTitle: "Well-Defined Profile" },
+  { key: "silver", label: "Silver", achievementKey: "rating_30", achievementTitle: "Seasoned Critic" },
+  { key: "gold", label: "Gold", achievementKey: "rating_100", achievementTitle: "Completionist" },
+  { key: "signal", label: "Signal", achievementKey: "conf_90", achievementTitle: "TasteDNA Mastery" },
+  { key: "social", label: "Social", achievementKey: "first_follower", achievementTitle: "Found by Someone" }
+];
+
+/** Center-crops to a square, then downscales — client-side, no upload of the original full-size photo. */
+function resizeImageToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = AVATAR_TARGET_SIZE;
+        canvas.height = AVATAR_TARGET_SIZE;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, AVATAR_TARGET_SIZE, AVATAR_TARGET_SIZE);
+        resolve(canvas.toDataURL("image/jpeg", AVATAR_JPEG_QUALITY));
+      };
+      img.onerror = () => reject(new Error("Could not read that image."));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("Could not read that file."));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function Settings() {
   const userid = Number(localStorage.getItem("userId")) || 1;
@@ -23,16 +90,235 @@ export default function Settings() {
   const [blockedloading, setblockedloading] = useState(true);
   const [unblockingId, setunblockingId] = useState(null);
 
+  const [profilepublic, setprofilepublic] = useState(true);
+  const [visibilityloading, setvisibilityloading] = useState(true);
+  const [visibilitysaving, setvisibilitysaving] = useState(false);
+
+  const [accentcolor, setaccentcolor] = useState(localStorage.getItem("accentColor") || "purple");
+  const [accentsaving, setaccentsaving] = useState(false);
+
+  const [showconfirmretake, setshowconfirmretake] = useState(false);
+
+  const [a11yprefs, seta11yprefs] = useState(() => getAccessibilityPrefs());
+  function updatea11y(key, value) {
+    setAccessibilityPref(key, value);
+    seta11yprefs(getAccessibilityPrefs());
+  }
+
+  const [avatarurl, setavatarurl] = useState(localStorage.getItem("avatarUrl") || null);
+  const [avatarsaving, setavatarsaving] = useState(false);
+  const [avatarerr, setavatarerr] = useState("");
+  const avatarInputRef = useRef(null);
+  const username = localStorage.getItem("username") || "You";
+
+  const [avatarframe, setavatarframe] = useState(localStorage.getItem("avatarFrame") || null);
+  const [unlockedachievementkeys, setunlockedachievementkeys] = useState(new Set());
+  const [frameSavingKey, setframeSavingKey] = useState(null);
+
+  const [nickname, setnicknameField] = useState("");
+  const [nicknamesaving, setnicknamesaving] = useState(false);
+  const [nicknamemsg, setnicknamemsg] = useState("");
+
+  const [profiletheme, setprofiletheme] = useState("cinema");
+  const [themesaving, setthemesaving] = useState(false);
+
+  const [ownreviews, setownreviews] = useState([]);
+  const [ownfolders, setownfolders] = useState([]);
+  const [pinnedtitleids, setpinnedtitleids] = useState([]);
+  const [pinnedratingid, setpinnedratingid] = useState(null);
+  const [pinnedfolderid, setpinnedfolderid] = useState(null);
+  const [pinnedsaving, setpinnedsaving] = useState(false);
+  const [pinnedmsg, setpinnedmsg] = useState("");
+
+  async function loadnickname() {
+    const res = await fetch(`${BASE}/api/social/profile/${userid}`, { headers: authHeaders() }).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      setnicknameField(data.nickname || "");
+      setprofiletheme(data.profileTheme || "cinema");
+      setpinnedtitleids((data.pinnedTitles || []).map((t) => t.titleId));
+      setpinnedratingid(data.pinnedReview?.ratingId ?? null);
+      setpinnedfolderid(data.pinnedCollection?.folderId ?? null);
+    }
+  }
+
+  async function loadpinnedpickers() {
+    const [reviewsRes, foldersRes] = await Promise.all([
+      fetch(`${BASE}/api/social/${userid}/reviews?limit=40`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/watchlist/${userid}/folders`, { headers: authHeaders() }).catch(() => null)
+    ]);
+    if (reviewsRes && reviewsRes.ok) setownreviews(await reviewsRes.json());
+    if (foldersRes && foldersRes.ok) setownfolders(await foldersRes.json());
+  }
+
+  const MAX_PINNED_TITLES = 4;
+  function togglepinnedtitle(titleId) {
+    setpinnedtitleids((current) => {
+      if (current.includes(titleId)) {
+        return current.filter((id) => id !== titleId);
+      }
+      if (current.length >= MAX_PINNED_TITLES) {
+        return current;
+      }
+      return [...current, titleId];
+    });
+  }
+
+  async function handlesavepinned() {
+    setpinnedsaving(true);
+    setpinnedmsg("");
+    const res = await setPinnedContent(userid, pinnedtitleids, pinnedratingid, pinnedfolderid);
+    setpinnedmsg(res?.status === "success" ? "Saved." : res?.message || "Could not save your pinned content.");
+    setpinnedsaving(false);
+  }
+
   async function loadblocked() {
     setblockedloading(true);
     setblocked(await getBlockedUsers());
     setblockedloading(false);
   }
 
+  async function loadachievements() {
+    const res = await getAchievements(userid);
+    if (res?.achievements) {
+      setunlockedachievementkeys(new Set(res.achievements.filter((a) => a.unlocked).map((a) => a.key)));
+    }
+  }
+
+  async function loadvisibility() {
+    setvisibilityloading(true);
+    const res = await getProfileVisibility(userid);
+    if (res && typeof res.public === "boolean") {
+      setprofilepublic(res.public);
+    }
+    setvisibilityloading(false);
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadblocked();
+    loadvisibility();
+    loadachievements();
+    loadnickname();
+    loadpinnedpickers();
   }, []);
+
+  async function handlesavenickname() {
+    setnicknamesaving(true);
+    setnicknamemsg("");
+    const res = await setNickname(userid, nickname.trim());
+    if (res?.status === "success") {
+      setnicknamemsg("Saved.");
+    } else {
+      setnicknamemsg(res?.message || "Could not save your nickname.");
+    }
+    setnicknamesaving(false);
+  }
+
+  async function handletogglevisibility() {
+    const next = !profilepublic;
+    setvisibilitysaving(true);
+    const res = await setProfileVisibility(userid, next);
+    if (res?.status === "success") {
+      setprofilepublic(next);
+    }
+    setvisibilitysaving(false);
+  }
+
+  async function handleselectaccent(key) {
+    if (key === accentcolor || accentsaving) return;
+    setaccentsaving(true);
+    const res = await setAccentColor(userid, key);
+    if (res?.status === "success") {
+      setaccentcolor(key);
+      localStorage.setItem("accentColor", key);
+      applyAccentColor(key);
+    }
+    setaccentsaving(false);
+  }
+
+  async function handleselecttheme(key) {
+    if (key === profiletheme || themesaving) return;
+    setthemesaving(true);
+    const res = await setProfileTheme(userid, key);
+    if (res?.status === "success") {
+      setprofiletheme(key);
+    }
+    setthemesaving(false);
+  }
+
+  async function handleavatarfile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setavatarerr("Please choose an image file.");
+      return;
+    }
+
+    setavatarerr("");
+    setavatarsaving(true);
+    try {
+      const dataUrl = await resizeImageToDataUrl(file);
+      const res = await setAvatar(userid, dataUrl);
+      if (res?.status === "success") {
+        setavatarurl(dataUrl);
+        localStorage.setItem("avatarUrl", dataUrl);
+        window.dispatchEvent(new Event("rewatch:avatar-changed"));
+      } else {
+        setavatarerr(res?.message || "Could not save that photo.");
+      }
+    } catch {
+      setavatarerr("Could not process that image.");
+    }
+    setavatarsaving(false);
+  }
+
+  async function handleremoveavatar() {
+    setavatarerr("");
+    setavatarsaving(true);
+    const res = await setAvatar(userid, "");
+    if (res?.status === "success") {
+      setavatarurl(null);
+      localStorage.removeItem("avatarUrl");
+      window.dispatchEvent(new Event("rewatch:avatar-changed"));
+    } else {
+      setavatarerr(res?.message || "Could not remove your photo.");
+    }
+    setavatarsaving(false);
+  }
+
+  async function handleselectframe(frameKey) {
+    // frameKey === avatarframe toggles it off (equip "none") — clicking your
+    // currently-equipped frame again removes it, same affordance as most
+    // "pick one of N, or none" pickers.
+    const next = frameKey === avatarframe ? null : frameKey;
+    setframeSavingKey(frameKey);
+    const res = await setAvatarFrame(userid, next);
+    if (res?.status === "success") {
+      setavatarframe(next);
+      if (next) {
+        localStorage.setItem("avatarFrame", next);
+      } else {
+        localStorage.removeItem("avatarFrame");
+      }
+      window.dispatchEvent(new Event("rewatch:avatar-changed"));
+    }
+    setframeSavingKey(null);
+  }
+
+  function confirmretake() {
+    setshowconfirmretake(false);
+    // The onboarding screen itself submits to the same /api/movies/onboard
+    // endpoint retaking would — it always overwrites seedVector and replays
+    // the full rating log on top of it (see ProfileService.seedFromOnboarding),
+    // so there's no separate "reset" call to make here. This just clears the
+    // local flag and reloads so App.jsx's onboarded check (read once at
+    // mount, not reactive to a same-tab localStorage write) re-evaluates to
+    // false — same pattern Settings' own account-deletion flow already uses.
+    localStorage.removeItem("onboarded");
+    window.location.href = "/";
+  }
 
   async function handleunblock(id) {
     setunblockingId(id);
@@ -103,6 +389,161 @@ export default function Settings() {
         <h1>Settings</h1>
 
         <section className="feed-section">
+          <p className="section-eyebrow">Nickname</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            An expressive line shown under your @{username} on your profile — purely for personality, not used for login or search.
+          </p>
+          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+            <input
+              type="text"
+              placeholder="the girl who cries at movies"
+              value={nickname}
+              onChange={(e) => setnicknameField(e.target.value)}
+              maxLength={60}
+              style={{ flex: 1, margin: 0 }}
+            />
+            <button type="button" className="btn-primary" onClick={handlesavenickname} disabled={nicknamesaving}>
+              {nicknamesaving ? "..." : "Save"}
+            </button>
+          </div>
+          {nicknamemsg && <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--text-faint)" }}>{nicknamemsg}</p>}
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Profile picture</p>
+          {avatarerr && <div className="status-message status-message--error">{avatarerr}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
+            <Avatar username={username} avatarUrl={avatarurl} avatarFrame={avatarframe} size={72} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleavatarfile}
+                style={{ display: "none" }}
+              />
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ maxWidth: "180px" }}
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarsaving}
+              >
+                {avatarsaving ? "..." : avatarurl ? "Change photo" : "Upload photo"}
+              </button>
+              {avatarurl && (
+                <button
+                  type="button"
+                  className="auth-toggle-link"
+                  style={{ fontSize: "0.8rem", background: "none", border: "none", textAlign: "left" }}
+                  onClick={handleremoveavatar}
+                  disabled={avatarsaving}
+                >
+                  Remove photo
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Avatar frames</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Collectible rings unlocked by real milestones — rate more, build up your TasteDNA confidence, or grow your network to earn one.
+          </p>
+          <div className="avatar-frame-picker">
+            {FRAME_OPTIONS.map((f) => {
+              const unlocked = unlockedachievementkeys.has(f.achievementKey);
+              const equipped = avatarframe === f.key;
+              return (
+                <button
+                  type="button"
+                  key={f.key}
+                  className={`avatar-frame-option${equipped ? " is-equipped" : ""}${!unlocked ? " is-locked" : ""}`}
+                  onClick={() => unlocked && handleselectframe(f.key)}
+                  disabled={!unlocked || frameSavingKey === f.key}
+                  title={unlocked ? f.label : `Locked — unlock "${f.achievementTitle}" first`}
+                >
+                  <Avatar username={username} avatarUrl={avatarurl} avatarFrame={f.key} size={48} />
+                  <span className="avatar-frame-option-label">{unlocked ? f.label : "🔒"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Pinned content</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Feature up to 4 titles you've actually rated, one written review, and one of your own lists at the top of your profile.
+          </p>
+
+          <p style={{ margin: "0 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>
+            Identity films ({pinnedtitleids.length}/{MAX_PINNED_TITLES})
+          </p>
+          {ownreviews.length === 0 ? (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>Rate a few titles first to pin them here.</p>
+          ) : (
+            <div className="pinned-picker-grid">
+              {ownreviews.map((r) => {
+                const active = pinnedtitleids.includes(r.titleId);
+                return (
+                  <button
+                    type="button"
+                    key={r.ratingId}
+                    className={`pinned-picker-title${active ? " is-selected" : ""}`}
+                    onClick={() => togglepinnedtitle(r.titleId)}
+                    title={r.title}
+                  >
+                    <img src={r.poster ? `https://image.tmdb.org/t/p/w200${r.poster}` : ""} alt="" loading="lazy" />
+                    {active && <span className="pinned-picker-check">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <p style={{ margin: "var(--sp-2) 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>Pinned review</p>
+          {ownreviews.length === 0 ? (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>No written reviews yet.</p>
+          ) : (
+            <select
+              value={pinnedratingid ?? ""}
+              onChange={(e) => setpinnedratingid(e.target.value ? Number(e.target.value) : null)}
+              style={{ marginBottom: "var(--sp-2)" }}
+            >
+              <option value="">None</option>
+              {ownreviews.map((r) => (
+                <option key={r.ratingId} value={r.ratingId}>{r.title} — {r.moment}</option>
+              ))}
+            </select>
+          )}
+
+          <p style={{ margin: "0 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>Pinned list</p>
+          {ownfolders.length === 0 ? (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>You haven't made a list yet.</p>
+          ) : (
+            <select
+              value={pinnedfolderid ?? ""}
+              onChange={(e) => setpinnedfolderid(e.target.value ? Number(e.target.value) : null)}
+              style={{ marginBottom: "var(--sp-2)" }}
+            >
+              <option value="">None</option>
+              {ownfolders.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          )}
+
+          <div>
+            <button type="button" className="btn-primary" onClick={handlesavepinned} disabled={pinnedsaving}>
+              {pinnedsaving ? "..." : "Save pinned content"}
+            </button>
+            {pinnedmsg && <span style={{ marginLeft: "10px", fontSize: "0.8rem", color: "var(--text-faint)" }}>{pinnedmsg}</span>}
+          </div>
+        </section>
+
+        <section className="feed-section">
           <p className="section-eyebrow">Change password</p>
           {pwerr && <div className="status-message status-message--error">{pwerr}</div>}
           {pwmsg && <div className="status-message status-message--success">{pwmsg}</div>}
@@ -141,6 +582,138 @@ export default function Settings() {
           </form>
         </section>
 
+        <InstallAppButton />
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Appearance</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Personalizes buttons, links, and active chips. Your TasteDNA chart stays purple either way.
+          </p>
+          <div className="accent-swatch-row">
+            {ACCENT_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`accent-swatch${accentcolor === opt.key ? " is-selected" : ""}`}
+                style={{ background: opt.swatch }}
+                onClick={() => handleselectaccent(opt.key)}
+                disabled={accentsaving}
+                aria-label={`${opt.label} accent${accentcolor === opt.key ? " (selected)" : ""}`}
+                title={opt.label}
+              >
+                {accentcolor === opt.key && <span aria-hidden="true">✓</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Profile theme</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            A skin for your own profile page — what visitors see when they land on it. Doesn't change the rest of the app.
+          </p>
+          <div className="profile-theme-row">
+            {PROFILE_THEME_OPTIONS.map((opt) => (
+              <button
+                type="button"
+                key={opt.key}
+                className={`profile-theme-swatch${profiletheme === opt.key ? " is-selected" : ""}`}
+                style={{ background: opt.swatch }}
+                onClick={() => handleselecttheme(opt.key)}
+                disabled={themesaving}
+                title={opt.label}
+              >
+                <span>{opt.label}</span>
+                {profiletheme === opt.key && <span aria-hidden="true">✓</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Accessibility</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Applies on this device only — not synced to your account.
+          </p>
+
+          <p style={{ margin: "0 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>Text size</p>
+          <div className="pill-row" style={{ marginBottom: "var(--sp-2)" }}>
+            {[["default", "Default"], ["large", "Large"], ["larger", "Larger"]].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`pill${a11yprefs.fontSize === key ? " active" : ""}`}
+                onClick={() => updatea11y("fontSize", key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <p style={{ margin: "0 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>Contrast</p>
+          <div className="pill-row" style={{ marginBottom: "var(--sp-2)" }}>
+            {[["default", "Default"], ["high", "High contrast"]].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`pill${a11yprefs.contrast === key ? " active" : ""}`}
+                onClick={() => updatea11y("contrast", key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <p style={{ margin: "0 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>Motion</p>
+          <div className="pill-row">
+            {[["default", "Default"], ["reduced", "Reduce motion"]].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`pill${a11yprefs.motion === key ? " active" : ""}`}
+                onClick={() => updatea11y("motion", key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">TasteDNA</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Redo the 5-step onboarding to reset your starting point. Your rating history isn't touched —
+            it's replayed on top of your new answers, not lost.
+          </p>
+          <button type="button" className="btn-block" onClick={() => setshowconfirmretake(true)} style={{ maxWidth: "220px" }}>
+            Retake TasteDNA Onboarding
+          </button>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Profile visibility</p>
+          {visibilityloading ? (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
+          ) : (
+            <div className="trait-card settings-toggle-row">
+              <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
+                {profilepublic
+                  ? "Public: anyone can view your profile, reviews, and TasteDNA."
+                  : "Private: only you can view your profile, reviews, and TasteDNA."}
+              </p>
+              <button
+                type="button"
+                className={profilepublic ? "btn-primary" : "btn-block"}
+                style={{ maxWidth: "140px" }}
+                onClick={handletogglevisibility}
+                disabled={visibilitysaving}
+              >
+                {visibilitysaving ? "..." : profilepublic ? "Make Private" : "Make Public"}
+              </button>
+            </div>
+          )}
+        </section>
+
         <section className="feed-section">
           <p className="section-eyebrow">Blocked users</p>
           {blockedloading ? (
@@ -150,7 +723,7 @@ export default function Settings() {
           ) : (
             <div className="trait-list">
               {blocked.map((u) => (
-                <div key={u.userId} className="trait-card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div key={u.userId} className="trait-card settings-toggle-row">
                   <span className="trait-name">{u.username}</span>
                   <button
                     type="button"
@@ -190,6 +763,16 @@ export default function Settings() {
           </button>
         </section>
       </div>
+
+      {showconfirmretake && (
+        <ConfirmDialog
+          title="Retake your TasteDNA onboarding?"
+          message="You'll go through the 5-step onboarding again to reset your starting point. Your rating history stays intact — it's replayed on top of the new answers, not deleted."
+          confirmLabel="Retake Onboarding"
+          onConfirm={confirmretake}
+          onCancel={() => setshowconfirmretake(false)}
+        />
+      )}
 
       {showconfirmdelete && (
         <ConfirmDialog

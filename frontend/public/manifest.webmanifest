@@ -1,0 +1,16 @@
+{
+  "name": "Re:Watch — Stories chosen for how you feel",
+  "short_name": "Re:Watch",
+  "description": "A recommendation engine built on a real taste model, not popularity — rate a few titles and it learns the emotional shape of what you actually respond to.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090a0e",
+  "theme_color": "#090a0e",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

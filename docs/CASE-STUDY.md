@@ -81,6 +81,46 @@ recorded per title as `featuresSource`) means every title has *some*
 vector immediately, and low-confidence ones shrink toward 0.5 and rank
 mid-pack rather than being hidden or faked.
 
+## A third vector source, and a dead-data bug it caught
+
+Movies get a `TraitVector` from genre priors and keyword signal; a user's
+profile gets one from replaying their rating log. Onboarding is the third
+source — it has to produce the same `TraitVector` shape from a wizard's
+worth of chip-picks and sliders, before a single rating exists
+(`OnboardingService.deriveSeed`). The same non-negotiable rule applies here
+as everywhere else: an input only earns a place in the wizard if it resolves
+to a real trait delta. Favourites average the matched titles' own vectors;
+genre love/avoid picks add or subtract a hand-authored delta per genre
+(`GENRE_SENTIMENT`); story-trope picks, "what do you want stories to do for
+you" picks, and hard-constraint dealbreakers each get their own delta map in
+the identical shape (`TROPE_SENTIMENT`, `EMOTIONAL_GOAL_SENTIMENT`,
+`DEALBREAKER_SENTIMENT`), applied through one shared helper:
+
+```java
+private void addSelections(double[] raw, List<String> selections, Map<String, TraitDelta> sentiment) {
+    for (String s : selections) {
+        TraitDelta d = sentiment.get(s.trim().toLowerCase());
+        if (d != null) for (int i = 0; i < raw.length; i++) raw[i] += d.raw()[i];
+    }
+}
+```
+
+Rebuilding the wizard against that rule surfaced a real bug, not a
+hypothetical one: the wizard already collected hard-constraint dealbreakers
+and a runtime preference, and the DTO already had fields for both — but
+`deriveSeed` never read either. The frontend rendered the chips, the backend
+accepted and stored the request, and the values were silently discarded on
+every submission. Nobody had wired the last step. Wiring dealbreakers to
+their own delta map fixed it; runtime had no trait axis to route to at all
+(nothing in the ten-axis model represents episode length) and no other
+subsystem read it either, so rather than inventing a fake signal for it, it
+was deleted from the DTO and the wizard. The same test applied to the
+product-spec ask for a "visual style" onboarding screen (Animation /
+Realistic / Stylized / …): no axis captures visual medium, so it wasn't
+built. A screen that collects an answer and does nothing with it is the
+exact failure mode this whole codebase exists to eliminate — it doesn't
+become acceptable just because it's new.
+
 ## A profile that evolves — and why replay, not mutation
 
 The central architectural decision in this codebase: **a user's taste
@@ -292,14 +332,40 @@ rating with no moment is just private telemetry the user never meant to
 share, so it never surfaces on a public profile. No separate `Review` table,
 no privacy toggle to build and then forget to check.
 
+Blocking is specified as *mutual* hiding — A blocking B hides B from A and A
+from B, not just A from B's view — which sounds like one rule but is
+actually six read paths that each had to honour it: a blocked profile
+returns the same `null` a nonexistent user would (never a distinguishable
+403, which would let a blocked user fingerprint "this profile exists, I'm
+just blocked"), and `dnaMatches`, `followers`/`following`, `reviews`,
+`publicLists`, and `activityFeed` each filter the blocked party out of their
+own candidate set before scoring or rendering anything. `follow()` itself
+gets a symmetric guard so a follow can't be issued across an active block in
+either direction. `SocialServiceBlockTest` exists specifically because this
+is the shape of invariant that's easy to get right in four of six places and
+silently wrong in the fifth.
+
 ## What's still honestly limited
 
-- **No refresh tokens.** JWTs are long-lived (7 days) with no revocation
-  list; logging out is client-side only (the token is simply discarded).
-  Fine for a portfolio-scale app, not production-grade session management.
-- **No admin role.** `/api/admin/*` (lexicon recompute, feature stats)
-  requires *a* valid login, not a specifically privileged one — there's no
-  role system to check against yet.
+- **Still no refresh tokens.** JWTs are long-lived (7 days) and there's no
+  rotation. What *did* get built is cheaper than a refresh-token system and
+  closes the sharper problem: a `tokenVersion` column on `User`, bumped on
+  password change, embedded in every issued JWT, and checked on every
+  request (`JwtAuthFilter`) — a mismatch rejects the token outright. That's
+  the whole session-revocation mechanism; there is still no token
+  blacklist/store, and a token is only ever invalidated by an explicit
+  version bump, not proactively rotated.
+- **Admin role now exists, and fixing it surfaced a real mass-assignment
+  bug.** `User.role` is gated route-level (`SecurityConfig`:
+  `hasRole("ADMIN")` on `/api/admin/**`, re-derived from the live DB row on
+  every request in `JwtAuthFilter`, not cached in the token). The interesting
+  part was the fix, not the field: `AuthController.register` binds the
+  request body straight onto the `User` entity, so an unguarded `role`
+  field meant a client could `POST {"role":"ADMIN", ...}` to
+  `/api/auth/register` and self-grant admin. The fix is
+  `@JsonProperty(access = READ_ONLY)` — the field deserializes from the
+  database but never from a request body — with the same annotation reused
+  on `tokenVersion` above for the identical reason.
 - **DNA-match ranking is O(active users)** per request — it scores every
   other user with ≥3 ratings against the caller on each call rather than
   precomputing/caching. Fine at this scale; would need a background job
@@ -310,17 +376,25 @@ no privacy toggle to build and then forget to check.
   entries plus regex fallbacks — a title using a synonym or phrase never
   encoded produces a `GENRE_ONLY`-confidence vector, not a wrong one, but
   a less precise one.
-- **Unit tests exist only for the pure core** — `ScoringServiceTest` (the
-  additive-contribution invariant, `baseline + Σcontributions +
-  qualityBonus == score`, checked over 200 randomized trials; the fresh-user
-  weight-floor case; that tensions can go negative; the rounding primitive
-  in isolation), `VectorEngineTest` (EMA direction, the dislike-reflection
-  case, the confidence curve, clamping), and `ProfileServiceReplayTest`
-  (replay determinism via mocked repositories, and the relevance-gate case —
-  an axis a movie says nothing about must not move at all). Everything else
-  — controllers, security, the frontend — is verified by manual + Playwright
-  browser passes per phase, not an automated suite. `spring-boot-starter-test`
-  was added to `pom.xml` in Phase 0 specifically so this gap was closeable
-  without a dependency change; closing it for the scoring/replay core (the
-  two places the plan called non-negotiable, since both are pure functions
-  with no I/O) happened alongside writing this document.
+- **Unit tests started at the pure core and have since spread to
+  service-layer logic that isn't pure but is still deterministic and
+  I/O-free once its repository calls are mocked.** The original three —
+  `ScoringServiceTest` (the additive-contribution invariant, `baseline +
+  Σcontributions + qualityBonus == score`, checked over 200 randomized
+  trials; the fresh-user weight-floor case; that tensions can go negative;
+  the rounding primitive in isolation), `VectorEngineTest` (EMA direction,
+  the dislike-reflection case, the confidence curve, clamping), and
+  `ProfileServiceReplayTest` (replay determinism via mocked repositories,
+  and the relevance-gate case) — are joined by three more:
+  `SocialServiceBlockTest` (blocking's mutual-visibility symmetry and the
+  guard against crossing an active block), `OnboardingServiceTest` (each
+  onboarding input nudges the seed vector in the documented direction, and a
+  regression test for the dead-`avoid`-field bug described above), and
+  `DiscoveryServiceTest` (the Rediscover row's date/rating threshold logic).
+  All six share one constraint worth naming: this app's JDK can't mock
+  concrete classes with Mockito, only interfaces, so a test of a method that
+  doesn't touch a concrete collaborator (`ProfileService`, `Recommender`)
+  simply passes `null` for it rather than constructing a real one — narrower
+  test scope, not a workaround. Controllers, security, and the frontend are
+  still verified by manual + Playwright browser passes per feature, not an
+  automated suite.

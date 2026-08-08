@@ -71,6 +71,74 @@ export async function changePassword(userId, currentPassword, newPassword) {
   return await res.json().catch(() => null);
 }
 
+export async function getProfileVisibility(userId) {
+  const res = await fetch(`${BASE}/api/account/profile-visibility/${userId}`, { headers: authHeaders() });
+  return await res.json().catch(() => null);
+}
+
+export async function setProfileVisibility(userId, isPublic) {
+  const res = await fetch(`${BASE}/api/account/profile-visibility`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, isPublic })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setAccentColor(userId, accentColor) {
+  const res = await fetch(`${BASE}/api/account/accent-color`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, accentColor })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setProfileTheme(userId, profileTheme) {
+  const res = await fetch(`${BASE}/api/account/profile-theme`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, profileTheme })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setAvatar(userId, avatarUrl) {
+  const res = await fetch(`${BASE}/api/account/avatar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, avatarUrl })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setAvatarFrame(userId, frame) {
+  const res = await fetch(`${BASE}/api/account/avatar-frame`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, frame })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setPinnedContent(userId, titleIds, ratingId, folderId) {
+  const res = await fetch(`${BASE}/api/account/pinned`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, titleIds, ratingId, folderId })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setNickname(userId, nickname) {
+  const res = await fetch(`${BASE}/api/account/nickname`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, nickname })
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function deleteAccount(userId, password) {
   const res = await fetch(`${BASE}/api/account/delete`, {
     method: "POST",
@@ -104,6 +172,95 @@ export async function markAllNotificationsRead(userId) {
   }).catch(() => null);
 }
 
+export async function searchUsers(query) {
+  const res = await fetch(`${BASE}/api/social/search?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function followUser(userId) {
+  const res = await fetch(`${BASE}/api/social/follow/${userId}`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function unfollowUser(userId) {
+  const res = await fetch(`${BASE}/api/social/follow/${userId}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function discoverCollections(limit = 20) {
+  const res = await fetch(`${BASE}/api/social/collections/discover?limit=${limit}`, { headers: authHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function getFollowedCollections() {
+  const res = await fetch(`${BASE}/api/social/collections/followed`, { headers: authHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function followCollection(folderId) {
+  const res = await fetch(`${BASE}/api/social/collections/${folderId}/follow`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function unfollowCollection(folderId) {
+  const res = await fetch(`${BASE}/api/social/collections/${folderId}/follow`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function toggleReviewLike(ratingId) {
+  const res = await fetch(`${BASE}/api/reviews/${ratingId}/like`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function getReviewComments(ratingId) {
+  const res = await fetch(`${BASE}/api/reviews/${ratingId}/comments`, { headers: authHeaders() });
+  if (!res.ok) {
+    return [];
+  }
+  return await res.json();
+}
+
+export async function addReviewComment(ratingId, body, hasSpoilers) {
+  const res = await fetch(`${BASE}/api/reviews/${ratingId}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ body, hasSpoilers: !!hasSpoilers })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function deleteReviewComment(commentId) {
+  const res = await fetch(`${BASE}/api/reviews/comments/${commentId}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function blockUser(userId) {
   const res = await fetch(`${BASE}/api/social/block/${userId}`, {
     method: "POST",
@@ -128,17 +285,25 @@ export async function getBlockedUsers() {
   return await res.json();
 }
 
-export async function fileReport(reportedUserId, reason, details) {
+export async function fileReport(reportedUserId, reason, details, commentId) {
   const res = await fetch(`${BASE}/api/reports`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ reportedUserId, reason, details })
+    body: JSON.stringify({ reportedUserId, reason, details, commentId })
   });
   return await res.json().catch(() => null);
 }
 
 export async function gettastedna(id) {
   const res = await fetch(`${BASE}/api/tastedna/profile/${id}`, { headers: authHeaders() });
+  if (!res.ok) {
+    return null;
+  }
+  return await res.json();
+}
+
+export async function getAchievements(id) {
+  const res = await fetch(`${BASE}/api/tastedna/achievements/${id}`, { headers: authHeaders() });
   if (!res.ok) {
     return null;
   }

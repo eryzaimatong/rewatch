@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import { drawBrandMark } from "./canvasBrandMark";
+import EmptyState from "./EmptyState";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
@@ -61,8 +62,12 @@ export default function Wrapped() {
     // ProfileService.weightFor). Rounding to whole points would show "+0pts"
     // for movement that's real but small, making the headline feature look
     // broken on exactly the case — one or two ratings — where a first-time
-    // user is most likely to see it.
-    return `${arrow} ${sign}${(shift.delta * 100).toFixed(1)}pts`;
+    // user is most likely to see it. Still round to the nearest 0.1 via
+    // integer math before formatting (not `.toFixed(1)` directly on the raw
+    // float) — toFixed's own rounding is decided against the imprecise binary
+    // value, which can surface as e.g. "44.9" for what's actually a clean 45.
+    const points = Math.round(shift.delta * 1000) / 10;
+    return `${arrow} ${sign}${points.toFixed(1)}pts`;
   }
 
   function exportWrappedPNG() {
@@ -120,7 +125,7 @@ export default function Wrapped() {
       ctx.fillText(s.label, 32, y);
 
       ctx.textAlign = "right";
-      ctx.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171";
+      ctx.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171"; // mirrors --success/--danger — Canvas can't resolve CSS vars
       ctx.font = "bold 14px 'Plus Jakarta Sans', sans-serif";
       ctx.fillText(shiftLabel(s), cardW - 32, y);
       ctx.textAlign = "left";
@@ -140,7 +145,7 @@ export default function Wrapped() {
       ctx.fillText(title, 32, y);
 
       ctx.textAlign = "right";
-      ctx.fillStyle = "#facc15";
+      ctx.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
       ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
       ctx.fillText("★".repeat(r.overall || 0), cardW - 32, y);
       ctx.textAlign = "left";
@@ -193,9 +198,7 @@ export default function Wrapped() {
         {err && <p className="status-message status-message--error">{err}</p>}
 
         {!loading && summary && !summary.hasData && (
-          <div className="feed-state">
-            No ratings yet in {summary.period} — rate a few titles and this will fill in.
-          </div>
+          <EmptyState message={`No ratings yet in ${summary.period} — rate a few titles and this will fill in.`} />
         )}
 
         {!loading && summary && summary.hasData && (
@@ -208,6 +211,17 @@ export default function Wrapped() {
               <p className="archetype-blurb">{summary.archetypeBlurb}</p>
             </div>
 
+            {summary.topShifts.length > 0 && (
+              <div className="moment-card">
+                <p className="moment-eyebrow">Biggest Shift This Month</p>
+                <h3 className="moment-title">{summary.topShifts[0].label}</h3>
+                <p className="moment-sub">
+                  {pct(summary.topShifts[0].startVal)}% → {pct(summary.topShifts[0].endVal)}%
+                  {" "}({shiftLabel(summary.topShifts[0])})
+                </p>
+              </div>
+            )}
+
             <p className="section-eyebrow">Biggest movers</p>
             <div className="trait-list">
               {summary.topShifts.map((s) => (
@@ -216,7 +230,7 @@ export default function Wrapped() {
                     <span className="trait-name">{s.label}</span>
                     <span
                       className="trait-percent"
-                      style={{ color: s.delta >= 0 ? "#4ade80" : "#f87171" }}
+                      style={{ color: s.delta >= 0 ? "var(--success)" : "var(--danger)" }}
                     >
                       {shiftLabel(s)}
                     </span>
@@ -239,7 +253,7 @@ export default function Wrapped() {
                       </div>
                       <div className="mini-card-body">
                         <h4>{r.title}</h4>
-                        <span style={{ fontSize: "0.76rem", color: "#facc15" }}>
+                        <span style={{ fontSize: "0.76rem", color: "var(--gold)" }}>
                           {"★".repeat(r.overall || 0)}
                         </span>
                       </div>

@@ -4,6 +4,9 @@ import { getrecs, gettitles, BASE } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
 import MatchRing from "./MatchRing";
+import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
+import { SkeletonPosterGrid } from "./Skeleton";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -22,9 +25,78 @@ const POSTERS = {
   "La La Land": "https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg"
 };
 
-const CHIPS = [
-  "Comfort", "Slice of Life", "Nostalgia", "Family", "Hopeful Ending", "Slow Burn"
-];
+// ISO 639-1 -> display name, for whatever originalLanguage codes actually
+// turn up in the catalog. Falls back to the raw code for anything unmapped
+// rather than hiding it — real data stays visible even if unlabeled.
+const LANGUAGE_NAMES = {
+  en: "English", ko: "Korean", ja: "Japanese", es: "Spanish", fr: "French",
+  de: "German", zh: "Chinese", hi: "Hindi", it: "Italian", pt: "Portuguese",
+  th: "Thai", ru: "Russian"
+};
+
+function languageLabel(code) {
+  return LANGUAGE_NAMES[code] || code.toUpperCase();
+}
+
+const RECENT_SEARCHES_KEY = "recentSearches";
+const MAX_RECENT_SEARCHES = 6;
+
+function loadRecentSearches() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecentSearch(q) {
+  const trimmed = q.trim();
+  if (!trimmed) return loadRecentSearches();
+  const next = [trimmed, ...loadRecentSearches().filter((s) => s.toLowerCase() !== trimmed.toLowerCase())]
+    .slice(0, MAX_RECENT_SEARCHES);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+  return next;
+}
+
+// Which chip label a trait shows depends on which SIDE of neutral it landed
+// on — "pacing" high reads as "Slow Burn", low reads as "Fast-Paced". A few
+// axes have no natural low-side label (growth/romance); those just don't
+// contribute a chip when the query pushed them down instead of up.
+const TRAIT_CHIP_LABELS = {
+  comfort: { high: "Comfort", low: "Edgy" },
+  nostalgia: { high: "Nostalgia", low: "Fresh & Modern" },
+  family: { high: "Family", low: "Solo Journey" },
+  hope: { high: "Hopeful Ending", low: null },
+  bitter: { high: "Bittersweet", low: "Tidy Ending" },
+  pacing: { high: "Slow Burn", low: "Fast-Paced" },
+  growth: { high: "Character Growth", low: null },
+  humor: { high: "Lighthearted", low: "Heavier Tone" },
+  romance: { high: "Romance", low: null },
+  intensity: { high: "Intense", low: "Cozy" }
+};
+
+// Top few axes the search actually deviated on, translated into the same
+// chip vocabulary the default "We understood" row already uses — real
+// labels instead of a hardcoded default that never changed no matter what
+// was searched.
+function chipsFromUnderstood(understood) {
+  if (!understood || typeof understood !== "object") return null;
+  const deviations = Object.entries(understood)
+    .map(([key, val]) => ({ key, val, deviation: Math.abs(val - 0.5) }))
+    .filter((d) => d.deviation > 0.08)
+    .sort((a, b) => b.deviation - a.deviation)
+    .slice(0, 3);
+
+  const chips = [];
+  for (const d of deviations) {
+    const labels = TRAIT_CHIP_LABELS[d.key];
+    if (!labels) continue;
+    const label = d.val >= 0.5 ? labels.high : labels.low;
+    if (label && !chips.includes(label)) chips.push(label);
+  }
+  return chips.length > 0 ? chips : null;
+}
 
 const FILTER_PILLS = [
   "All", "Comfort", "Slow Burn", "Found Family", "Bittersweet", "Romance"
@@ -51,6 +123,12 @@ function normalizeReasons(item) {
   return ["Balanced storytelling fit"];
 }
 
+function numberOrUndefined(v) {
+  if (v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 function normalizeMovie(item, index) {
   if (typeof item === "string") {
     return {
@@ -66,6 +144,7 @@ function normalizeMovie(item, index) {
       explanation: null,
       genres: [],
       trailerUrl: null,
+      originalLanguage: null,
     };
   }
 
@@ -129,9 +208,10 @@ function normalizeMovie(item, index) {
       item?.backdropPath ??
       item?.backdrop_path ??
       null,
-    matchScore: Number(
-      item?.matchScore ?? item?.score ?? source.matchScore ?? 60
-    ),
+    // No fallback default here on purpose — a fabricated score (this used to
+    // default to 60) is worse than an honestly missing one. MatchRing renders
+    // nothing rather than a fake number when this is undefined.
+    matchScore: numberOrUndefined(item?.matchScore ?? item?.score ?? source.matchScore),
     reasons: normalizeReasons(item),
     // Signed driver/tension breakdown, when the backend included it — see
     // MatchExplanation.java. Falls back to the flat `reasons` list above
@@ -143,6 +223,12 @@ function normalizeMovie(item, index) {
       source.trailer_url ??
       item?.trailerUrl ??
       item?.trailer_url ??
+      null,
+    originalLanguage:
+      source.originalLanguage ??
+      source.original_language ??
+      item?.originalLanguage ??
+      item?.original_language ??
       null,
   };
 }
@@ -187,23 +273,6 @@ const cardVariants = {
   })
 };
 
-function SkeletonGrid({ count = 4 }) {
-  return (
-    <div className="recommendation-grid">
-      {Array.from({ length: count }, (_, i) => (
-        <div className="skeleton-card" key={i}>
-          <div className="skeleton-poster" />
-          <div className="skeleton-body">
-            <div className="skeleton-line skeleton-line--wide" />
-            <div className="skeleton-line skeleton-line--mid" />
-            <div className="skeleton-line skeleton-line--narrow" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function MovieFeed() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -217,12 +286,36 @@ export default function MovieFeed() {
   const [query, setquery] = useState("");
   const [suggestions, setsuggestions] = useState([]);
   const [showsuggestions, setshowsuggestions] = useState(false);
-  const [activechips, setactivechips] = useState(["Comfort", "Hopeful Ending"]);
-  const [vibe, setvibe] = useState("All");
+  const [recentsearches, setrecentsearches] = useState(() => loadRecentSearches());
+  const [searchunderstood, setsearchunderstood] = useState(null);
+  const [searchhook, setsearchhook] = useState(null);
+  // Persisted so switching moods sticks across a reload/re-login instead of
+  // silently resetting to "All" every time — it's a real choice, not
+  // ephemeral render state.
+  const [vibe, setvibeRaw] = useState(() => localStorage.getItem("vibe") || "All");
+  function setvibe(next) {
+    setvibeRaw(next);
+    localStorage.setItem("vibe", next);
+  }
+  const [languagefilter, setlanguagefilterRaw] = useState(() => localStorage.getItem("languageFilter") || "All");
+  function setlanguagefilter(next) {
+    setlanguagefilterRaw(next);
+    localStorage.setItem("languageFilter", next);
+  }
   const [moodline, setmoodline] = useState("");
   const [trending, settrending] = useState([]);
   const [becauseyouloved, setbecauseyouloved] = useState([]);
   const [similardna, setsimilardna] = useState([]);
+  const [hiddengems, sethiddengems] = useState([]);
+  const [rediscover, setrediscover] = useState([]);
+  const [collections, setcollections] = useState([]);
+  const [selectedcollection, setselectedcollection] = useState(null);
+  const [collectionitems, setcollectionitems] = useState([]);
+  const [collectionloading, setcollectionloading] = useState(false);
+
+  const [dealbreakerhiddencount, setdealbreakerhiddencount] = useState(0);
+  const [dealbreakerhidden, setdealbreakerhidden] = useState(null);
+  const [dealbreakerhiddenloading, setdealbreakerhiddenloading] = useState(false);
 
   const username = localStorage.getItem("username") || "friend";
 
@@ -239,6 +332,12 @@ export default function MovieFeed() {
   if (vibe === "Romance") {
     hook = "You're looking for slow-building chemistry and emotional intimacy tonight.";
   }
+  // A real search's understood traits take over the hero line entirely —
+  // more specific than the generic vibe-pill hook above.
+  if (searchhook) {
+    hook = searchhook;
+  }
+  const understoodChips = searchunderstood;
 
   async function loadMood() {
     const userId = localStorage.getItem("userId");
@@ -283,10 +382,13 @@ export default function MovieFeed() {
     const userId = localStorage.getItem("userId");
     if (!userId) return;
 
-    const [trendingRes, lovedRes, dnaRes] = await Promise.all([
+    const [trendingRes, lovedRes, dnaRes, collectionsRes, gemsRes, rediscoverRes] = await Promise.all([
       fetch(`${BASE}/api/movies/trending`, { headers: authHeaders() }).catch(() => null),
       fetch(`${BASE}/api/discovery/because-you-loved/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null),
-      fetch(`${BASE}/api/discovery/similar-dna/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null)
+      fetch(`${BASE}/api/discovery/similar-dna/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/discovery/collections`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/discovery/hidden-gems/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/discovery/rediscover/${userId}?limit=4`, { headers: authHeaders() }).catch(() => null)
     ]);
 
     if (trendingRes && trendingRes.ok) {
@@ -301,6 +403,32 @@ export default function MovieFeed() {
       const data = await dnaRes.json();
       setsimilardna(Array.isArray(data) ? data.map((m, i) => normalizeMovie(m, i)) : []);
     }
+    if (collectionsRes && collectionsRes.ok) {
+      setcollections(await collectionsRes.json());
+    }
+    if (gemsRes && gemsRes.ok) {
+      const data = await gemsRes.json();
+      sethiddengems(Array.isArray(data) ? data.map((m, i) => normalizeMovie(m, i)) : []);
+    }
+    if (rediscoverRes && rediscoverRes.ok) {
+      const data = await rediscoverRes.json();
+      setrediscover(Array.isArray(data) ? data.map((m, i) => normalizeMovie(m, i)) : []);
+    }
+  }
+
+  async function selectCollection(slug) {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    setselectedcollection(slug);
+    setcollectionloading(true);
+    const res = await fetch(`${BASE}/api/discovery/collections/${slug}/${userId}?limit=12`, { headers: authHeaders() }).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      setcollectionitems(Array.isArray(data) ? data.map((m, i) => normalizeMovie(m, i)) : []);
+    } else {
+      setcollectionitems([]);
+    }
+    setcollectionloading(false);
   }
 
   useEffect(() => {
@@ -314,8 +442,31 @@ export default function MovieFeed() {
     loadMood();
     loadWatchlist();
     loadDiscovery();
+    loadDealbreakerHiddenCount();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
+
+  async function loadDealbreakerHiddenCount() {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    const res = await fetch(`${BASE}/api/recommendations/${userId}/dealbreaker-hidden-count`, { headers: authHeaders() }).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      setdealbreakerhiddencount(typeof data.count === "number" ? data.count : 0);
+    }
+  }
+
+  async function showDealbreakerHidden() {
+    const userId = localStorage.getItem("userId");
+    if (!userId || dealbreakerhiddenloading) return;
+    setdealbreakerhiddenloading(true);
+    const res = await fetch(`${BASE}/api/recommendations/${userId}/dealbreaker-hidden?limit=12`, { headers: authHeaders() }).catch(() => null);
+    if (res && res.ok) {
+      const data = await res.json();
+      setdealbreakerhidden(Array.isArray(data) ? data.map((m, i) => normalizeMovie(m, i)) : []);
+    }
+    setdealbreakerhiddenloading(false);
+  }
 
   async function loadData() {
     setLoading(true);
@@ -377,6 +528,8 @@ export default function MovieFeed() {
     setshowsuggestions(false);
 
     if (q === "") {
+      setsearchunderstood(null);
+      setsearchhook(null);
       loadData();
       return;
     }
@@ -384,42 +537,47 @@ export default function MovieFeed() {
     setLoading(true);
     setError("");
 
-    let res = await fetch(`${BASE}/api/movies/nlp-search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
+    const [res, understandRes] = await Promise.all([
+      fetch(`${BASE}/api/movies/nlp-search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null),
+      fetch(`${BASE}/api/movies/nlp-search/understand?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null)
+    ]);
 
-    if (!res || !res.ok) {
-      res = await fetch(`${BASE}/api/movies/search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
+    let finalRes = res;
+    if (!finalRes || !finalRes.ok) {
+      finalRes = await fetch(`${BASE}/api/movies/search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
     }
 
-    if (!res || !res.ok) {
+    if (!finalRes || !finalRes.ok) {
       setError("Could not reach the search server. Please try again.");
       setLoading(false);
       return;
     }
 
-    const data = await res.json();
+    // Only trust the parse for what it was actually parsed FROM — if the
+    // primary nlp-search call failed and this fell back to plain title
+    // search, the "understood" chips would be describing a query that
+    // wasn't the one actually used to rank these results.
+    if (res && res.ok && understandRes && understandRes.ok) {
+      const { understood } = await understandRes.json();
+      const chips = chipsFromUnderstood(understood);
+      setsearchunderstood(chips);
+      setsearchhook(
+        chips ? `You searched for "${q}" — we read that as ${chips.join(", ").toLowerCase()}.` : null
+      );
+    } else {
+      setsearchunderstood(null);
+      setsearchhook(null);
+    }
+
+    const data = await finalRes.json();
     if (Array.isArray(data)) {
       const normalizedMovies = data.map((item, index) => normalizeMovie(item, index));
       setMovies(normalizedMovies);
     } else {
       setMovies([]);
     }
+    setrecentsearches(pushRecentSearch(q));
     setLoading(false);
-  }
-
-  function togglechip(chip) {
-    const next = [];
-    let found = false;
-    for (let i = 0; i < activechips.length; i++) {
-      if (activechips[i] === chip) {
-        found = true;
-      } else {
-        next.push(activechips[i]);
-      }
-    }
-    if (!found) {
-      next.push(chip);
-    }
-    setactivechips(next);
   }
 
   function handlePosterError(event) {
@@ -427,10 +585,37 @@ export default function MovieFeed() {
     event.currentTarget.src = FALLBACK_POSTER;
   }
 
-  function handleTrailer(movie) {
+  // "Zero filters, one high-confidence pick" — a random draw from the real,
+  // already-scored top of the feed (no vibe/language filter applied), never
+  // a separate lower-bar pool. The randomness is which of your best matches
+  // you see, not a lowered bar for what counts as a match.
+  const SURPRISE_POOL_SIZE = 10;
+  async function surpriseMe() {
+    let pool = movies.slice(0, SURPRISE_POOL_SIZE);
+    if (pool.length === 0) {
+      await loadData();
+      return;
+    }
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    setselectedmovie(pick);
+  }
+
+  async function handleTrailer(movie) {
     if (movie.trailerUrl) {
       window.open(movie.trailerUrl, "_blank", "noopener,noreferrer");
       return;
+    }
+
+    // The feed's own list responses never carry a real trailer URL (fetching
+    // it for every card in a feed would be a TMDB call per row) — fetch it
+    // lazily, only for the one card actually clicked.
+    if (movie.titleId) {
+      const res = await fetch(`${BASE}/api/titles/${movie.titleId}/details`, { headers: authHeaders() }).catch(() => null);
+      const data = res && res.ok ? await res.json() : null;
+      if (data?.trailerUrl) {
+        window.open(data.trailerUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
     }
 
     const searchQuery = encodeURIComponent(`${movie.title} official trailer`);
@@ -485,9 +670,18 @@ export default function MovieFeed() {
     setselectedmovie(movie);
   }
 
+  // Every language actually present in the loaded results — not a fixed
+  // list, so the filter never offers an option with zero matches.
+  const availablelanguages = [...new Set(
+    movies.map((m) => m.originalLanguage).filter(Boolean)
+  )].sort();
+
   const visiblemovies = [];
   for (let i = 0; i < movies.length; i++) {
     const m = movies[i];
+    if (languagefilter !== "All" && m.originalLanguage !== languagefilter) {
+      continue;
+    }
     if (vibe === "All") {
       visiblemovies.push(m);
     } else {
@@ -667,7 +861,13 @@ export default function MovieFeed() {
         <p className="hero-eyebrow">
           TONIGHT'S STORY MATCH
         </p>
-        <h1 style={{ fontSize: "clamp(1.8rem, 4vw, 2.4rem)", fontWeight: "var(--fw-hero)", margin: "6px 0" }}>
+        <h1 style={{
+          fontSize: "clamp(2.2rem, 5.5vw, 3.4rem)",
+          fontWeight: "var(--fw-hero)",
+          letterSpacing: "-0.02em",
+          lineHeight: 1.05,
+          margin: "6px 0"
+        }}>
           {moodline || `Good evening, ${username}.`}
         </h1>
         <p className="hero-description">
@@ -691,6 +891,17 @@ export default function MovieFeed() {
             </button>
           </div>
 
+          {movies.length > 0 && (
+            <button
+              type="button"
+              onClick={surpriseMe}
+              className="pill surprise-me-btn"
+              title="One random pick from your real top matches — no lowered bar, just less choosing."
+            >
+              🎲 Surprise Me
+            </button>
+          )}
+
           {showsuggestions && suggestions.length > 0 && (
             <div className="search-suggestions">
               {suggestions.map((s) => (
@@ -709,22 +920,89 @@ export default function MovieFeed() {
               ))}
             </div>
           )}
+
+          {showsuggestions && query.trim() === "" && recentsearches.length > 0 && (
+            <div className="search-suggestions">
+              <p className="search-suggestions-label">Recent searches</p>
+              {recentsearches.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="search-suggestion-row"
+                  onMouseDown={() => {
+                    setquery(s);
+                    dosearch(s);
+                  }}
+                >
+                  <span className="search-suggestion-icon">↺</span>
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div>
-          <span style={{ fontSize: "0.86rem", marginRight: "10px" }}>We understood:</span>
-          <div className="chip-row" style={{ display: "inline-flex", justifyContent: "center", marginTop: "10px" }}>
-            {CHIPS.map((c) => (
-              <button
-                key={c}
-                onClick={() => togglechip(c)}
-                className={`chip${activechips.includes(c) ? " active" : ""}`}
-              >
-                {activechips.includes(c) ? "✓ " : "+ "} {c}
-              </button>
-            ))}
+        {understoodChips && understoodChips.length > 0 && (
+          <div>
+            <span style={{ fontSize: "0.86rem", marginRight: "10px" }}>We understood:</span>
+            {/* Read-only readout, not a filter toggle — these used to be
+                clickable but the click handler never actually did anything
+                downstream. Reflects the real parsed query now, so pretending
+                they're interactive would be its own "presented wrong" bug.
+                Only rendered once a real search has actually parsed something —
+                showing this before any search ran was itself fabricated data.
+                Cyan, not the usual active-chip purple — this isn't a filter
+                choice being reflected back at you, it's the algorithm telling
+                you something it inferred (this app's --cyan hue, same "here's
+                an insight" role it plays on the TasteDNA comparison charts). */}
+            <div className="chip-row" style={{ display: "inline-flex", justifyContent: "center", marginTop: "10px" }}>
+              {understoodChips.map((c) => (
+                <span key={c} className="chip chip-insight">
+                  ✓ {c}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {movies.length > 0 && (
+          <div className="tonight-pick-card">
+            <img
+              src={getPosterUrl(movies[0])}
+              alt=""
+              aria-hidden="true"
+              className="tonight-pick-backdrop"
+              onError={handlePosterError}
+            />
+            <div className="tonight-pick-overlay">
+              <div className="tonight-pick-body">
+                <p className="section-eyebrow" style={{ textAlign: "left" }}>Tonight's Pick</p>
+                <h2>{movies[0].title}</h2>
+                <p className="movie-synopsis">
+                  {movies[0].synopsis || "No synopsis is available for this title yet."}
+                </p>
+                <div className="movie-actions">
+                  <button type="button" className="trailer-button" onClick={() => handleTrailer(movies[0])}>
+                    <span aria-hidden="true">▶</span> Watch trailer
+                  </button>
+                  <button type="button" className="details-button" onClick={() => handleDetails(movies[0])}>
+                    Why this?
+                  </button>
+                  <button
+                    type="button"
+                    className={`save-icon-button ${saveditemsbymovieid[String(movies[0].id)] ? "is-saved" : ""}`}
+                    onClick={() => handleSave(movies[0])}
+                  >
+                    {saveditemsbymovieid[String(movies[0].id)] ? "✓ Saved" : "+ Save"}
+                  </button>
+                </div>
+              </div>
+              <div className="tonight-pick-ring">
+                <MatchRing score={movies[0].matchScore} size={56} />
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="feed-section">
@@ -748,26 +1026,87 @@ export default function MovieFeed() {
           </div>
         </div>
 
-        {loading && <SkeletonGrid count={4} />}
-
-        {!loading && error && (
-          <div className="feed-state feed-error">
-            <h3>Something went off-script.</h3>
-            <p>{error}</p>
-            <button type="button" onClick={loadData}>
-              Try again
+        {availablelanguages.length > 1 && (
+          <div className="pill-row" style={{ marginBottom: "var(--sp-3)" }}>
+            <button
+              type="button"
+              onClick={() => setlanguagefilter("All")}
+              className={`pill${languagefilter === "All" ? " active" : ""}`}
+            >
+              All languages
             </button>
+            {availablelanguages.map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setlanguagefilter(code)}
+                className={`pill${languagefilter === code ? " active" : ""}`}
+              >
+                {languageLabel(code)}
+              </button>
+            ))}
           </div>
         )}
 
-        {!loading && !error && visiblemovies.length === 0 && (
-          <div className="feed-state">
-            <h3>We searched every universe.</h3>
-            <p>Nothing matched "{vibe}". Try lowering one emotional filter or switching back to "All".</p>
-            <button type="button" onClick={() => setvibe("All")} className="btn-primary">
-              Reset to All Vibes
+        {!loading && dealbreakerhiddencount > 0 && !dealbreakerhidden && (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", marginBottom: "var(--sp-2)" }}>
+            {/* --danger is this app's warnings/hard-exclusion hue (see palette
+                discipline notes) — tinting just the count, not the sentence,
+                keeps it a rare accent rather than a wall of red text. */}
+            <strong style={{ color: "var(--danger)" }}>{dealbreakerhiddencount}</strong>{" "}
+            title{dealbreakerhiddencount === 1 ? "" : "s"} hidden by your dealbreakers —{" "}
+            <button
+              type="button"
+              onClick={showDealbreakerHidden}
+              disabled={dealbreakerhiddenloading}
+              style={{ background: "none", border: "none", padding: 0, color: "var(--primary-light)", textDecoration: "underline", cursor: "pointer" }}
+            >
+              {dealbreakerhiddenloading ? "loading..." : "show anyway"}
             </button>
+          </p>
+        )}
+
+        {dealbreakerhidden && dealbreakerhidden.length > 0 && (
+          <div style={{ marginBottom: "var(--sp-3)" }}>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", marginBottom: "var(--sp-2)" }}>
+              Hidden by your dealbreakers — shown because you asked:
+            </p>
+            <div className="recommendation-grid" style={{ opacity: 0.75 }}>
+              {dealbreakerhidden.map((movie) => (
+                <article className="recommendation-card" key={`hidden-${movie.id}`}>
+                  <div className="recommendation-poster">
+                    <img src={getPosterUrl(movie)} alt={`${movie.title} poster`} loading="lazy" onError={handlePosterError} />
+                    <div className="poster-gradient" />
+                    <div className="match-ring-badge">
+                      <MatchRing score={movie.matchScore} />
+                    </div>
+                  </div>
+                  <div className="recommendation-body">
+                    <h3>{movie.title}</h3>
+                    <p className="movie-synopsis">{movie.synopsis || "No synopsis is available for this title yet."}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
+        )}
+
+        {loading && <SkeletonPosterGrid count={4} />}
+
+        {!loading && error && (
+          <ErrorState message={error} onRetry={loadData} />
+        )}
+
+        {!loading && !error && visiblemovies.length === 0 && (
+          <EmptyState
+            title="We searched every universe."
+            message={`Nothing matched "${vibe}". Try lowering one emotional filter or switching back to "All".`}
+            action={
+              <button type="button" onClick={() => setvibe("All")} className="btn-primary">
+                Reset to All Vibes
+              </button>
+            }
+          />
         )}
 
         {!loading && !error && visiblemovies.length > 0 && (
@@ -800,6 +1139,13 @@ export default function MovieFeed() {
               trending
             )}
 
+            {hiddengems.length > 0 && renderRow(
+              "One You Might Have Missed",
+              "Hidden Gem",
+              "High audience quality, low popularity — the titles a popularity-sorted feed would bury.",
+              hiddengems
+            )}
+
             {becauseyouloved.length > 0 && renderRow(
               `Because You Loved ${becauseyouloved[0]?.reasons?.[0]?.replace("Because you loved ", "") || "That"}`,
               "More Like Your Favorite",
@@ -812,6 +1158,60 @@ export default function MovieFeed() {
               "Whole-Profile Shape Match",
               "Ranked by overall trait-vector similarity to you — a different lens than the weighted match score above.",
               similardna
+            )}
+
+            {rediscover.length > 0 && renderRow(
+              "Rediscover",
+              "Worth Revisiting",
+              "Titles you rated highly a while back — maybe it's time again.",
+              rediscover
+            )}
+
+            {collections.length > 0 && (
+              <div style={{ marginBottom: "var(--sp-5)" }}>
+                <div style={{ marginBottom: "var(--sp-2)" }}>
+                  <p className="section-eyebrow">Curated Shelves</p>
+                  <h2 style={{ fontSize: "1.4rem", margin: "0 0 4px 0" }}>Pick Tonight's Mood</h2>
+                  <p style={{ margin: 0, fontSize: "0.82rem" }}>
+                    Each shelf is ranked against a hand-tuned taste profile, the same trait-vector math as everything else here — not a genre tag.
+                  </p>
+                </div>
+
+                <div className="pill-row" style={{ flexWrap: "wrap" }}>
+                  {collections.map((c) => (
+                    <button
+                      key={c.slug}
+                      type="button"
+                      className={`pill${selectedcollection === c.slug ? " active" : ""}`}
+                      onClick={() => selectCollection(c.slug)}
+                      title={c.blurb}
+                    >
+                      {c.title}
+                    </button>
+                  ))}
+                </div>
+
+                {selectedcollection && collectionloading && (
+                  <p style={{ fontSize: "0.82rem", marginTop: "var(--sp-2)" }}>Building your shelf...</p>
+                )}
+
+                {selectedcollection && !collectionloading && collectionitems.length === 0 && (
+                  <p style={{ fontSize: "0.82rem", marginTop: "var(--sp-2)" }}>
+                    Nothing matched closely enough yet — rate a few more titles and try again.
+                  </p>
+                )}
+
+                {selectedcollection && !collectionloading && collectionitems.length > 0 && (
+                  <div style={{ marginTop: "var(--sp-3)" }}>
+                    {renderRow(
+                      collections.find((c) => c.slug === selectedcollection)?.title || "Your Shelf",
+                      "Curated Shelf",
+                      collections.find((c) => c.slug === selectedcollection)?.blurb || "",
+                      collectionitems
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

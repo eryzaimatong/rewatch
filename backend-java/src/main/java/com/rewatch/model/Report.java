@@ -38,6 +38,16 @@ public class Report {
     @Column(name = "reported_user_id", nullable = false)
     private Long reportedUserId;
 
+    /**
+     * Optional — set when this report was filed against a specific
+     * ReviewComment rather than a user's profile/activity in general, so an
+     * admin reviewing it can see the exact content instead of just "this
+     * user, for some reason." Null for the original profile-level report
+     * flow, which predates comments existing at all.
+     */
+    @Column(name = "comment_id")
+    private Long commentId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private Reason reason;
@@ -70,6 +80,9 @@ public class Report {
 
     public Long getReportedUserId() { return reportedUserId; }
     public void setReportedUserId(Long v) { this.reportedUserId = v; }
+
+    public Long getCommentId() { return commentId; }
+    public void setCommentId(Long v) { this.commentId = v; }
 
     public Reason getReason() { return reason; }
     public void setReason(Reason v) { this.reason = v; }

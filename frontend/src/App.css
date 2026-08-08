@@ -26,6 +26,29 @@
   --primary: #a855f7;
   --primary-light: #c084fc;
   --primary-dark: #7e22ce;
+  /* RGB triplets alongside the hex tokens above, for the handful of spots
+     that need a variable-opacity tint (rgba(var(--primary-rgb), 0.14)) rather
+     than a solid fill — color-mix() would do this from the hex alone, but
+     this pattern needs no browser-support assumptions. Every [data-accent]
+     override below redefines both forms together. */
+  --primary-rgb: 168, 85, 247;
+  --primary-light-rgb: 192, 132, 252;
+  --primary-dark-rgb: 126, 34, 206;
+
+  /* Purple is the only hue that means "interactive" or "your choice made
+     visible" — reserved for primary actions, active states, and the "you"
+     series on any chart. These three are named, scoped exceptions, not a
+     rainbow expansion:
+       --cyan   the existing TraitRadar/MovieModal comparison-series color,
+                now named — extends to any "here's an insight" moment.
+       --gold   the existing star-rating color, now named.
+       --coral  new: a single rare, non-interactive emotional highlight per
+                screen at most. Never appears anywhere purple could, so it
+                never has to be told apart from it. */
+  --cyan: #0284c7;
+  --cyan-rgb: 2, 132, 199;
+  --gold: #facc15;
+  --coral: #fb7185;
 
   --border: rgba(255, 255, 255, 0.085);
   --border-strong: rgba(255, 255, 255, 0.15);
@@ -83,6 +106,44 @@
 html {
   min-height: 100%;
   background: var(--background);
+  font-size: var(--user-font-scale, 100%);
+}
+
+/* ==========================================
+   ACCESSIBILITY OVERRIDES
+   Stamped on <html> via data attributes, same
+   pattern as [data-accent] — see auth.js.
+   ========================================== */
+
+:root[data-font-size="large"] {
+  --user-font-scale: 112%;
+}
+
+:root[data-font-size="larger"] {
+  --user-font-scale: 128%;
+}
+
+/* Raises the two low-contrast text tokens and both border tokens — the
+   combinations most likely to fail WCAG AA against this app's dark surfaces
+   at their default opacity/lightness. Doesn't touch color-bearing tokens
+   (--primary, --success, --danger, etc.), which already meet contrast. */
+:root[data-contrast="high"] {
+  --text-muted: #d4d4d8;
+  --text-faint: #a1a1aa;
+  --border: rgba(255, 255, 255, 0.28);
+  --border-strong: rgba(255, 255, 255, 0.4);
+}
+
+/* An explicit, user-facing override alongside the OS-level
+   prefers-reduced-motion query below — someone on a shared/work machine may
+   not control their OS setting but still wants animations off here. */
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
 }
 
 body {
@@ -304,12 +365,17 @@ button:hover {
   transform: translateY(-1px);
 }
 
+/* Tactile press feedback, every button in the app — not just primary CTAs. */
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid rgba(192, 132, 252, 0.35);
+  outline: 3px solid rgba(var(--primary-light-rgb), 0.35);
   outline-offset: 3px;
 }
 
@@ -323,16 +389,16 @@ button:disabled {
   border: 0;
   color: #ffffff;
 
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
 
   font-weight: 800;
 
-  box-shadow: 0 5px 18px rgba(126, 34, 206, 0.3);
+  box-shadow: 0 5px 18px rgba(var(--primary-dark-rgb), 0.3);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
-  box-shadow: 0 8px 25px rgba(126, 34, 206, 0.42);
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  box-shadow: 0 8px 25px rgba(var(--primary-dark-rgb), 0.42);
 }
 
 .btn-block {
@@ -381,8 +447,8 @@ input[type="email"]:focus,
 input[type="password"]:focus,
 textarea:focus,
 select:focus {
-  border-color: #a855f7;
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.14);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.14);
 }
 
 input::placeholder,
@@ -499,10 +565,85 @@ input[type="range"] {
   gap: var(--sp-1);
 }
 
-.logout-button {
-  border-color: var(--neutral-border);
-  color: var(--text-muted);
+/* ==========================================
+   ACCOUNT MENU
+   ========================================== */
+
+.account-menu-wrap {
+  position: relative;
+}
+
+.account-menu-trigger {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.account-menu-trigger:hover {
+  border-color: rgba(var(--primary-rgb), 0.5);
+  transform: scale(1.05);
+}
+
+.account-menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-elevated);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+.account-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-menu-username {
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu-item {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.account-menu-item:hover {
+  background: var(--surface-soft);
+}
+
+.account-menu-item--danger {
+  color: #f87171;
+}
+
+.account-menu-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border);
 }
 
 /* ==========================================
@@ -748,6 +889,47 @@ input[type="range"] {
   margin: 0;
 }
 
+.auth-password-wrap {
+  position: relative;
+}
+
+.auth-password-input {
+  padding-right: 46px !important;
+}
+
+.auth-eye-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+
+  min-height: unset;
+  padding: 4px 8px;
+  border: none;
+  background: none;
+
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.auth-eye-toggle:hover {
+  color: var(--text-muted);
+}
+
+.auth-field-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+}
+
+.auth-field-hint--error {
+  color: var(--danger);
+}
+
+.auth-field-hint--success {
+  color: var(--success);
+}
+
 .auth-toggle {
   margin-top: var(--sp-3);
   font-size: 0.82rem;
@@ -796,9 +978,28 @@ input[type="range"] {
 .chip.active,
 .pill.active {
   border-color: transparent;
-  background: #3b0764;
-  color: #d8b4fe;
+  background: rgba(var(--primary-rgb), 0.28);
+  color: var(--primary-light);
   font-weight: 700;
+}
+
+/* The one deliberate non-purple chip style — "the algorithm inferred this
+   about your query," not "you selected this." See --cyan's role note above. */
+.chip.chip-insight {
+  border-color: transparent;
+  background: rgba(var(--cyan-rgb), 0.22);
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.surprise-me-btn {
+  display: block;
+  margin: 10px auto 0;
+}
+
+.radar-detail-toggle {
+  display: block;
+  margin: 4px auto var(--sp-3);
 }
 
 /* ==========================================
@@ -842,6 +1043,16 @@ input[type="range"] {
 .search-suggestion-icon {
   color: var(--primary-light);
   font-size: 0.8rem;
+}
+
+.search-suggestions-label {
+  margin: 0;
+  padding: 10px 16px 4px;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* ==========================================
@@ -948,6 +1159,21 @@ input[type="range"] {
   border-radius: 16px;
   overflow: hidden;
   background: var(--surface);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.mini-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--primary-rgb), 0.4);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+}
+
+.mini-card:hover .mini-card-poster img {
+  transform: scale(1.04);
+}
+
+.mini-card-poster img {
+  transition: transform 220ms ease;
 }
 
 .mini-card-poster {
@@ -1145,6 +1371,19 @@ input[type="range"] {
   box-shadow:
     0 24px 70px rgba(0, 0, 0, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  animation: rewatch-hero-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rewatch-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .feed-hero::after {
@@ -1164,6 +1403,55 @@ input[type="range"] {
   filter: blur(60px);
 
   pointer-events: none;
+}
+
+.tonight-pick-card {
+  position: relative;
+  z-index: 1;
+
+  margin-top: var(--sp-4);
+
+  border-radius: 24px;
+  overflow: hidden;
+
+  min-height: 280px;
+  text-align: left;
+}
+
+.tonight-pick-backdrop {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+
+  /* transform hides the blur's soft edge artifacts at the card boundary */
+  filter: blur(18px) brightness(0.55) saturate(1.1);
+  transform: scale(1.15);
+}
+
+.tonight-pick-overlay {
+  position: relative;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--sp-3);
+
+  padding: var(--sp-4);
+  min-height: 280px;
+
+  background: linear-gradient(180deg, rgba(10, 10, 14, 0.1) 0%, rgba(10, 10, 14, 0.85) 100%);
+}
+
+.tonight-pick-body h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+
+.tonight-pick-ring {
+  flex: 0 0 auto;
 }
 
 .hero-eyebrow,
@@ -1664,20 +1952,77 @@ input[type="range"] {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
-.loading-orb {
-  width: 34px;
-  height: 34px;
-
-  border: 3px solid rgba(168, 85, 247, 0.22);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-
-  animation: rewatch-spin 750ms linear infinite;
+.rey-mascot {
+  margin-bottom: 6px;
+  animation: rey-idle-bob 3.4s ease-in-out infinite;
 }
 
-@keyframes rewatch-spin {
+.rey-mascot--error {
+  animation: none;
+}
+
+@keyframes rey-idle-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* The "living aperture" — same blades-around-a-decagon language as BrandMark,
+   turned into a loading state instead of a generic spinner. The ring's blades
+   rotate slowly; the center pulses like a heartbeat, echoing "your TasteDNA
+   evolves" rather than a content-free loading animation. Global
+   prefers-reduced-motion rule below already neutralizes both keyframes. */
+.loading-orb {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  border-radius: 50%;
+}
+
+.loading-orb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 40deg, var(--primary) 40deg 50deg,
+    transparent 50deg 90deg, var(--primary) 90deg 100deg,
+    transparent 100deg 140deg, var(--primary) 140deg 150deg,
+    transparent 150deg 190deg, var(--primary) 190deg 200deg,
+    transparent 200deg 240deg, var(--primary) 240deg 250deg,
+    transparent 250deg 290deg, var(--primary) 290deg 300deg,
+    transparent 300deg 340deg, var(--primary) 340deg 350deg,
+    transparent 350deg 360deg
+  );
+  opacity: 0.7;
+  -webkit-mask: radial-gradient(circle, transparent 0 62%, black 64% 100%);
+  mask: radial-gradient(circle, transparent 0 62%, black 64% 100%);
+  animation: rewatch-aperture-spin 2.6s linear infinite;
+}
+
+.loading-orb::after {
+  content: "";
+  position: absolute;
+  inset: 32%;
+  border-radius: 30%;
+  background: var(--primary-light);
+  animation: rewatch-aperture-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes rewatch-aperture-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes rewatch-aperture-pulse {
+  0%, 100% {
+    transform: scale(0.7) rotate(0deg);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1) rotate(45deg);
+    opacity: 1;
   }
 }
 
@@ -1730,6 +2075,28 @@ input[type="range"] {
 .skeleton-line--wide { width: 70%; }
 .skeleton-line--mid { width: 90%; }
 .skeleton-line--narrow { width: 45%; }
+
+.skeleton-body--inline {
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+.skeleton-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(
+    100deg,
+    var(--surface-elevated) 30%,
+    rgba(168, 85, 247, 0.1) 50%,
+    var(--surface-elevated) 70%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
 
 @keyframes skeleton-shimmer {
   0% { background-position: 200% 0; }
@@ -1889,7 +2256,7 @@ input[type="range"] {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 999px;
 
-  color: #facc15;
+  color: var(--gold);
 
   background: rgba(11, 12, 16, 0.85);
 
@@ -2009,8 +2376,8 @@ input[type="range"] {
 }
 
 .wrapped-month-picker:focus-visible {
-  border-color: #a855f7;
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.14);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.14);
 }
 
 .archetype-banner {
@@ -2050,6 +2417,44 @@ input[type="range"] {
   line-height: 1.6;
 }
 
+/* The one place --coral appears: a single rare, non-interactive emotional
+   highlight (see the visual-system proposal). Never a button, never a
+   selected state — that stays purple's job alone. */
+.moment-card {
+  position: relative;
+
+  padding: 18px 20px;
+  margin-bottom: var(--sp-4);
+
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  border-radius: 12px;
+
+  background:
+    radial-gradient(circle at 85% 15%, rgba(251, 113, 133, 0.16), transparent 55%),
+    var(--surface);
+}
+
+.moment-eyebrow {
+  margin: 0 0 4px;
+  color: var(--coral);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.moment-title {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.moment-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
 .trait-list {
   display: flex;
   flex-direction: column;
@@ -2062,6 +2467,174 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--background);
+}
+
+/* A label/description + an action button, side by side on desktop. Found
+   via mobile testing: a bare inline flex row with no wrap behavior let long
+   copy (e.g. Settings' privacy-visibility description) push the row tall
+   enough to collide with the fixed bottom nav at narrow widths — this
+   stacks the two instead of letting them fight for horizontal space. */
+.settings-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 500px) {
+  .settings-toggle-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-toggle-row button {
+    max-width: none !important;
+    width: 100%;
+  }
+}
+
+/* Achievements — --gold is this app's rating/achievement hue (see palette
+   discipline elsewhere in this file), so an unlocked badge reuses it rather
+   than introducing a new accent for a single page. */
+/* Accent-color picker — recolors interactive chrome only (buttons, active
+   chips, links, focus rings via --primary/--primary-light/--primary-dark).
+   The brand mark and TraitRadar deliberately do NOT read these tokens — see
+   User.java's accentColor javadoc for why that pairing stays fixed. */
+:root[data-accent="blue"] {
+  --primary: #3b82f6;
+  --primary-light: #60a5fa;
+  --primary-dark: #1d4ed8;
+  --primary-rgb: 59, 130, 246;
+  --primary-light-rgb: 96, 165, 250;
+  --primary-dark-rgb: 29, 78, 216;
+}
+
+:root[data-accent="orange"] {
+  --primary: #f97316;
+  --primary-light: #fb923c;
+  --primary-dark: #c2410c;
+  --primary-rgb: 249, 115, 22;
+  --primary-light-rgb: 251, 146, 60;
+  --primary-dark-rgb: 194, 65, 12;
+}
+
+:root[data-accent="emerald"] {
+  --primary: #10b981;
+  --primary-light: #34d399;
+  --primary-dark: #047857;
+  --primary-rgb: 16, 185, 129;
+  --primary-light-rgb: 52, 211, 153;
+  --primary-dark-rgb: 4, 120, 87;
+}
+
+.accent-swatch-row {
+  display: flex;
+  gap: 12px;
+}
+
+.accent-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.accent-swatch:hover:not(:disabled) {
+  transform: scale(1.08);
+}
+
+.accent-swatch.is-selected {
+  border-color: var(--text);
+}
+
+.accent-swatch:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.achievement-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  opacity: 0.6;
+}
+
+.achievement-card.is-unlocked {
+  opacity: 1;
+  border-color: rgba(250, 204, 21, 0.35);
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.07), var(--background) 60%);
+}
+
+.achievement-card-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.achievement-badge {
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--text-faint);
+}
+
+.achievement-card.is-unlocked .achievement-badge {
+  color: var(--gold);
+}
+
+.achievement-title {
+  margin: 0 0 2px;
+  font-weight: var(--fw-card);
+  font-size: 0.94rem;
+  color: var(--text);
+}
+
+.achievement-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.achievement-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.achievement-progress-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.achievement-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--primary-light);
+}
+
+.achievement-progress-label {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .trait-card-row {
@@ -2183,7 +2756,13 @@ input[type="range"] {
 .onboard-progress {
   display: flex;
   gap: 6px;
-  margin-bottom: var(--sp-3);
+  margin-bottom: 8px;
+}
+
+.onboard-signal-count {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-faint);
+  font-size: 0.78rem;
 }
 
 .onboard-progress-segment {
@@ -2263,15 +2842,67 @@ input[type="range"] {
   color: var(--primary-light);
 }
 
-.runtime-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .onboard-footer {
   display: flex;
   gap: 10px;
+}
+
+.onboard-analyzing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-3);
+  text-align: center;
+}
+
+.onboard-analyzing-orb {
+  width: 56px;
+  height: 56px;
+  border-width: 4px;
+}
+
+.onboard-analyzing-text {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.onboard-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--sp-4) var(--sp-2);
+  text-align: center;
+}
+
+.onboard-reveal-emoji {
+  font-size: 3.4rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.onboard-reveal-kicker {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.onboard-reveal-archetype {
+  margin: 0 0 var(--sp-2);
+  font-size: 1.9rem;
+  font-weight: var(--fw-hero);
+  color: var(--primary-light);
+}
+
+.onboard-reveal-blurb {
+  max-width: 440px;
+  margin: 0 0 var(--sp-3);
+  color: var(--neutral-text);
+  font-size: 0.94rem;
+  line-height: 1.6;
 }
 
 /* ==========================================
@@ -2287,13 +2918,53 @@ input[type="range"] {
   list-style: none;
 }
 
-.contribution-row {
+/* Tradeoffs: the title's own extremes ("what to expect"), not user-relative
+   like Drivers/Tensions above — cyan/"insight" tint, not purple, to read as
+   a different kind of information rather than more match math. */
+.tradeoffs-panel {
+  margin-top: var(--sp-2);
+  padding: 14px;
+
+  border: 1px solid rgba(2, 132, 199, 0.22);
+  border-radius: 14px;
+
+  background: rgba(2, 132, 199, 0.06);
+}
+
+.tradeoffs-panel .fit-label {
+  color: var(--cyan);
+}
+
+.tradeoffs-list {
+  margin: 0;
+  padding: 0 0 0 18px;
+
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
+
+  font-size: 0.84rem;
+  color: var(--neutral-text);
+  line-height: 1.5;
+}
+
+.contribution-row {
   padding: 7px 10px;
   border-radius: 8px;
   font-size: 0.8rem;
+}
+
+.contribution-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.contribution-text {
+  margin: 4px 0 0;
+  color: var(--text-faint);
+  font-size: 0.74rem;
+  line-height: 1.4;
 }
 
 .contribution-row.is-driver {
@@ -2309,12 +2980,12 @@ input[type="range"] {
 }
 
 .contribution-row.is-driver .contribution-value {
-  color: var(--primary-light);
+  color: var(--success);
   font-weight: 700;
 }
 
 .contribution-row.is-tension .contribution-value {
-  color: var(--text-faint);
+  color: var(--danger);
   font-weight: 700;
 }
 
@@ -2522,6 +3193,42 @@ input[type="range"] {
   font-size: 0.85rem;
 }
 
+.taste-journey {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.taste-journey-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.taste-journey-row {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.taste-journey-period {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary-light);
+  margin-bottom: 4px;
+}
+
+.taste-journey-sentence {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--neutral-text);
+  line-height: 1.5;
+}
+
 /* ==========================================
    SOCIAL (Community + public profile)
    ========================================== */
@@ -2573,13 +3280,291 @@ input[type="range"] {
   font-size: 1.4rem;
 }
 
+/* Avatar frames — collectible rings unlocked via real Achievements (see
+   AccountService.FRAME_REQUIREMENTS), never a cosmetic anyone can just pick.
+   Each is a distinct gradient ring rather than a flat border, so it reads as
+   an "earned" object rather than a settings toggle. */
+.avatar-frame {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.avatar-frame--bronze {
+  background: conic-gradient(from 180deg, #b45309, #f59e0b, #b45309);
+}
+
+.avatar-frame--silver {
+  background: conic-gradient(from 180deg, #94a3b8, #e2e8f0, #94a3b8);
+}
+
+.avatar-frame--gold {
+  background: conic-gradient(from 180deg, var(--gold), #fff7cc, var(--gold));
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.45);
+}
+
+.avatar-frame--signal {
+  background: conic-gradient(from 180deg, var(--primary), var(--cyan), var(--primary));
+}
+
+.avatar-frame--social {
+  background: conic-gradient(from 180deg, var(--coral), #fecdd3, var(--coral));
+}
+
+.avatar-frame-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.avatar-frame-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.avatar-frame-option.is-equipped {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary-light);
+}
+
+.avatar-frame-option.is-locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.avatar-frame-option:disabled {
+  cursor: not-allowed;
+}
+
+/* Collection covers — auto-built from real preview posters, see CollageCover.jsx. */
+.collage-cover {
+  flex-shrink: 0;
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--surface-elevated);
+}
+
+.collage-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.collage-cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collage-cover--1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.collage-cover--2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.collage-cover--3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.collage-cover--3 img:first-child {
+  grid-row: 1 / span 2;
+}
+
+.collage-cover--4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.pinned-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.pinned-picker-title {
+  position: relative;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 2 / 3;
+  min-height: unset;
+}
+
+.pinned-picker-title img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pinned-picker-title.is-selected {
+  border-color: var(--primary);
+}
+
+.pinned-picker-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-theme-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.profile-theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  width: 88px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 12px;
+
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.profile-theme-swatch.is-selected {
+  border-color: var(--primary-light);
+}
+
+.social-profile-nickname {
+  margin: 2px 0 6px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+/* ==========================================
+   PROFILE THEMES — a skin for one user's own
+   /social/:id page, never the app chrome around
+   it (nav/footer stay neutral). Re-declares the
+   same custom properties every component already
+   reads from (surface, text, primary-light,
+   border tokens), so the cascade does the work
+   instead of overriding dozens of components
+   individually. "cinema" is the existing look —
+   no override needed.
+   ========================================== */
+
+.social-profile-page {
+  padding: var(--sp-3);
+  border-radius: 24px;
+  transition: background 200ms ease;
+}
+
+.social-profile-page[data-profile-theme="vhs"] {
+  position: relative;
+  background: linear-gradient(160deg, #1a1425, #3d0f2e 70%);
+  --primary-light: #f472b6;
+  --primary-rgb: 244, 114, 182;
+  --border: rgba(244, 114, 182, 0.18);
+}
+
+.social-profile-page[data-profile-theme="vhs"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.035) 0px,
+    rgba(255, 255, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.social-profile-page[data-profile-theme="dreamy"] {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.5) 0px, rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+    radial-gradient(circle at 70% 40%, rgba(255, 255, 255, 0.4) 0px, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+    radial-gradient(circle at 45% 75%, rgba(255, 255, 255, 0.35) 0px, rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+    radial-gradient(circle at 90% 85%, rgba(255, 255, 255, 0.45) 0px, rgba(255, 255, 255, 0.45) 1px, transparent 1px),
+    linear-gradient(160deg, #2e1a47, #4c2a75 70%);
+  background-size: 140px 140px, 160px 160px, 120px 120px, 180px 180px, 100% 100%;
+  --primary-light: #f0abfc;
+  --primary-rgb: 240, 171, 252;
+  --border: rgba(240, 171, 252, 0.2);
+}
+
+.social-profile-page[data-profile-theme="midnight"] {
+  background: linear-gradient(160deg, #020617, #0c1e3e 70%);
+  --primary-light: #38bdf8;
+  --primary-rgb: 56, 189, 248;
+  --border: rgba(56, 189, 248, 0.16);
+}
+
+.social-profile-page[data-profile-theme="indie"] {
+  background: linear-gradient(160deg, #d6c7a8, #c4b190 70%);
+  --text: #3f2d1a;
+  --text-muted: #6b5637;
+  --text-faint: #8a7454;
+  --surface: #e7dcc2;
+  --surface-soft: #ded1b2;
+  --surface-elevated: #d3c4a2;
+  --border: rgba(63, 45, 26, 0.18);
+  --primary-light: #92400e;
+  --primary-rgb: 146, 64, 14;
+}
+
 .dna-match-name {
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dna-match-archetype {
   font-size: 0.78rem;
   color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dna-match-following-badge {
@@ -2670,7 +3655,141 @@ input[type="range"] {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+/* ==========================================
+   REVIEW LIKES + COMMENTS
+   ========================================== */
+
+.review-interactions {
+  margin-top: 8px;
+}
+
+.review-interactions-row {
+  display: flex;
+  gap: 10px;
+}
+
+.review-action-btn {
+  min-height: unset;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.review-action-btn.is-active {
+  border-color: transparent;
+  background: rgba(var(--primary-rgb), 0.28);
+  color: var(--primary-light);
+}
+
+.review-comment-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.review-comment-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.review-comment-author {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.review-comment-body {
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.review-comment-delete {
+  min-height: unset;
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  color: #f87171;
+  font-size: 0.7rem;
+}
+
+.review-comment-report {
+  min-height: unset;
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+}
+
+.review-comment-report:hover {
+  color: var(--text-muted);
+}
+
+.review-comment-reported {
+  font-size: 0.7rem;
+  color: var(--text-faint);
   font-style: italic;
+}
+
+.review-comment-empty {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+.review-comment-spoiler-veil {
+  min-height: unset;
+  padding: 3px 10px;
+  border: 1px dashed var(--border-strong, rgba(255, 255, 255, 0.28));
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.review-comment-spoiler-veil:hover {
+  color: var(--text-muted);
+}
+
+.review-comment-spoiler-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+  font-size: 0.76rem;
+}
+
+.review-comment-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.review-comment-form input {
+  flex: 1;
+  margin: 0;
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+}
+
+.review-comment-form button {
+  min-height: 36px;
+  padding: 7px 14px;
 }
 
 /* ==========================================

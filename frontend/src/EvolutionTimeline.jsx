@@ -39,6 +39,7 @@ function formatDate(t) {
 export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [journey, setJourney] = useState(null);
   const [visibleKeys, setVisibleKeys] = useState(defaultKeys.slice(0, MAX_LINES));
   const [assignment, setAssignment] = useState(() => {
     const a = {};
@@ -55,6 +56,11 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
     setLoading(false);
   }
 
+  async function loadJourney() {
+    const res = await fetch(`${BASE}/api/tastedna/journey/${userId}`, { headers: authHeaders() }).catch(() => null);
+    setJourney(res && res.ok ? await res.json() : []);
+  }
+
   useEffect(() => {
     // Standard fetch-on-prop-change: set loading, await, set data. The
     // set-state-in-effect rule flags this because the effect re-runs on a
@@ -63,6 +69,7 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
     // is exactly what an effect is for.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadHistory();
+    loadJourney();
   }, [userId]);
 
   function toggleTrait(key) {
@@ -189,7 +196,12 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
             </text>
           ))}
 
-          {referenceSeries.points.length > 0 && (
+          {pointCount === 1 && (
+            <text x={xFor(0)} y={H - 6} textAnchor="middle" className="timeline-axis-label">
+              {formatDate(referenceSeries.points[0].t)}
+            </text>
+          )}
+          {pointCount > 1 && (
             <>
               <text x={xFor(0)} y={H - 6} textAnchor="start" className="timeline-axis-label">
                 {formatDate(referenceSeries.points[0].t)}
@@ -309,6 +321,22 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
         </div>
       ) : (
         <p className="timeline-empty">Rate a few titles and this will fill in with the story of how your taste moved.</p>
+      )}
+
+      {journey && journey.length > 0 && (
+        <div className="taste-journey">
+          <span className="eyebrow" style={{ letterSpacing: "0.08em", display: "block", marginBottom: "var(--sp-2)" }}>
+            Your Taste Journey
+          </span>
+          <div className="taste-journey-list">
+            {[...journey].reverse().map((entry) => (
+              <div key={entry.period} className="taste-journey-row">
+                <span className="taste-journey-period">{entry.period}</span>
+                <p className="taste-journey-sentence">{entry.sentence}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

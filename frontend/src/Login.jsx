@@ -6,18 +6,33 @@ import BrandMark from "./BrandMark";
 import Footer from "./Footer";
 import "./App.css";
 
+const MIN_PASSWORD_LENGTH = 6;
+
 export default function Login({ onLogin }) {
   const [username, setusername] = useState("");
   const [password, setpassword] = useState("");
+  const [confirmpassword, setconfirmpassword] = useState("");
+  const [showpassword, setshowpassword] = useState(false);
   const [isreg, setisreg] = useState(false);
   const [errmsg, seterrmsg] = useState("");
   const [okmsg, setokmsg] = useState("");
   const [loading, setloading] = useState(false);
 
+  const passwordTooShort = isreg && password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
+  const passwordsMismatch = isreg && confirmpassword.length > 0 && confirmpassword !== password;
+
   async function handlesubmit(e) {
     e.preventDefault();
     if (!username || !password) {
       seterrmsg("Enter both a username and a password.");
+      return;
+    }
+    if (isreg && password.length < MIN_PASSWORD_LENGTH) {
+      seterrmsg(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (isreg && confirmpassword !== password) {
+      seterrmsg("Passwords don't match.");
       return;
     }
 
@@ -31,7 +46,7 @@ export default function Login({ onLogin }) {
         // Registration now returns a full session, same as login — no reason to
         // make the user re-enter their password immediately after choosing it.
         const uid = res.userId || 1;
-        saveSession({ userId: uid, username: res.username || username, token: res.token });
+        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame });
         if (onLogin) {
           onLogin(uid);
         } else {
@@ -44,7 +59,7 @@ export default function Login({ onLogin }) {
       const res = await login(username, password);
       if (res && res.token) {
         const uid = res.userId || 1;
-        saveSession({ userId: uid, username: res.username || username, token: res.token });
+        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame });
         if (onLogin) {
           onLogin(uid);
         } else {
@@ -81,7 +96,7 @@ export default function Login({ onLogin }) {
             <input
               id="login-username"
               type="text"
-              placeholder="enter your username"
+              placeholder="Enter your username"
               value={username}
               onChange={(e) => setusername(e.target.value)}
               autoComplete="username"
@@ -90,15 +105,55 @@ export default function Login({ onLogin }) {
 
           <div className="auth-field">
             <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setpassword(e.target.value)}
-              autoComplete={isreg ? "new-password" : "current-password"}
-            />
+            <div className="auth-password-wrap">
+              <input
+                id="login-password"
+                type={showpassword ? "text" : "password"}
+                className="auth-password-input"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setpassword(e.target.value)}
+                autoComplete={isreg ? "new-password" : "current-password"}
+              />
+              <button
+                type="button"
+                className="auth-eye-toggle"
+                onClick={() => setshowpassword((v) => !v)}
+                aria-label={showpassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showpassword ? "🙈" : "👁"}
+              </button>
+            </div>
+            {passwordTooShort && (
+              <p className="auth-field-hint auth-field-hint--error">
+                At least {MIN_PASSWORD_LENGTH} characters.
+              </p>
+            )}
           </div>
+
+          {isreg && (
+            <div className="auth-field">
+              <label htmlFor="login-confirm-password">Confirm password</label>
+              <div className="auth-password-wrap">
+                <input
+                  id="login-confirm-password"
+                  type={showpassword ? "text" : "password"}
+                  className="auth-password-input"
+                  placeholder="Re-enter your password"
+                  value={confirmpassword}
+                  onChange={(e) => setconfirmpassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              {passwordsMismatch && (
+                <p className="auth-field-hint auth-field-hint--error">Passwords don't match.</p>
+              )}
+              {isreg && confirmpassword.length > 0 && !passwordsMismatch && (
+                <p className="auth-field-hint auth-field-hint--success">Passwords match.</p>
+              )}
+            </div>
+          )}
 
           <button type="submit" className="btn-primary btn-block" disabled={loading}>
             {loading ? "Please wait..." : isreg ? "Register & Enter" : "Sign In"}

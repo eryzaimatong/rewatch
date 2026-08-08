@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.rewatch.dto.UserSummaryDTO;
 import com.rewatch.model.Block;
+import com.rewatch.model.CollectionFollow;
 import com.rewatch.model.Follow;
 import com.rewatch.model.Rating;
 import com.rewatch.model.Title;
@@ -25,6 +26,7 @@ import com.rewatch.model.User;
 import com.rewatch.model.WatchlistFolder;
 import com.rewatch.model.WatchlistItem;
 import com.rewatch.repository.BlockRepository;
+import com.rewatch.repository.CollectionFollowRepository;
 import com.rewatch.repository.FollowRepository;
 import com.rewatch.repository.RatingRepository;
 import com.rewatch.repository.TitleRepository;
@@ -55,11 +57,13 @@ public class SocialService {
     private final WatchlistItemRepository itemRepo;
     private final ProfileService profileService;
     private final ArchetypeService archetypeService;
+    private final CollectionFollowRepository collectionFollowRepo;
 
     public SocialService(UserRepository userRepo, FollowRepository followRepo, BlockRepository blockRepo,
                          RatingRepository ratingRepo, TitleRepository titleRepo,
                          WatchlistFolderRepository folderRepo, WatchlistItemRepository itemRepo,
-                         ProfileService profileService, ArchetypeService archetypeService) {
+                         ProfileService profileService, ArchetypeService archetypeService,
+                         CollectionFollowRepository collectionFollowRepo) {
         this.userRepo = userRepo;
         this.followRepo = followRepo;
         this.blockRepo = blockRepo;
@@ -69,11 +73,21 @@ public class SocialService {
         this.itemRepo = itemRepo;
         this.profileService = profileService;
         this.archetypeService = archetypeService;
+        this.collectionFollowRepo = collectionFollowRepo;
     }
 
     /** Mutual: true if either side has blocked the other. Every visibility check below relies on this. */
     public boolean isBlocked(Long a, Long b) {
         return blockRepo.existsByBlockerIdAndBlockedId(a, b) || blockRepo.existsByBlockerIdAndBlockedId(b, a);
+    }
+
+    /** A private profile is visible only to its own owner. Unknown user -> not visible. */
+    private boolean isProfileVisibleTo(Long targetId, Long callerId) {
+        if (callerId != null && callerId.equals(targetId)) {
+            return true;
+        }
+        User target = userRepo.findById(targetId).orElse(null);
+        return target != null && target.isProfilePublic();
     }
 
     @Transactional
@@ -110,8 +124,13 @@ public class SocialService {
         return ids.stream()
                 .map(users::get)
                 .filter(java.util.Objects::nonNull)
-                .map(u -> new UserSummaryDTO(u.getId(), u.getUsername(), null, false))
+                .map(u -> withAvatar(new UserSummaryDTO(u.getId(), u.getUsername(), null, false), u))
                 .collect(Collectors.toList());
+    }
+
+    private static UserSummaryDTO withAvatar(UserSummaryDTO dto, User u) {
+        dto.setAvatarUrl(u.getAvatarUrl());
+        return dto;
     }
 
     public Map<String, Object> publicProfile(Long targetId, Long callerId) {
@@ -124,6 +143,11 @@ public class SocialService {
         // would let a blocked user fingerprint "this profile exists, I'm just
         // blocked," a mild info leak most block features avoid.
         if (callerId != null && isBlocked(targetId, callerId)) {
+            return null;
+        }
+        // Same 404-not-403 shape as blocking above — a private profile is
+        // indistinguishable from a nonexistent one to anyone but its owner.
+        if (!isProfileVisibleTo(targetId, callerId)) {
             return null;
         }
 
@@ -139,6 +163,10 @@ public class SocialService {
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("userId", user.getId());
         res.put("username", user.getUsername());
+        res.put("avatarUrl", user.getAvatarUrl());
+        res.put("avatarFrame", user.getAvatarFrame());
+        res.put("nickname", user.getNickname());
+        res.put("profileTheme", user.getProfileTheme() == null ? "cinema" : user.getProfileTheme());
         res.put("archetype", archetype.archetype());
         res.put("archetypeBlurb", archetype.blurb());
         res.put("ratingCount", ratingRepo.countByUserId(targetId));
@@ -146,8 +174,85 @@ public class SocialService {
         res.put("followingCount", followRepo.countByFollowerId(targetId));
         res.put("isFollowing", callerId != null && followRepo.existsByFollowerIdAndFolloweeId(callerId, targetId));
         res.put("isSelf", callerId != null && callerId.equals(targetId));
+        res.put("compatibilityScore", compatibilityScore(targetId, callerId));
         res.put("traits", traits);
+        res.put("pinnedTitles", pinnedTitles(user));
+        res.put("pinnedReview", pinnedReview(user));
+        res.put("pinnedCollection", pinnedCollection(user, callerId));
         return res;
+    }
+
+    /** Resolves User.pinnedTitleIds into real title cards — never fabricated, just whatever's still in the catalog. */
+    private List<Map<String, Object>> pinnedTitles(User user) {
+        if (user.getPinnedTitleIds() == null || user.getPinnedTitleIds().isBlank()) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String idStr : user.getPinnedTitleIds().split(",")) {
+            try {
+                Title t = titleRepo.findById(Long.parseLong(idStr.trim())).orElse(null);
+                if (t != null) {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("titleId", t.getId());
+                    m.put("tmdbId", t.getTmdbId());
+                    m.put("title", t.getTitle());
+                    m.put("poster", t.getPoster());
+                    out.add(m);
+                }
+            } catch (NumberFormatException ignored) {
+                // A malformed stored value shouldn't break the whole profile — just skip it.
+            }
+        }
+        return out;
+    }
+
+    private Map<String, Object> pinnedReview(User user) {
+        if (user.getPinnedRatingId() == null) {
+            return null;
+        }
+        Rating r = ratingRepo.findById(user.getPinnedRatingId()).orElse(null);
+        if (r == null || r.getMoment() == null || r.getMoment().isBlank()) {
+            return null;
+        }
+        Title t = titleRepo.findById(r.getTitleId()).orElse(null);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ratingId", r.getId());
+        m.put("titleId", r.getTitleId());
+        m.put("title", t == null ? "Unknown title" : t.getTitle());
+        m.put("poster", t == null ? null : t.getPoster());
+        m.put("overall", r.getOverall());
+        m.put("moment", r.getMoment());
+        return m;
+    }
+
+    private Map<String, Object> pinnedCollection(User user, Long callerId) {
+        if (user.getPinnedFolderId() == null) {
+            return null;
+        }
+        WatchlistFolder folder = folderRepo.findById(user.getPinnedFolderId()).orElse(null);
+        if (folder == null) {
+            return null;
+        }
+        return collectionSummary(folder, user, callerId);
+    }
+
+    /**
+     * Same centred-cosine metric dnaMatches ranks by, computed for exactly the
+     * pair of users viewing/being viewed — dnaMatches never surfaced this on an
+     * individual's own profile page, only in the ranked match list. Null (not
+     * 0) when it isn't meaningful: no caller, viewing your own profile, or
+     * either side under the 3-rating floor that makes the comparison noise.
+     */
+    private Double compatibilityScore(Long targetId, Long callerId) {
+        if (callerId == null || callerId.equals(targetId)) {
+            return null;
+        }
+        if (ratingRepo.countByUserId(callerId) < 3 || ratingRepo.countByUserId(targetId) < 3) {
+            return null;
+        }
+        TraitVector callerVec = profileService.vectorOf(profileService.currentProfile(callerId));
+        TraitVector targetVec = profileService.vectorOf(profileService.currentProfile(targetId));
+        return callerVec.centredCosine(targetVec);
     }
 
     @Transactional
@@ -186,6 +291,27 @@ public class SocialService {
     }
 
     /**
+     * Friend search by partial username — the only way to reach another user
+     * today was via a DNA-match or activity-feed entry, which meant there was
+     * no way to find someone you know but haven't crossed paths with
+     * algorithmically. Username only, not email (see UserRepository) — email
+     * search would let anyone probe whether an address has an account here.
+     * Reuses summarize()'s existing block-filtering rather than duplicating it.
+     */
+    public List<UserSummaryDTO> searchUsers(String query, Long callerId) {
+        if (query == null || query.trim().length() < 2) {
+            return List.of();
+        }
+        List<Long> ids = userRepo
+                .findByUsernameContainingIgnoreCase(query.trim(), PageRequest.of(0, 20))
+                .stream()
+                .map(User::getId)
+                .filter(id -> !id.equals(callerId))
+                .toList();
+        return summarize(ids, callerId);
+    }
+
+    /**
      * Other users ranked by centred-cosine similarity of their whole TraitVector
      * profile to the caller's — the same shape-similarity metric DiscoveryService
      * uses for "Similar Emotional DNA" movies, just applied person-to-person
@@ -203,6 +329,9 @@ public class SocialService {
                 .filter(u -> !u.getId().equals(callerId))
                 .filter(u -> ratingRepo.countByUserId(u.getId()) >= 3)
                 .filter(u -> !isBlocked(callerId, u.getId()))
+                // A user who opted out of profile visibility shouldn't surface
+                // as a suggested match either.
+                .filter(User::isProfilePublic)
                 .toList();
 
         List<UserSummaryDTO> ranked = new ArrayList<>();
@@ -216,9 +345,9 @@ public class SocialService {
                 .limit(limit)
                 .forEach(u -> {
                     var archetype = archetypeService.classify(profileService.currentProfile(u.getId()));
-                    ranked.add(new UserSummaryDTO(u.getId(), u.getUsername(), archetype.archetype(),
+                    ranked.add(withAvatar(new UserSummaryDTO(u.getId(), u.getUsername(), archetype.archetype(),
                             followRepo.existsByFollowerIdAndFolloweeId(callerId, u.getId()),
-                            scores.get(u.getId())));
+                            scores.get(u.getId())), u));
                 });
         return ranked;
     }
@@ -230,6 +359,9 @@ public class SocialService {
      */
     public List<Map<String, Object>> reviews(Long targetId, Long callerId, int limit) {
         if (callerId != null && isBlocked(targetId, callerId)) {
+            return List.of();
+        }
+        if (!isProfileVisibleTo(targetId, callerId)) {
             return List.of();
         }
         List<Rating> ratings = ratingRepo.findByUserIdOrderByCreatedAtDescIdDesc(targetId).stream()
@@ -286,6 +418,121 @@ public class SocialService {
         return out;
     }
 
+    /** Preview posters shown on a collection card, before a user opens it. */
+    private static final int COLLECTION_PREVIEW_COUNT = 4;
+
+    /**
+     * Every public folder across every user except the caller's own and
+     * anyone blocked either direction, newest first. Small-scale (this app
+     * has no pagination on any social list yet — dnaMatches/activityFeed are
+     * the same "load everything, let limit trim it" shape), fine at current
+     * size, first thing to add real paging to if the catalog of public
+     * folders grows past a few hundred.
+     */
+    public List<Map<String, Object>> discoverCollections(Long callerId, int limit) {
+        List<WatchlistFolder> folders = folderRepo.findByIsPublicTrueOrderByCreatedAtDesc().stream()
+                .filter(f -> !f.getUserId().equals(callerId))
+                .filter(f -> !isBlocked(callerId, f.getUserId()))
+                .toList();
+
+        Map<Long, User> owners = new HashMap<>();
+        userRepo.findAllById(folders.stream().map(WatchlistFolder::getUserId).distinct().toList())
+                .forEach(u -> owners.put(u.getId(), u));
+
+        return folders.stream()
+                .sorted(Comparator.comparingLong((WatchlistFolder f) -> collectionFollowRepo.countByFolderId(f.getId())).reversed())
+                .limit(limit)
+                .map(f -> collectionSummary(f, owners.get(f.getUserId()), callerId))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    /** Collections the caller has chosen to follow — same card shape as discoverCollections. */
+    public List<Map<String, Object>> followedCollections(Long callerId) {
+        List<Long> folderIds = collectionFollowRepo.findByUserIdOrderByCreatedAtDesc(callerId).stream()
+                .map(CollectionFollow::getFolderId)
+                .toList();
+        if (folderIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, WatchlistFolder> folders = new HashMap<>();
+        folderRepo.findAllById(folderIds).forEach(f -> folders.put(f.getId(), f));
+
+        Map<Long, User> owners = new HashMap<>();
+        userRepo.findAllById(folders.values().stream().map(WatchlistFolder::getUserId).distinct().toList())
+                .forEach(u -> owners.put(u.getId(), u));
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Long folderId : folderIds) {
+            WatchlistFolder f = folders.get(folderId);
+            // Folder may have gone private or been deleted since the follow —
+            // both read as "no longer following" rather than a broken card.
+            if (f == null || !f.isPublic()) {
+                continue;
+            }
+            Map<String, Object> summary = collectionSummary(f, owners.get(f.getUserId()), callerId);
+            if (summary != null) {
+                out.add(summary);
+            }
+        }
+        return out;
+    }
+
+    private Map<String, Object> collectionSummary(WatchlistFolder folder, User owner, Long callerId) {
+        if (owner == null) {
+            return null;
+        }
+        List<WatchlistItem> items = itemRepo.findByFolderIdOrderByAddedAtDesc(folder.getId());
+        List<String> previewPosters = items.stream()
+                .limit(COLLECTION_PREVIEW_COUNT)
+                .map(item -> titleRepo.findById(item.getTitleId()).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(Title::getPoster)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("folderId", folder.getId());
+        out.put("name", folder.getName());
+        out.put("ownerUserId", owner.getId());
+        out.put("ownerUsername", owner.getUsername());
+        out.put("ownerAvatarUrl", owner.getAvatarUrl());
+        out.put("itemCount", items.size());
+        out.put("followerCount", collectionFollowRepo.countByFolderId(folder.getId()));
+        out.put("isFollowing", callerId != null && collectionFollowRepo.existsByUserIdAndFolderId(callerId, folder.getId()));
+        out.put("previewPosters", previewPosters);
+        return out;
+    }
+
+    /**
+     * @throws IllegalArgumentException if the folder doesn't exist, isn't
+     *         public, or belongs to the caller (following your own collection
+     *         is a no-op the UI shouldn't even offer, but the endpoint still
+     *         guards it server-side).
+     */
+    @Transactional
+    public void followCollection(Long callerId, Long folderId) {
+        WatchlistFolder folder = folderRepo.findById(folderId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown collection " + folderId));
+        if (!folder.isPublic()) {
+            throw new IllegalArgumentException("This collection isn't public.");
+        }
+        if (folder.getUserId().equals(callerId)) {
+            throw new IllegalArgumentException("Cannot follow your own collection.");
+        }
+        if (isBlocked(callerId, folder.getUserId())) {
+            throw new IllegalArgumentException("Cannot follow this collection.");
+        }
+        if (!collectionFollowRepo.existsByUserIdAndFolderId(callerId, folderId)) {
+            collectionFollowRepo.save(new CollectionFollow(callerId, folderId, Instant.now()));
+        }
+    }
+
+    @Transactional
+    public void unfollowCollection(Long callerId, Long folderId) {
+        collectionFollowRepo.deleteByUserIdAndFolderId(callerId, folderId);
+    }
+
     private List<UserSummaryDTO> summarize(List<Long> userIds, Long callerId) {
         if (userIds.isEmpty()) {
             return List.of();
@@ -301,7 +548,7 @@ public class SocialService {
                     var archetype = archetypeService.classify(profileService.currentProfile(u.getId()));
                     boolean following = callerId != null
                             && followRepo.existsByFollowerIdAndFolloweeId(callerId, u.getId());
-                    return new UserSummaryDTO(u.getId(), u.getUsername(), archetype.archetype(), following);
+                    return withAvatar(new UserSummaryDTO(u.getId(), u.getUsername(), archetype.archetype(), following), u);
                 })
                 .collect(Collectors.toList());
     }

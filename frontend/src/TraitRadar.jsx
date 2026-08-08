@@ -1,8 +1,8 @@
 /**
  * A hand-rolled SVG radar chart for the 10-trait storytelling vector.
  *
- * Colors are validated, not eyeballed: purple (primary/user) vs #0284c7
- * (secondary/movie) clears every check in the dataviz skill's validator
+ * Colors are validated, not eyeballed: purple (primary/user) vs --cyan
+ * (#0284c7, secondary/movie) clears every check in the dataviz skill's validator
  * (CVD deutan ΔE 15.4, normal-vision ΔE 26.2 — both well above the 8/15
  * targets; lightness band, chroma floor, and contrast all pass) at
  * --pairs all against this app's dark surface. The one WARN band the

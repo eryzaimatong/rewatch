@@ -73,6 +73,21 @@ public class TmdbService {
      * lexicon with negation and comparative handling, not an LLM. Full comparative
      * queries ("like Your Name but happier") are handled by {@link NlpQueryParser}.
      */
+    /**
+     * What the parser actually understood from a query, without scoring
+     * anything — lets the frontend show real "we understood: Comfort,
+     * Hopeful Ending" chips instead of a hardcoded default that never
+     * changed no matter what was searched.
+     */
+    @Transactional
+    public java.util.Map<String, Double> understand(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return java.util.Map.of();
+        }
+        NlpQueryParser.ParsedQuery parsed = nlpQueryParser.parse(query, titleRepo.findAll());
+        return parsed.targetVector().toKeyedMap();
+    }
+
     @Transactional
     public List<MovieDTO> nlpsearch(String query, Long userId) {
         if (query == null || query.trim().isEmpty()) {

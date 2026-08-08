@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
-import { gettastedna, BASE } from "./api";
+import { gettastedna, BASE, getFollowedCollections, unfollowCollection } from "./api";
 import { authHeaders } from "./auth";
 import MatchRing from "./MatchRing";
 import MovieModal from "./MovieModal";
 import EvolutionTimeline from "./EvolutionTimeline";
 import ConfirmDialog from "./ConfirmDialog";
 import UndoToast from "./UndoToast";
+import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
+import CollageCover from "./CollageCover";
+import { SkeletonPosterGrid } from "./Skeleton";
 import "./App.css";
 
 const UNDO_WINDOW_MS = 5000;
@@ -64,6 +68,7 @@ export default function Dashboard() {
   const [activefolder, setactivefolder] = useState("all");
   const [newfoldername, setnewfoldername] = useState("");
   const [showfolderinput, setshowfolderinput] = useState(false);
+  const [followedcollections, setfollowedcollections] = useState([]);
 
   const [loading, setloading] = useState(true);
   const [errmsg, seterrmsg] = useState("");
@@ -130,7 +135,14 @@ export default function Dashboard() {
       setdiscoveries(await gemsRes.json());
     }
 
+    setfollowedcollections(await getFollowedCollections());
+
     setloading(false);
+  }
+
+  async function handleunfollowcollection(folderId) {
+    setfollowedcollections((current) => current.filter((c) => c.folderId !== folderId));
+    await unfollowCollection(folderId);
   }
 
   useEffect(() => {
@@ -224,6 +236,23 @@ export default function Dashboard() {
       setfolders((current) => (current.some((f) => f.id === folder.id) ? current : [...current, folder]));
       setnewfoldername("");
       setshowfolderinput(false);
+    }
+  }
+
+  // A public shelf is what Community's "Discover Collections" surfaces —
+  // this is the only place that toggle exists; without it a folder can never
+  // actually become discoverable no matter what the backend supports.
+  async function togglefoldervisibility(folder) {
+    if (!userid) return;
+    const next = !folder.public;
+    const res = await fetch(`${BASE}/api/watchlist/folders/${folder.id}/visibility`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ userId: userid, isPublic: next })
+    }).catch(() => null);
+    if (res && res.ok) {
+      const updated = await res.json();
+      setfolders((current) => current.map((f) => (f.id === updated.id ? updated : f)));
     }
   }
 
@@ -371,28 +400,41 @@ export default function Dashboard() {
             <button type="button" className="pill" onClick={() => setshowfolderinput(true)}>+ New Shelf</button>
           )}
         </div>
+
+        {activefolder !== "all" && (() => {
+          const current = folders.find((f) => f.id === activefolder);
+          if (!current) return null;
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                {current.public
+                  ? "Public — listed under Community's Discover Collections for others to follow."
+                  : "Private — only you can see this shelf."}
+              </span>
+              <button
+                type="button"
+                className="auth-toggle-link"
+                style={{ fontSize: "0.8rem", background: "none", border: "none" }}
+                onClick={() => togglefoldervisibility(current)}
+              >
+                {current.public ? "Make Private" : "Make Public"}
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
-      {loading && (
-        <div className="feed-state">
-          <div className="loading-orb" />
-          <p>Loading your saved queue...</p>
-        </div>
-      )}
+      {loading && <SkeletonPosterGrid count={4} gridClassName="mini-card-grid" lines={1} />}
 
       {!loading && errmsg && (
-        <div className="feed-state feed-error">
-          <h3>Could not load watchlist</h3>
-          <p>{errmsg}</p>
-          <button type="button" onClick={loadprofiledata}>Try again</button>
-        </div>
+        <ErrorState title="Could not load watchlist" message={errmsg} onRetry={loadprofiledata} />
       )}
 
       {!loading && !errmsg && visibleitems.length === 0 && (
-        <div className="feed-state">
-          <h3>Let's build your comfort shelf.</h3>
-          <p>Save a few titles from the Home feed and they'll show up here.</p>
-        </div>
+        <EmptyState
+          title="Let's build your comfort shelf."
+          message="Save a few titles from the Home feed and they'll show up here."
+        />
       )}
 
       {!loading && visibleitems.length > 0 && (
@@ -460,6 +502,38 @@ export default function Dashboard() {
             </article>
           ))}
         </div>
+      )}
+
+      {followedcollections.length > 0 && (
+        <section className="feed-section">
+          <p className="section-eyebrow">Following</p>
+          <h2 style={{ marginBottom: "var(--sp-2)" }}>Collections you follow</h2>
+          <div className="trait-list">
+            {followedcollections.map((c) => (
+              <div key={c.folderId} className="trait-card" style={{ display: "flex", gap: "var(--sp-2)" }}>
+                <CollageCover posters={c.previewPosters} size={56} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="trait-card-row">
+                    <span className="trait-name">
+                      {c.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>by {c.ownerUsername}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="auth-toggle-link"
+                      style={{ fontSize: "0.78rem", background: "none", border: "none" }}
+                      onClick={() => handleunfollowcollection(c.folderId)}
+                    >
+                      Unfollow
+                    </button>
+                  </div>
+                  <div className="trait-meta-row">
+                    <span>{c.itemCount} title{c.itemCount === 1 ? "" : "s"} · {c.followerCount} follower{c.followerCount === 1 ? "" : "s"}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {selectedmovie && (

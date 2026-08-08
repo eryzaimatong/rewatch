@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.rewatch.dto.UserSummaryDTO;
 import com.rewatch.repository.UserRepository;
 import com.rewatch.security.SecurityUtil;
+import com.rewatch.service.AchievementService;
 import com.rewatch.service.NotificationService;
+import com.rewatch.service.ReviewService;
 import com.rewatch.service.SocialService;
 
 /**
@@ -34,12 +36,17 @@ public class SocialController {
     private final SocialService socialService;
     private final NotificationService notificationService;
     private final UserRepository userRepo;
+    private final AchievementService achievementService;
+    private final ReviewService reviewService;
 
     public SocialController(SocialService socialService, NotificationService notificationService,
-                            UserRepository userRepo) {
+                            UserRepository userRepo, AchievementService achievementService,
+                            ReviewService reviewService) {
         this.socialService = socialService;
         this.notificationService = notificationService;
         this.userRepo = userRepo;
+        this.achievementService = achievementService;
+        this.reviewService = reviewService;
     }
 
     @GetMapping("/profile/{userId}")
@@ -60,6 +67,12 @@ public class SocialController {
     @PostMapping("/follow/{userId}")
     public ResponseEntity<?> follow(@PathVariable Long userId, Authentication authentication) {
         Long callerId = requireAuth(authentication);
+        // Achievements on both sides of a follow depend on data this call is about
+        // to change (the follower's following-count, the followee's follower-count)
+        // — snapshot each before the write, diff after, same pattern as
+        // RatingService.submit.
+        Map<String, String> callerUnlockedBefore = achievementService.unlockedTitles(callerId);
+        Map<String, String> followeeUnlockedBefore = achievementService.unlockedTitles(userId);
         try {
             Map<String, Object> result = socialService.follow(callerId, userId);
             // Composed here, not inside SocialService, so NotificationService (which
@@ -67,6 +80,8 @@ public class SocialController {
             // circular bean dependency by also being depended on by SocialService.
             userRepo.findById(callerId).ifPresent(caller ->
                     notificationService.notifyNewFollower(userId, callerId, caller.getUsername()));
+            notifyNewlyUnlocked(callerId, callerUnlockedBefore);
+            notifyNewlyUnlocked(userId, followeeUnlockedBefore);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -74,10 +89,25 @@ public class SocialController {
         }
     }
 
+    private void notifyNewlyUnlocked(Long userId, Map<String, String> unlockedBefore) {
+        achievementService.unlockedTitles(userId).forEach((key, title) -> {
+            if (!unlockedBefore.containsKey(key)) {
+                notificationService.notifyAchievementUnlocked(userId, title);
+            }
+        });
+    }
+
     @DeleteMapping("/follow/{userId}")
     public ResponseEntity<?> unfollow(@PathVariable Long userId, Authentication authentication) {
         Long callerId = requireAuth(authentication);
         return ResponseEntity.ok(socialService.unfollow(callerId, userId));
+    }
+
+    /** Find a specific person by username — the only discovery path before this was algorithmic (DNA matches/activity feed). */
+    @GetMapping("/search")
+    public List<UserSummaryDTO> search(@RequestParam String query, Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        return socialService.searchUsers(query, callerId);
     }
 
     @GetMapping("/{userId}/followers")
@@ -104,7 +134,7 @@ public class SocialController {
                                              @RequestParam(defaultValue = "20") int limit,
                                              Authentication authentication) {
         Long callerId = requireAuth(authentication);
-        return socialService.reviews(userId, callerId, limit);
+        return reviewService.withInteractionCounts(socialService.reviews(userId, callerId, limit), callerId);
     }
 
     /** Self-only: the caller's own feed of what people they follow have been rating. */
@@ -113,13 +143,47 @@ public class SocialController {
                                                    @RequestParam(defaultValue = "20") int limit,
                                                    Authentication authentication) {
         SecurityUtil.requireSelf(authentication, userId);
-        return socialService.activityFeed(userId, limit);
+        return reviewService.withInteractionCounts(socialService.activityFeed(userId, limit), userId);
     }
 
     @GetMapping("/{userId}/lists")
     public List<Map<String, Object>> lists(@PathVariable Long userId, Authentication authentication) {
         Long callerId = requireAuth(authentication);
         return socialService.publicLists(userId, callerId);
+    }
+
+    /** Every public collection across every user, excluding the caller's own — the "Collections" browse surface. */
+    @GetMapping("/collections/discover")
+    public List<Map<String, Object>> discoverCollections(@RequestParam(defaultValue = "20") int limit,
+                                                          Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        return socialService.discoverCollections(callerId, limit);
+    }
+
+    /** Self-only: collections the caller has chosen to follow. */
+    @GetMapping("/collections/followed")
+    public List<Map<String, Object>> followedCollections(Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        return socialService.followedCollections(callerId);
+    }
+
+    @PostMapping("/collections/{folderId}/follow")
+    public ResponseEntity<?> followCollection(@PathVariable Long folderId, Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        try {
+            socialService.followCollection(callerId, folderId);
+            return ResponseEntity.ok(Map.of("status", "success", "following", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/collections/{folderId}/follow")
+    public ResponseEntity<?> unfollowCollection(@PathVariable Long folderId, Authentication authentication) {
+        Long callerId = requireAuth(authentication);
+        socialService.unfollowCollection(callerId, folderId);
+        return ResponseEntity.ok(Map.of("status", "success", "following", false));
     }
 
     @PostMapping("/block/{userId}")

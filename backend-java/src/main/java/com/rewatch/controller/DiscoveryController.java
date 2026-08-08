@@ -1,6 +1,7 @@
 package com.rewatch.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,5 +43,26 @@ public class DiscoveryController {
                                      Authentication authentication) {
         SecurityUtil.requireSelf(authentication, userId);
         return discoveryService.similarDna(userId, limit);
+    }
+
+    @GetMapping("/rediscover/{userId}")
+    public List<MovieDTO> rediscover(@PathVariable Long userId, @RequestParam(defaultValue = "6") int limit,
+                                     Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        return discoveryService.rediscoverForgotten(userId, limit);
+    }
+
+    /** Editorial metadata for the shelf-picker — no user context, just needs *a* login. */
+    @GetMapping("/collections")
+    public List<Map<String, String>> listCollections() {
+        return discoveryService.listCollections();
+    }
+
+    @GetMapping("/collections/{slug}/{userId}")
+    public List<MovieDTO> collection(@PathVariable String slug, @PathVariable Long userId,
+                                     @RequestParam(defaultValue = "12") int limit,
+                                     Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        return discoveryService.collection(slug, userId, limit);
     }
 }

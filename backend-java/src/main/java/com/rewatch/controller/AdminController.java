@@ -60,6 +60,19 @@ public class AdminController {
         return Map.of("status", "success", "ingested", ingested, "enriched", enriched);
     }
 
+    /**
+     * A deliberate, explicitly-triggered, one-time breadth expansion — pulls
+     * across many TMDB genres/sorts (not just popularity) so the catalog
+     * stops being thin enough that a mismatched title can win a themed
+     * collection by default. Real wall-clock time (rate-limited TMDB calls);
+     * not something that runs on every boot. Follow with /enrich to
+     * keyword-enrich a batch of the newly-ingested titles.
+     */
+    @PostMapping("/expand-catalog")
+    public Map<String, Object> expandCatalog(@RequestParam(defaultValue = "1500") int target) {
+        return enrichmentService.bulkExpand(target);
+    }
+
     /** Per-axis mean/stdev/min/max across the catalog — the calibration instrument. */
     @GetMapping("/feature-stats")
     public Map<String, Object> featureStats() {

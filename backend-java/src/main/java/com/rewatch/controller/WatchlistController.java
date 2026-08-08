@@ -25,6 +25,8 @@ import com.rewatch.dto.WatchlistRequests.MoveItem;
 import com.rewatch.dto.WatchlistRequests.SetFolderVisibility;
 import com.rewatch.model.WatchlistFolder;
 import com.rewatch.security.SecurityUtil;
+import com.rewatch.service.AchievementService;
+import com.rewatch.service.NotificationService;
 import com.rewatch.service.WatchlistService;
 
 @RestController
@@ -32,9 +34,14 @@ import com.rewatch.service.WatchlistService;
 public class WatchlistController {
 
     private final WatchlistService watchlistService;
+    private final AchievementService achievementService;
+    private final NotificationService notificationService;
 
-    public WatchlistController(WatchlistService watchlistService) {
+    public WatchlistController(WatchlistService watchlistService, AchievementService achievementService,
+                               NotificationService notificationService) {
         this.watchlistService = watchlistService;
+        this.achievementService = achievementService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/{userId}")
@@ -58,8 +65,15 @@ public class WatchlistController {
     @PostMapping("/items")
     public ResponseEntity<?> addItem(@Valid @RequestBody AddItem req, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, req.getUserId());
+        Map<String, String> unlockedBefore = achievementService.unlockedTitles(req.getUserId());
         try {
-            return ResponseEntity.ok(watchlistService.addItem(req));
+            WatchlistItemDTO result = watchlistService.addItem(req);
+            achievementService.unlockedTitles(req.getUserId()).forEach((key, title) -> {
+                if (!unlockedBefore.containsKey(key)) {
+                    notificationService.notifyAchievementUnlocked(req.getUserId(), title);
+                }
+            });
+            return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("status", "error", "message", e.getMessage()));

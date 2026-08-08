@@ -21,6 +21,9 @@ function targetFor(n) {
   if (n.type === "TASTE_MILESTONE") {
     return "/profile";
   }
+  if (n.type === "ACHIEVEMENT_UNLOCKED") {
+    return "/achievements";
+  }
   return null;
 }
 

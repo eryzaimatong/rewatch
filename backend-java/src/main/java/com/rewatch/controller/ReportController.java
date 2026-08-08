@@ -35,7 +35,7 @@ public class ReportController {
                     .body(Map.of("status", "error", "message", "Login required"));
         }
         try {
-            reportService.file(reporterId, req.getReportedUserId(), req.getReason(), req.getDetails());
+            reportService.file(reporterId, req.getReportedUserId(), req.getReason(), req.getDetails(), req.getCommentId());
             return ResponseEntity.ok(Map.of("status", "success", "message", "Report filed."));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

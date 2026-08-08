@@ -3,6 +3,7 @@ package com.rewatch.service;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,25 +30,30 @@ public class RatingService {
     private final EnrichmentService enrichmentService;
     private final ProfileService profileService;
     private final NotificationService notificationService;
+    private final AchievementService achievementService;
 
     /** |delta| a single rating must move a trait to count as a "milestone." */
     private static final double MILESTONE_THRESHOLD = 0.08;
 
     public RatingService(RatingRepository ratingRepo, TitleRepository titleRepo,
                          TmdbClient tmdb, EnrichmentService enrichmentService,
-                         ProfileService profileService, NotificationService notificationService) {
+                         ProfileService profileService, NotificationService notificationService,
+                         AchievementService achievementService) {
         this.ratingRepo = ratingRepo;
         this.titleRepo = titleRepo;
         this.tmdb = tmdb;
         this.enrichmentService = enrichmentService;
         this.profileService = profileService;
         this.notificationService = notificationService;
+        this.achievementService = achievementService;
     }
 
     public record Result(Rating rating, List<ProfileService.Shift> shifts) {}
 
     @Transactional
     public Result submit(RatingDTO dto) {
+        Map<String, String> unlockedBefore = achievementService.unlockedTitles(dto.getUserId());
+
         Title title = resolveTitle(dto);
 
         Rating r = new Rating();
@@ -72,6 +78,12 @@ public class RatingService {
                 .filter(s -> Math.abs(s.delta()) >= MILESTONE_THRESHOLD)
                 .max(Comparator.comparingDouble(s -> Math.abs(s.delta())))
                 .ifPresent(s -> notificationService.notifyTasteMilestone(dto.getUserId(), s.trait(), s.delta()));
+
+        achievementService.unlockedTitles(dto.getUserId()).forEach((key, achievementTitle) -> {
+            if (!unlockedBefore.containsKey(key)) {
+                notificationService.notifyAchievementUnlocked(dto.getUserId(), achievementTitle);
+            }
+        });
 
         return new Result(r, shifts);
     }

@@ -52,7 +52,7 @@ class SocialServiceBlockTest {
     // here (isBlocked/follow/block/unblock) touch either dependency, so null is fine.
     private SocialService newService() {
         return new SocialService(userRepo, followRepo, blockRepo, ratingRepo, titleRepo,
-                folderRepo, itemRepo, null, null);
+                folderRepo, itemRepo, null, null, null);
     }
 
     @Test

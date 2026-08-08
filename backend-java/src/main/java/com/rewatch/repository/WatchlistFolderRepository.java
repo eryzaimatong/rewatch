@@ -13,6 +13,8 @@ public interface WatchlistFolderRepository extends JpaRepository<WatchlistFolder
 
     List<WatchlistFolder> findByUserIdOrderByNameAsc(Long userId);
 
+    List<WatchlistFolder> findByIsPublicTrueOrderByCreatedAtDesc();
+
     Optional<WatchlistFolder> findByUserIdAndName(Long userId, String name);
 
     boolean existsByIdAndUserId(Long id, Long userId);
