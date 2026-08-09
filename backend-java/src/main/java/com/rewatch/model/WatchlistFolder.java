@@ -48,6 +48,17 @@ public class WatchlistFolder {
     @Column(name = "is_public", nullable = false, columnDefinition = "boolean not null default false")
     private boolean isPublic = false;
 
+    /**
+     * When true (and only meaningful alongside isPublic — see
+     * WatchlistService.setFolderCollaborative), any authenticated user can add
+     * titles to this folder, not just its owner. WatchlistItem still records
+     * who actually added each title (its own userId), so a collaborative
+     * folder is several people's real contributions, not one person's list
+     * with borrowed credit.
+     */
+    @Column(name = "collaborative", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean collaborative = false;
+
     public WatchlistFolder() {}
 
     public WatchlistFolder(Long userId, String name, Instant createdAt) {
@@ -70,4 +81,7 @@ public class WatchlistFolder {
 
     public boolean isPublic() { return isPublic; }
     public void setPublic(boolean v) { this.isPublic = v; }
+
+    public boolean isCollaborative() { return collaborative; }
+    public void setCollaborative(boolean v) { this.collaborative = v; }
 }

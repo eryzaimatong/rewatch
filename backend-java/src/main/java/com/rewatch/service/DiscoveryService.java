@@ -57,6 +57,7 @@ public class DiscoveryService {
         Set<Long> rated = ratedTitleIds(userId);
 
         List<Title> candidates = all.stream()
+                .filter(this::hasRenderableData)
                 .filter(t -> !rated.contains(t.getId()))
                 .filter(t -> t.getPopularity() <= medianPopularity)
                 .filter(t -> t.normalisedQuality() >= 0.55)
@@ -65,6 +66,16 @@ public class DiscoveryService {
                 .toList();
 
         return scoreAndSort(candidates, userId, limit);
+    }
+
+    /**
+     * A title with no synopsis or poster is broken data regardless of how well
+     * it scores or how closely its vector matches — every Discovery row filters
+     * candidates through this before ranking them.
+     */
+    private boolean hasRenderableData(Title t) {
+        return t.getSynopsis() != null && !t.getSynopsis().isBlank()
+                && t.getPoster() != null && !t.getPoster().isBlank();
     }
 
     /**
@@ -97,6 +108,7 @@ public class DiscoveryService {
         Set<Long> rated = ratedTitleIds(userId);
 
         List<Title> candidates = titleRepo.findAll().stream()
+                .filter(this::hasRenderableData)
                 .filter(t -> !t.getId().equals(source.getId()))
                 .filter(t -> !rated.contains(t.getId()))
                 .sorted(Comparator.<Title>comparingDouble(t -> t.traitVector().centredCosine(sourceVec)).reversed())
@@ -225,6 +237,7 @@ public class DiscoveryService {
         Set<Long> rated = ratedTitleIds(userId);
 
         List<Title> candidates = titleRepo.findAll().stream()
+                .filter(this::hasRenderableData)
                 .filter(t -> !rated.contains(t.getId()))
                 .sorted(Comparator.<Title>comparingDouble(t -> t.traitVector().centredCosine(target)).reversed())
                 .limit(Math.max(limit * 2, 12))

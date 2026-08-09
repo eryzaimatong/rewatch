@@ -45,7 +45,7 @@ class AccountServiceTest {
     @Mock private TraitEventRepository traitEventRepo;
 
     private AccountService newService() {
-        return new AccountService(userRepo, null, null, ratingRepo, null, watchlistFolderRepo, null, null, null, null, null, null, null, null, null, null, null);
+        return new AccountService(userRepo, null, null, ratingRepo, null, watchlistFolderRepo, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -59,7 +59,7 @@ class AccountServiceTest {
                 ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
         AchievementService achievementService =
                 new AchievementService(ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService);
-        return new AccountService(userRepo, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, achievementService);
+        return new AccountService(userRepo, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, achievementService);
     }
 
     @Test

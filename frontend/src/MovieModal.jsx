@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import TraitRadar from "./TraitRadar";
 import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
-import { BASE } from "./api";
+import { BASE, rateMovie } from "./api";
 import "./App.css";
 
 // Matches the validated pair in TraitRadar.jsx: purple (user) vs --cyan
@@ -11,6 +11,17 @@ import "./App.css";
 // the app's dark surface. The old #38bdf8 sky blue looked right but failed
 // the dark-mode lightness band — swapped for the validated step.
 const MOVIE_COLOR = "var(--cyan)";
+
+function ordinal(n) {
+  const rem100 = n % 100;
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}
 
 function StarRow({ label, value, onChange }) {
   return (
@@ -131,9 +142,11 @@ export default function MovieModal({ movie, onClose }) {
   const [story, setstory] = useState(0);
   const [rewatch, setrewatch] = useState(0);
   const [moment, setmoment] = useState("Ending Payoff");
+  const [deeperOpen, setdeeperOpen] = useState(false);
   const [msg, setmsg] = useState("");
   const [err, seterr] = useState("");
   const [topshift, settopshift] = useState(null);
+  const [rewatchInfo, setrewatchInfo] = useState(null);
 
   const [matchData, setmatchData] = useState(null);
   const [matchLoading, setmatchLoading] = useState(true);
@@ -147,7 +160,7 @@ export default function MovieModal({ movie, onClose }) {
   async function loadMatch(titleId, uid) {
     if (!titleId) {
       setmatchLoading(false);
-      setmatchError("Detailed story fingerprint isn't available for this title yet.");
+      setmatchError("A detailed breakdown isn't available for this title yet.");
       return;
     }
 
@@ -158,7 +171,7 @@ export default function MovieModal({ movie, onClose }) {
     const data = res && res.ok ? await res.json() : null;
 
     if (!data) {
-      setmatchError("Could not load this title's story fingerprint.");
+      setmatchError("Could not load why this matches you.");
     } else {
       setmatchData(data);
     }
@@ -207,40 +220,43 @@ export default function MovieModal({ movie, onClose }) {
     setmsg("");
     seterr("");
     settopshift(null);
+    setrewatchInfo(null);
 
-    if (overall === 0 || chars === 0 || ending === 0) {
-      seterr("Rate at least Overall, Characters, and Ending before saving.");
+    if (overall === 0) {
+      seterr("Rate at least Overall before saving.");
       return;
     }
 
+    // Facets the user never touched are sent as undefined, not faked as a
+    // middle "3" — an untouched star row isn't the same signal as an
+    // actual 3-star rating. RatingDTO only requires `overall`.
     const payload = {
       userId: userid,
       tmdbId: movie.id,
       title: movie.title,
       overall: overall,
-      chars: chars,
-      ending: ending,
-      visuals: visuals || 3,
-      story: story || 3,
-      rewatch: rewatch || 3,
+      chars: chars || undefined,
+      ending: ending || undefined,
+      visuals: visuals || undefined,
+      story: story || undefined,
+      rewatch: rewatch || undefined,
       moment: moment
     };
 
-    const res = await fetch(`${BASE}/api/movies/rate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(payload)
-    }).catch(() => null);
+    const { ok, data: result } = await rateMovie(payload);
 
-    if (!res || !res.ok) {
+    if (!ok) {
       seterr("Could not save this rating to the server.");
       return;
     }
 
-    const result = await res.json().catch(() => null);
-    // Shown only when the shift-toast isn't (no trait moved enough to name) —
-    // still real feedback that the rating landed, not a generic "saved."
-    setmsg("Got it — that's now part of your story.");
+    if (result?.isRewatch) {
+      setrewatchInfo({ watchNumber: result.watchNumber, previousOverall: result.previousOverall });
+    } else {
+      // Shown only when the shift-toast isn't (no trait moved enough to name) —
+      // still real feedback that the rating landed, not a generic "saved."
+      setmsg("Got it — that's now part of your story.");
+    }
     if (result?.topShift) {
       settopshift(result.topShift);
     }
@@ -265,7 +281,7 @@ export default function MovieModal({ movie, onClose }) {
       >
         <div className="modal-header">
           <div>
-            <span className="eyebrow">Story Fingerprint</span>
+            <span className="eyebrow">Why You'll Like It</span>
             <h2 id="movie-modal-title">{movie.title}</h2>
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               {movie.year || "2024"}
@@ -286,14 +302,14 @@ export default function MovieModal({ movie, onClose }) {
             onClick={() => settab("fingerprint")}
             className={`modal-tab${tab === "fingerprint" ? " active" : ""}`}
           >
-            Story Fingerprint
+            Why You'll Like It
           </button>
           <button
             type="button"
             onClick={() => settab("rate")}
             className={`modal-tab${tab === "rate" ? " active" : ""}`}
           >
-            Rate & Evolve
+            Rate This Story
           </button>
           <button
             type="button"
@@ -388,14 +404,27 @@ export default function MovieModal({ movie, onClose }) {
               Rating this title updates your TasteDNA profile in real time.
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)", marginBottom: "var(--sp-3)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)", marginBottom: "var(--sp-2)" }}>
               <StarRow label="Overall Impression" value={overall} onChange={setoverall} />
-              <StarRow label="Characters & Growth" value={chars} onChange={setchars} />
-              <StarRow label="Ending Payoff" value={ending} onChange={setending} />
-              <StarRow label="Visuals & Atmosphere" value={visuals} onChange={setvisuals} />
-              <StarRow label="Story & Pacing" value={story} onChange={setstory} />
-              <StarRow label="Rewatchability" value={rewatch} onChange={setrewatch} />
+              {deeperOpen && (
+                <>
+                  <StarRow label="Characters & Growth" value={chars} onChange={setchars} />
+                  <StarRow label="Ending Payoff" value={ending} onChange={setending} />
+                  <StarRow label="Visuals & Atmosphere" value={visuals} onChange={setvisuals} />
+                  <StarRow label="Story & Pacing" value={story} onChange={setstory} />
+                  <StarRow label="Rewatchability" value={rewatch} onChange={setrewatch} />
+                </>
+              )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setdeeperOpen((v) => !v)}
+              className="auth-toggle-link"
+              style={{ fontSize: "0.85rem", background: "none", border: "none", marginBottom: "var(--sp-3)", padding: 0 }}
+            >
+              {deeperOpen ? "Show less" : "Rate deeper →"}
+            </button>
 
             <div className="auth-field">
               <label htmlFor="moment-select">Which moment stayed with you the most?</label>
@@ -409,6 +438,26 @@ export default function MovieModal({ movie, onClose }) {
             </div>
 
             {err && <p className="status-message status-message--error">{err}</p>}
+
+            <AnimatePresence>
+              {rewatchInfo && (
+                <motion.div
+                  className="shift-toast"
+                  initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ type: "spring", stiffness: 340, damping: 22 }}
+                  style={{ marginBottom: "var(--sp-2)" }}
+                >
+                  <span className="shift-toast-icon">↻</span>
+                  <span className="shift-toast-text">
+                    Back again? This is your {ordinal(rewatchInfo.watchNumber)} watch.
+                    {rewatchInfo.previousOverall != null && rewatchInfo.previousOverall !== overall &&
+                      ` Your rating went ${rewatchInfo.previousOverall}★ → ${overall}★.`}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <AnimatePresence>
               {topshift && (

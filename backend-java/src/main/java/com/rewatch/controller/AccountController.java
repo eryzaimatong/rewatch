@@ -20,6 +20,8 @@ import com.rewatch.dto.AccountRequests.SetAccentColor;
 import com.rewatch.dto.AccountRequests.SetAvatar;
 import com.rewatch.dto.AccountRequests.SetProfileTheme;
 import com.rewatch.dto.AccountRequests.SetAvatarFrame;
+import com.rewatch.dto.AccountRequests.SetBio;
+import com.rewatch.dto.AccountRequests.SetProfileSong;
 import com.rewatch.dto.AccountRequests.SetNickname;
 import com.rewatch.dto.AccountRequests.SetPinnedContent;
 import com.rewatch.dto.AccountRequests.SetProfileVisibility;
@@ -127,6 +129,30 @@ public class AccountController {
         try {
             accountService.setPinnedContent(req.getUserId(), req.getTitleIds(), req.getRatingId(), req.getFolderId());
             return ResponseEntity.ok(Map.of("status", "success"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/bio")
+    public ResponseEntity<?> setBio(@Valid @RequestBody SetBio req, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        try {
+            accountService.setBio(req.getUserId(), req.getBio());
+            return ResponseEntity.ok(Map.of("status", "success", "bio", req.getBio() == null ? "" : req.getBio()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/profile-song")
+    public ResponseEntity<?> setProfileSong(@Valid @RequestBody SetProfileSong req, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        try {
+            accountService.setProfileSong(req.getUserId(), req.getProfileSong());
+            return ResponseEntity.ok(Map.of("status", "success", "profileSong", req.getProfileSong() == null ? "" : req.getProfileSong()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("status", "error", "message", e.getMessage()));

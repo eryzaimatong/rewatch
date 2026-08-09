@@ -4,12 +4,13 @@ import TraitRadar from "./TraitRadar";
 import MatchRing from "./MatchRing";
 import Avatar from "./Avatar";
 import { authHeaders } from "./auth";
-import { BASE, blockUser, fileReport } from "./api";
+import { BASE, blockUser, fileReport, saveToWatchlist, searchmovies } from "./api";
 import ConfirmDialog from "./ConfirmDialog";
 import ReportDialog from "./ReportDialog";
 import EmptyState from "./EmptyState";
 import ReviewInteractions from "./ReviewInteractions";
 import CollageCover from "./CollageCover";
+import { drawBrandMark } from "./canvasBrandMark";
 import "./App.css";
 
 // dnaMatches()/publicProfile() send raw centred-cosine similarity in [-1, 1];
@@ -57,6 +58,130 @@ export default function SocialProfile() {
   const [showreport, setshowreport] = useState(false);
   const [reportSubmitting, setreportSubmitting] = useState(false);
   const [reportDone, setreportDone] = useState(false);
+
+  const [addQuery, setaddQuery] = useState({});
+  const [addResults, setaddResults] = useState({});
+  const [addBusyTitleId, setaddBusyTitleId] = useState(null);
+  const [exportingListId, setexportingListId] = useState(null);
+
+  function loadImage(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  // 9:16 — same Stories/Reels canvas as Wrapped's and TasteDNA's exports, so
+  // a shared list gets the same shareable-poster treatment those already have.
+  async function exportListPoster(list) {
+    setexportingListId(list.folderId);
+
+    const posterUrls = list.items.slice(0, 6).map((i) => poster(i.poster));
+    const images = await Promise.all(posterUrls.map(loadImage));
+
+    const scale = 2;
+    const cardW = 540;
+    const cardH = 960;
+    const canvas = document.createElement("canvas");
+    canvas.width = cardW * scale;
+    canvas.height = cardH * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+
+    const grad = ctx.createLinearGradient(0, 0, cardW, cardH);
+    grad.addColorStop(0, "#1f2029");
+    grad.addColorStop(1, "#14151a");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cardW, cardH);
+    ctx.strokeStyle = "rgba(168,85,247,0.5)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, cardW - 2, cardH - 2);
+
+    drawBrandMark(ctx, cardW / 2, 56, 16);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#a855f7";
+    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("RE:WATCH CURATED SHELF", cardW / 2, 100);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(list.name, cardW / 2, 146);
+
+    ctx.fillStyle = "#a1a1aa";
+    ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(`by ${profile.username} · ${list.itemCount} title${list.itemCount === 1 ? "" : "s"}`, cardW / 2, 172);
+
+    // 2 columns x 3 rows poster grid
+    const gridTop = 210;
+    const gridW = cardW - 72;
+    const cols = 2;
+    const gap = 12;
+    const cellW = (gridW - gap * (cols - 1)) / cols;
+    const cellH = cellW * 1.5;
+    images.forEach((img, i) => {
+      if (!img) return;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = 36 + col * (cellW + gap);
+      const y = gridTop + row * (cellH + gap);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, cellW, cellH);
+      ctx.clip();
+      ctx.drawImage(img, x, y, cellW, cellH);
+      ctx.restore();
+    });
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(cardW / 2 - 24, cardH - 84, 48, 1);
+    ctx.fillStyle = "#71717a";
+    ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
+    ctx.fillStyle = "#a855f7";
+    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
+
+    setexportingListId(null);
+    canvas.toBlob((blob) => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${profile.username}-${list.name.toLowerCase().replace(/\s+/g, "-")}.png`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+  }
+
+  async function refreshLists() {
+    const res = await fetch(`${BASE}/api/social/${userId}/lists`, { headers: authHeaders() }).catch(() => null);
+    if (res && res.ok) setlists(await res.json());
+  }
+
+  async function handlesearchforlist(folderId, query) {
+    setaddQuery((c) => ({ ...c, [folderId]: query }));
+    if (!query || query.trim().length < 2) {
+      setaddResults((c) => ({ ...c, [folderId]: [] }));
+      return;
+    }
+    const results = await searchmovies(query);
+    setaddResults((c) => ({ ...c, [folderId]: (results || []).slice(0, 5) }));
+  }
+
+  async function handleaddtolist(folderId, movie) {
+    const ownUserId = Number(localStorage.getItem("userId"));
+    if (!ownUserId || addBusyTitleId) return;
+    setaddBusyTitleId(movie.id);
+    const res = await saveToWatchlist(ownUserId, { tmdbId: movie.tmdbId ?? movie.id, titleId: movie.titleId, title: movie.title, folderId });
+    if (res?.id) {
+      setaddQuery((c) => ({ ...c, [folderId]: "" }));
+      setaddResults((c) => ({ ...c, [folderId]: [] }));
+      await refreshLists();
+    }
+    setaddBusyTitleId(null);
+  }
 
   async function load() {
     setloading(true);
@@ -158,6 +283,10 @@ export default function SocialProfile() {
           <div>
             <h2 style={{ margin: 0 }}>{profile.username}</h2>
             {profile.nickname && <p className="social-profile-nickname">{profile.nickname}</p>}
+            {profile.bio && <p className="social-profile-bio">{profile.bio}</p>}
+            {profile.profileSong && (
+              <p className="social-profile-song">🎵 {profile.profileSong}</p>
+            )}
             <span className="share-card-badge">{profile.archetype}</span>
             <div className="social-profile-counts">
               <span>{profile.ratingCount} rated</span>
@@ -168,9 +297,18 @@ export default function SocialProfile() {
           {!profile.isSelf && profile.compatibilityScore != null && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <MatchRing score={toMatchPercent(profile.compatibilityScore)} size={40} />
-              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                {toMatchPercent(profile.compatibilityScore)}% compatible
-              </span>
+              <div>
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "block" }}>
+                  {toMatchPercent(profile.compatibilityScore)}% compatible
+                </span>
+                {(profile.compatibilityBreakdown?.sharedTrait || profile.compatibilityBreakdown?.divergentTrait) && (
+                  <span style={{ fontSize: "0.74rem", color: "var(--text-faint)" }}>
+                    {profile.compatibilityBreakdown.sharedTrait && `You both lean ${profile.compatibilityBreakdown.sharedTrait.toLowerCase()}`}
+                    {profile.compatibilityBreakdown.sharedTrait && profile.compatibilityBreakdown.divergentTrait && " — "}
+                    {profile.compatibilityBreakdown.divergentTrait && `you differ most on ${profile.compatibilityBreakdown.divergentTrait.toLowerCase()}`}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           {!profile.isSelf && (
@@ -285,7 +423,21 @@ export default function SocialProfile() {
           <h2>{profile.username}'s Lists</h2>
           {lists.map((list) => (
             <div key={list.folderId} style={{ marginBottom: "var(--sp-4)" }}>
-              <h3 style={{ marginBottom: "8px" }}>{list.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>({list.itemCount})</span></h3>
+              <h3 style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <span>{list.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>({list.itemCount})</span></span>
+                {list.collaborative && <span className="chip" style={{ fontSize: "0.68rem" }}>Collaborative</span>}
+                {list.itemCount > 0 && (
+                  <button
+                    type="button"
+                    className="pill"
+                    style={{ fontSize: "0.7rem", marginLeft: "auto" }}
+                    onClick={() => exportListPoster(list)}
+                    disabled={exportingListId === list.folderId}
+                  >
+                    {exportingListId === list.folderId ? "Exporting..." : "Export"}
+                  </button>
+                )}
+              </h3>
               <div className="mini-card-grid">
                 {list.items.map((item) => (
                   <article className="mini-card" key={item.titleId}>
@@ -295,10 +447,42 @@ export default function SocialProfile() {
                     </div>
                     <div className="mini-card-body">
                       <h4>{item.title}</h4>
+                      {list.collaborative && item.addedByUsername && (
+                        <p style={{ margin: "2px 0 0", fontSize: "0.68rem", color: "var(--text-faint)" }}>
+                          added by @{item.addedByUsername}
+                        </p>
+                      )}
                     </div>
                   </article>
                 ))}
               </div>
+
+              {list.collaborative && !profile.isSelf && (
+                <div style={{ marginTop: "10px", position: "relative", maxWidth: "320px" }}>
+                  <input
+                    type="text"
+                    placeholder="Add a title to this shelf..."
+                    value={addQuery[list.folderId] || ""}
+                    onChange={(e) => handlesearchforlist(list.folderId, e.target.value)}
+                    style={{ margin: 0 }}
+                  />
+                  {(addResults[list.folderId] || []).length > 0 && (
+                    <div className="search-suggestions">
+                      {addResults[list.folderId].map((m) => (
+                        <button
+                          type="button"
+                          key={m.id}
+                          className="search-suggestion-row"
+                          disabled={addBusyTitleId === m.id}
+                          onMouseDown={() => handleaddtolist(list.folderId, m)}
+                        >
+                          {m.title} {m.year ? `(${m.year})` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </section>

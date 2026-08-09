@@ -21,6 +21,7 @@ import com.rewatch.repository.ReviewLikeRepository;
 import com.rewatch.repository.TraitEventRepository;
 import com.rewatch.repository.UserRepository;
 import com.rewatch.repository.UserTraitRepository;
+import com.rewatch.repository.WatchStatusRepository;
 import com.rewatch.repository.WatchlistFolderRepository;
 import com.rewatch.repository.WatchlistItemRepository;
 import com.rewatch.security.JwtService;
@@ -50,6 +51,7 @@ public class AccountService {
     private final CollectionFollowRepository collectionFollowRepo;
     private final ReviewLikeRepository reviewLikeRepo;
     private final ReviewCommentRepository reviewCommentRepo;
+    private final WatchStatusRepository watchStatusRepo;
     private final AchievementService achievementService;
 
     public AccountService(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtService jwtService,
@@ -62,6 +64,7 @@ public class AccountService {
                           CollectionFollowRepository collectionFollowRepo,
                           ReviewLikeRepository reviewLikeRepo,
                           ReviewCommentRepository reviewCommentRepo,
+                          WatchStatusRepository watchStatusRepo,
                           AchievementService achievementService) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
@@ -79,6 +82,7 @@ public class AccountService {
         this.passwordResetTokenRepo = passwordResetTokenRepo;
         this.notificationRepo = notificationRepo;
         this.collectionFollowRepo = collectionFollowRepo;
+        this.watchStatusRepo = watchStatusRepo;
         this.achievementService = achievementService;
     }
 
@@ -239,6 +243,46 @@ public class AccountService {
         userRepo.save(user);
     }
 
+    private static final int MAX_BIO_LENGTH = 200;
+
+    @Transactional
+    public void setBio(Long userId, String bio) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        if (bio == null || bio.isBlank()) {
+            user.setBio(null);
+            userRepo.save(user);
+            return;
+        }
+        String trimmed = bio.trim();
+        if (trimmed.length() > MAX_BIO_LENGTH) {
+            throw new IllegalArgumentException("Bio is too long (max " + MAX_BIO_LENGTH + " characters).");
+        }
+        user.setBio(trimmed);
+        userRepo.save(user);
+    }
+
+    private static final int MAX_PROFILE_SONG_LENGTH = 120;
+
+    @Transactional
+    public void setProfileSong(Long userId, String profileSong) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+
+        if (profileSong == null || profileSong.isBlank()) {
+            user.setProfileSong(null);
+            userRepo.save(user);
+            return;
+        }
+        String trimmed = profileSong.trim();
+        if (trimmed.length() > MAX_PROFILE_SONG_LENGTH) {
+            throw new IllegalArgumentException("That's too long (max " + MAX_PROFILE_SONG_LENGTH + " characters).");
+        }
+        user.setProfileSong(trimmed);
+        userRepo.save(user);
+    }
+
     private static final int MAX_PINNED_TITLES = 4;
 
     /**
@@ -320,6 +364,7 @@ public class AccountService {
         reviewLikeRepo.deleteByUserId(userId);
         reviewCommentRepo.deleteByAuthorUserId(userId);
         ratingRepo.deleteByUserId(userId);
+        watchStatusRepo.deleteByUserId(userId);
         watchlistItemRepo.deleteByUserId(userId);
         // Read this user's folder ids before deleting them — anyone who
         // followed one of these collections needs their edge cleared too, or

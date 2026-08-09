@@ -130,7 +130,7 @@ public class ScoringService {
         for (Trait t : Trait.values()) {
             int i = t.ordinal();
             double c = confidenceGate * slope * share[i] * (affinity[i] - anchor) * shrink;
-            String text = c >= 0 ? t.driverBlurb() : t.tensionBlurb();
+            String text = t.blurbFor(c >= 0, movie.get(t) >= 0.5);
             all.add(new TraitContribution(t, user.get(t), movie.get(t),
                     share[i], affinity[i], c, text));
         }

@@ -4,6 +4,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 /**
  * Controllers take an {id}/{userId} path or body parameter *and* run behind
  * JwtAuthFilter, which authenticates the caller as a user id. This bridges the
@@ -33,5 +35,14 @@ public final class SecurityUtil {
         if (resourceUserId == null || !callerId.equals(resourceUserId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot access another user's data");
         }
+    }
+
+    /** X-Forwarded-For first — a real deployment sits behind nginx/a load balancer, where getRemoteAddr() would just be that proxy's own address. */
+    public static String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

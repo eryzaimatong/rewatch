@@ -10,6 +10,32 @@ export async function gettitles() {
   return await res.json();
 }
 
+export async function rateMovie(payload) {
+  const res = await fetch(`${BASE}/api/movies/rate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload)
+  });
+  return { ok: res.ok, data: await res.json().catch(() => null) };
+}
+
+export async function getWatchStatuses(userId) {
+  const res = await fetch(`${BASE}/api/watch-status/${userId}`, { headers: authHeaders() });
+  if (!res.ok) {
+    return {};
+  }
+  return await res.json().catch(() => ({}));
+}
+
+export async function setWatchStatus(userId, titleId, status) {
+  const res = await fetch(`${BASE}/api/watch-status`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, titleId, status })
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function getrecs(id) {
   const res = await fetch(`${BASE}/api/recommendations/${id}`, { headers: authHeaders() });
   if (!res.ok) {
@@ -130,6 +156,24 @@ export async function setPinnedContent(userId, titleIds, ratingId, folderId) {
   return await res.json().catch(() => null);
 }
 
+export async function setBio(userId, bio) {
+  const res = await fetch(`${BASE}/api/account/bio`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, bio })
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function setProfileSong(userId, profileSong) {
+  const res = await fetch(`${BASE}/api/account/profile-song`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, profileSong })
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function setNickname(userId, nickname) {
   const res = await fetch(`${BASE}/api/account/nickname`, {
     method: "POST",
@@ -224,6 +268,15 @@ export async function unfollowCollection(folderId) {
   const res = await fetch(`${BASE}/api/social/collections/${folderId}/follow`, {
     method: "DELETE",
     headers: authHeaders()
+  });
+  return await res.json().catch(() => null);
+}
+
+export async function saveToWatchlist(userId, { tmdbId, titleId, title, folderId }) {
+  const res = await fetch(`${BASE}/api/watchlist/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, tmdbId, titleId, title, folderId })
   });
   return await res.json().catch(() => null);
 }

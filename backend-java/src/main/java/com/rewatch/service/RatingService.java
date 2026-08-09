@@ -31,6 +31,7 @@ public class RatingService {
     private final ProfileService profileService;
     private final NotificationService notificationService;
     private final AchievementService achievementService;
+    private final WatchStatusService watchStatusService;
 
     /** |delta| a single rating must move a trait to count as a "milestone." */
     private static final double MILESTONE_THRESHOLD = 0.08;
@@ -38,7 +39,7 @@ public class RatingService {
     public RatingService(RatingRepository ratingRepo, TitleRepository titleRepo,
                          TmdbClient tmdb, EnrichmentService enrichmentService,
                          ProfileService profileService, NotificationService notificationService,
-                         AchievementService achievementService) {
+                         AchievementService achievementService, WatchStatusService watchStatusService) {
         this.ratingRepo = ratingRepo;
         this.titleRepo = titleRepo;
         this.tmdb = tmdb;
@@ -46,15 +47,27 @@ public class RatingService {
         this.profileService = profileService;
         this.notificationService = notificationService;
         this.achievementService = achievementService;
+        this.watchStatusService = watchStatusService;
     }
 
-    public record Result(Rating rating, List<ProfileService.Shift> shifts) {}
+    public record Result(Rating rating, List<ProfileService.Shift> shifts,
+                          boolean isRewatch, int watchNumber, Integer previousOverall) {}
 
     @Transactional
     public Result submit(RatingDTO dto) {
         Map<String, String> unlockedBefore = achievementService.unlockedTitles(dto.getUserId());
 
         Title title = resolveTitle(dto);
+
+        // Read prior-watch state before this rating is inserted, or it would
+        // count itself as its own "prior" watch.
+        long priorCount = ratingRepo.countByUserIdAndTitleId(dto.getUserId(), title.getId());
+        boolean isRewatch = priorCount > 0;
+        Integer previousOverall = isRewatch
+                ? ratingRepo.findFirstByUserIdAndTitleIdOrderByCreatedAtDescIdDesc(dto.getUserId(), title.getId())
+                        .map(Rating::getOverall)
+                        .orElse(null)
+                : null;
 
         Rating r = new Rating();
         r.setUserId(dto.getUserId());
@@ -68,6 +81,10 @@ public class RatingService {
         r.setMoment(dto.getMoment());
         r.setCreatedAt(Instant.now());
         r = ratingRepo.save(r);
+
+        // A rating means the title is no longer "currently watching" — clears
+        // any explicit WatchStatus row (a no-op if there wasn't one).
+        watchStatusService.clearStatus(dto.getUserId(), title.getId());
 
         // replay() is also called from TasteDNAController's manual recompute and
         // from onboarding seeding — neither of those is "a new rating just
@@ -85,7 +102,7 @@ public class RatingService {
             }
         });
 
-        return new Result(r, shifts);
+        return new Result(r, shifts, isRewatch, (int) priorCount + 1, previousOverall);
     }
 
     /**

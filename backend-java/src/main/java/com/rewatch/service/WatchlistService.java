@@ -79,6 +79,10 @@ public class WatchlistService {
     public WatchlistItemDTO addItem(AddItem req) {
         Title title = resolveTitle(req);
 
+        if (req.getFolderId() != null && !canAddTo(req.getFolderId(), req.getUserId())) {
+            throw new IllegalArgumentException("You don't have permission to add to that list.");
+        }
+
         WatchlistItem item = itemRepo.findByUserIdAndTitleId(req.getUserId(), title.getId())
                 .orElseGet(() -> new WatchlistItem(req.getUserId(), title.getId(), req.getFolderId(), Instant.now()));
 
@@ -112,13 +116,49 @@ public class WatchlistService {
                 .orElse(null);
     }
 
+    /**
+     * Owner-only toggle. Collaborative only means anything alongside public —
+     * there's no invite-link/private-sharing mechanism in this app, so a
+     * private collaborative folder would be reachable by nobody but its owner,
+     * who doesn't need permission to add to their own list.
+     */
+    @Transactional
+    public WatchlistFolder setFolderCollaborative(Long userId, Long folderId, boolean collaborative) {
+        WatchlistFolder folder = folderRepo.findById(folderId)
+                .filter(f -> f.getUserId().equals(userId))
+                .orElse(null);
+        if (folder == null) {
+            return null;
+        }
+        if (collaborative && !folder.isPublic()) {
+            throw new IllegalArgumentException("Make the list public before turning on collaboration.");
+        }
+        folder.setCollaborative(collaborative);
+        return folderRepo.save(folder);
+    }
+
+    /**
+     * True if userId may add/move an item into this folder — its own, or a
+     * public+collaborative one. Package-private for direct testing.
+     */
+    boolean canAddTo(Long folderId, Long userId) {
+        WatchlistFolder folder = folderRepo.findById(folderId).orElse(null);
+        if (folder == null) {
+            return false;
+        }
+        if (folder.getUserId().equals(userId)) {
+            return true;
+        }
+        return folder.isPublic() && folder.isCollaborative();
+    }
+
     @Transactional
     public WatchlistItemDTO moveItem(Long userId, Long itemId, Long folderId) {
         WatchlistItem item = itemRepo.findByIdAndUserId(itemId, userId).orElse(null);
         if (item == null) {
             return null;
         }
-        if (folderId != null && !folderRepo.existsByIdAndUserId(folderId, userId)) {
+        if (folderId != null && !canAddTo(folderId, userId)) {
             return null;
         }
         item.setFolderId(folderId);
@@ -166,7 +206,15 @@ public class WatchlistService {
         dto.setYear(title.getYear());
         dto.setMatchScore(scored.getMatchScore());
         dto.setFolderId(item.getFolderId());
-        dto.setFolderName(item.getFolderId() == null ? null : folderNames.get(item.getFolderId()));
+        // folderNames is normally built from the caller's OWN folders — falls
+        // back to a direct lookup for a folder the caller CONTRIBUTED to but
+        // doesn't own (a collaborative folder), so their own watchlist view
+        // still shows the real name instead of blank.
+        String folderName = item.getFolderId() == null ? null : folderNames.get(item.getFolderId());
+        if (folderName == null && item.getFolderId() != null) {
+            folderName = folderRepo.findById(item.getFolderId()).map(WatchlistFolder::getName).orElse(null);
+        }
+        dto.setFolderName(folderName);
         dto.setAddedAt(item.getAddedAt());
         return dto;
     }

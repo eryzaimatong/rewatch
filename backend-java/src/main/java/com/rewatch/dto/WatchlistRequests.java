@@ -54,4 +54,14 @@ public class WatchlistRequests {
         public Boolean getIsPublic() { return isPublic; }
         public void setIsPublic(Boolean v) { this.isPublic = v; }
     }
+
+    public static class SetFolderCollaborative {
+        @NotNull private Long userId;
+        @NotNull private Boolean collaborative;
+
+        public Long getUserId() { return userId; }
+        public void setUserId(Long v) { this.userId = v; }
+        public Boolean getCollaborative() { return collaborative; }
+        public void setCollaborative(Boolean v) { this.collaborative = v; }
+    }
 }

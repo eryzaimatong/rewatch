@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toggleReviewLike, getReviewComments, addReviewComment, deleteReviewComment, fileReport } from "./api";
+import { toggleReviewLike, getReviewComments, addReviewComment, deleteReviewComment, fileReport, saveToWatchlist } from "./api";
 import ReportDialog from "./ReportDialog";
 import "./App.css";
 
@@ -28,8 +28,25 @@ export default function ReviewInteractions({ review }) {
   const [reportSubmitting, setreportSubmitting] = useState(false);
   const [reportDoneId, setreportDoneId] = useState(null);
 
+  const [saved, setsaved] = useState(false);
+  const [saving, setsaving] = useState(false);
+
   const currentUserId = Number(localStorage.getItem("userId"));
   const currentUsername = localStorage.getItem("username") || "You";
+
+  async function handlesave() {
+    if (saving || saved) return;
+    setsaving(true);
+    const res = await saveToWatchlist(currentUserId, {
+      tmdbId: review.tmdbId,
+      titleId: review.titleId,
+      title: review.title
+    });
+    if (res?.id) {
+      setsaved(true);
+    }
+    setsaving(false);
+  }
 
   async function handlelike() {
     if (likeBusy) return;
@@ -109,6 +126,16 @@ export default function ReviewInteractions({ review }) {
         <button type="button" className="review-action-btn" onClick={handletogglecomments}>
           {commentCount > 0 ? `${commentCount} comment${commentCount === 1 ? "" : "s"}` : "Comment"}
         </button>
+        {review.userId !== currentUserId && (
+          <button
+            type="button"
+            className={`review-action-btn${saved ? " is-active" : ""}`}
+            onClick={handlesave}
+            disabled={saving || saved}
+          >
+            {saved ? "✓ Saved" : saving ? "..." : "Save"}
+          </button>
+        )}
       </div>
 
       {showComments && (

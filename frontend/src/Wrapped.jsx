@@ -74,9 +74,11 @@ export default function Wrapped() {
     if (!summary) return;
     setexporting(true);
 
+    // 9:16 — Stories/Reels/TikTok's native canvas, not a feed-post square. At
+    // scale 2 this exports at exactly 1080x1920, the platform-standard size.
     const scale = 2;
-    const cardW = 560;
-    const cardH = 700;
+    const cardW = 540;
+    const cardH = 960;
 
     const canvas = document.createElement("canvas");
     canvas.width = cardW * scale;
@@ -93,64 +95,76 @@ export default function Wrapped() {
     ctx.lineWidth = 2;
     ctx.strokeRect(1, 1, cardW - 2, cardH - 2);
 
-    drawBrandMark(ctx, cardW / 2, 20, 13);
+    drawBrandMark(ctx, cardW / 2, 56, 16);
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#a855f7";
-    ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("RE:WATCH WRAPPED", cardW / 2, 56);
+    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("RE:WATCH WRAPPED", cardW / 2, 100);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 24px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(summary.period, cardW / 2, 92);
+    ctx.font = "bold 32px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(summary.period, cardW / 2, 146);
 
     ctx.fillStyle = "#a1a1aa";
-    ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, cardW / 2, 114);
+    ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, cardW / 2, 172);
 
     ctx.fillStyle = "#d8b4fe";
-    ctx.font = "bold 15px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(summary.archetype, cardW / 2, 146);
+    ctx.font = "bold 19px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(summary.archetype, cardW / 2, 214);
 
-    let y = 190;
+    let y = 280;
     ctx.textAlign = "left";
     ctx.fillStyle = "#71717a";
-    ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("BIGGEST MOVERS THIS MONTH", 32, y);
-    y += 26;
+    ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("BIGGEST MOVERS THIS MONTH", 36, y);
+    y += 34;
 
     summary.topShifts.forEach((s) => {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(s.label, 32, y);
+      ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(s.label, 36, y);
 
       ctx.textAlign = "right";
       ctx.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171"; // mirrors --success/--danger — Canvas can't resolve CSS vars
-      ctx.font = "bold 14px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(shiftLabel(s), cardW - 32, y);
+      ctx.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(shiftLabel(s), cardW - 36, y);
       ctx.textAlign = "left";
-      y += 30;
+      y += 40;
     });
 
-    y += 16;
+    y += 20;
     ctx.fillStyle = "#71717a";
-    ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("TOP RATED", 32, y);
-    y += 26;
+    ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("TOP RATED", 36, y);
+    y += 34;
 
     summary.topRatings.slice(0, 5).forEach((r) => {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
-      const title = r.title.length > 34 ? r.title.slice(0, 34) + "…" : r.title;
-      ctx.fillText(title, 32, y);
+      ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
+      const title = r.title.length > 28 ? r.title.slice(0, 28) + "…" : r.title;
+      ctx.fillText(title, 36, y);
 
       ctx.textAlign = "right";
       ctx.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
-      ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("★".repeat(r.overall || 0), cardW - 32, y);
+      ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText("★".repeat(r.overall || 0), cardW - 36, y);
       ctx.textAlign = "left";
-      y += 26;
+      y += 34;
     });
+
+    // Closing brand moment — a 9:16 card has real space left below a typical
+    // month's content, so it gets a deliberate footer rather than dead air.
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(cardW / 2 - 24, cardH - 84, 48, 1);
+    ctx.fillStyle = "#71717a";
+    ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
+    ctx.fillStyle = "#a855f7";
+    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
 
     setexporting(false);
     canvas.toBlob((blob) => {

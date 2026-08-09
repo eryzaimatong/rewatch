@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   changePassword, deleteAccount, getBlockedUsers, unblockUser,
   getProfileVisibility, setProfileVisibility, setAccentColor, setAvatar,
-  setAvatarFrame, getAchievements, setNickname, setPinnedContent, setProfileTheme, BASE
+  setAvatarFrame, getAchievements, setNickname, setBio, setProfileSong, setPinnedContent, setProfileTheme, BASE
 } from "./api";
 import { saveSession, clearSession, applyAccentColor, authHeaders } from "./auth";
 import { getAccessibilityPrefs, setAccessibilityPref } from "./accessibility";
@@ -119,6 +119,14 @@ export default function Settings() {
   const [nicknamesaving, setnicknamesaving] = useState(false);
   const [nicknamemsg, setnicknamemsg] = useState("");
 
+  const [bio, setbioField] = useState("");
+  const [biosaving, setbiosaving] = useState(false);
+  const [biomsg, setbiomsg] = useState("");
+
+  const [profilesong, setprofilesongField] = useState("");
+  const [songsaving, setsongsaving] = useState(false);
+  const [songmsg, setsongmsg] = useState("");
+
   const [profiletheme, setprofiletheme] = useState("cinema");
   const [themesaving, setthemesaving] = useState(false);
 
@@ -135,6 +143,8 @@ export default function Settings() {
     if (res && res.ok) {
       const data = await res.json();
       setnicknameField(data.nickname || "");
+      setbioField(data.bio || "");
+      setprofilesongField(data.profileSong || "");
       setprofiletheme(data.profileTheme || "cinema");
       setpinnedtitleids((data.pinnedTitles || []).map((t) => t.titleId));
       setpinnedratingid(data.pinnedReview?.ratingId ?? null);
@@ -213,6 +223,30 @@ export default function Settings() {
       setnicknamemsg(res?.message || "Could not save your nickname.");
     }
     setnicknamesaving(false);
+  }
+
+  async function handlesavebio() {
+    setbiosaving(true);
+    setbiomsg("");
+    const res = await setBio(userid, bio.trim());
+    if (res?.status === "success") {
+      setbiomsg("Saved.");
+    } else {
+      setbiomsg(res?.message || "Could not save your bio.");
+    }
+    setbiosaving(false);
+  }
+
+  async function handlesavesong() {
+    setsongsaving(true);
+    setsongmsg("");
+    const res = await setProfileSong(userid, profilesong.trim());
+    if (res?.status === "success") {
+      setsongmsg("Saved.");
+    } else {
+      setsongmsg(res?.message || "Could not save that.");
+    }
+    setsongsaving(false);
   }
 
   async function handletogglevisibility() {
@@ -407,6 +441,49 @@ export default function Settings() {
             </button>
           </div>
           {nicknamemsg && <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--text-faint)" }}>{nicknamemsg}</p>}
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Bio</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            A short line about you, shown on your profile.
+          </p>
+          <textarea
+            rows={3}
+            placeholder="Currently emotionally recovering from a 3-hour movie."
+            value={bio}
+            onChange={(e) => setbioField(e.target.value)}
+            maxLength={200}
+            style={{ width: "100%", resize: "vertical", marginBottom: "8px" }}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button type="button" className="btn-primary" onClick={handlesavebio} disabled={biosaving}>
+              {biosaving ? "..." : "Save"}
+            </button>
+            <span style={{ fontSize: "0.76rem", color: "var(--text-faint)" }}>{bio.length}/200</span>
+            {biomsg && <span style={{ fontSize: "0.8rem", color: "var(--text-faint)" }}>{biomsg}</span>}
+          </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Profile song</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Whatever represents your current cinematic era. Just text — no music service is connected.
+          </p>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <input
+              type="text"
+              placeholder="Get Him Back! — Olivia Rodrigo"
+              value={profilesong}
+              onChange={(e) => setprofilesongField(e.target.value)}
+              maxLength={120}
+              style={{ flex: 1, margin: 0 }}
+            />
+            <button type="button" className="btn-primary" onClick={handlesavesong} disabled={songsaving}>
+              {songsaving ? "..." : "Save"}
+            </button>
+          </div>
+          {songmsg && <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--text-faint)" }}>{songmsg}</p>}
         </section>
 
         <section className="feed-section">

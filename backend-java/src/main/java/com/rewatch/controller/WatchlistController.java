@@ -22,6 +22,7 @@ import com.rewatch.dto.WatchlistItemDTO;
 import com.rewatch.dto.WatchlistRequests.AddItem;
 import com.rewatch.dto.WatchlistRequests.CreateFolder;
 import com.rewatch.dto.WatchlistRequests.MoveItem;
+import com.rewatch.dto.WatchlistRequests.SetFolderCollaborative;
 import com.rewatch.dto.WatchlistRequests.SetFolderVisibility;
 import com.rewatch.model.WatchlistFolder;
 import com.rewatch.security.SecurityUtil;
@@ -104,6 +105,25 @@ public class WatchlistController {
                     .body(Map.of("status", "error", "message", "Folder not found"));
         }
         return ResponseEntity.ok(updated);
+    }
+
+    @PatchMapping("/folders/{folderId}/collaborative")
+    public ResponseEntity<?> setFolderCollaborative(@PathVariable Long folderId,
+                                                     @Valid @RequestBody SetFolderCollaborative req,
+                                                     Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        try {
+            WatchlistFolder updated = watchlistService.setFolderCollaborative(
+                    req.getUserId(), folderId, Boolean.TRUE.equals(req.getCollaborative()));
+            if (updated == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("status", "error", "message", "Folder not found"));
+            }
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @PatchMapping("/items/{itemId}/folder")

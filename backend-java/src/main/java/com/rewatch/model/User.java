@@ -153,6 +153,20 @@ public class User {
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private String nickname;
 
+    /** A short freeform "about me" line, shown on the profile below the nickname. */
+    @Column(length = 200)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String bio;
+
+    /**
+     * Freeform "song of my current era" text (e.g. "Get Him Back! — Olivia
+     * Rodrigo") — no music-service integration, no playback, just what the
+     * user types. Not worth building a fake Spotify embed for.
+     */
+    @Column(name = "profile_song", length = 120)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String profileSong;
+
     /**
      * Up to 4 comma-separated Title ids the user chose to feature on their
      * profile — validated (see AccountService.setPinnedContent) against titles
@@ -216,6 +230,12 @@ public class User {
 
     public String getNickname() { return nickname; }
     public void setNickname(String v) { this.nickname = v; }
+
+    public String getBio() { return bio; }
+    public void setBio(String v) { this.bio = v; }
+
+    public String getProfileSong() { return profileSong; }
+    public void setProfileSong(String v) { this.profileSong = v; }
 
     public String getPinnedTitleIds() { return pinnedTitleIds; }
     public void setPinnedTitleIds(String v) { this.pinnedTitleIds = v; }

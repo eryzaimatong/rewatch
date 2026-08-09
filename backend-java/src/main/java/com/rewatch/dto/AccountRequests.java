@@ -94,6 +94,28 @@ public class AccountRequests {
         public void setNickname(String v) { this.nickname = v; }
     }
 
+    public static class SetBio {
+        @NotNull private Long userId;
+        /** Blank/null clears the current bio. */
+        private String bio;
+
+        public Long getUserId() { return userId; }
+        public void setUserId(Long v) { this.userId = v; }
+        public String getBio() { return bio; }
+        public void setBio(String v) { this.bio = v; }
+    }
+
+    public static class SetProfileSong {
+        @NotNull private Long userId;
+        /** Blank/null clears the current profile song. */
+        private String profileSong;
+
+        public Long getUserId() { return userId; }
+        public void setUserId(Long v) { this.userId = v; }
+        public String getProfileSong() { return profileSong; }
+        public void setProfileSong(String v) { this.profileSong = v; }
+    }
+
     public static class SetPinnedContent {
         @NotNull private Long userId;
         /** Up to 4 title ids; null/empty unpins. */

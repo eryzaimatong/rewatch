@@ -137,6 +137,7 @@ export default function TasteProfile() {
   const [archetype, setarchetype] = useState("Emotional Storyteller");
   const [archetypeBlurb, setarchetypeBlurb] = useState("You enjoy balanced storytelling across multiple emotional tones.");
   const [meanConfidence, setmeanConfidence] = useState(0.1);
+  const [ratingCount, setratingCount] = useState(0);
   const [personalized, setpersonalized] = useState(false);
   const [loading, setloading] = useState(true);
   const [msg, setmsg] = useState("");
@@ -165,6 +166,7 @@ export default function TasteProfile() {
       setarchetype(data.archetype || "Emotional Storyteller");
       setarchetypeBlurb(data.archetypeBlurb || "");
       setmeanConfidence(typeof data.meanConfidence === "number" ? data.meanConfidence : 0.1);
+      setratingCount(typeof data.ratingCount === "number" ? data.ratingCount : 0);
       setpersonalized(!!data.personalized);
       setloading(false);
       return;
@@ -266,10 +268,12 @@ export default function TasteProfile() {
     const img = new Image();
 
     img.onload = () => {
+      // 9:16 — Stories/Reels/TikTok's native canvas, not a feed-post square.
+      // At scale 2 this exports at exactly 1080x1920.
       const scale = 2;
-      const cardW = 560;
-      const cardH = 660;
-      const imgSize = 300;
+      const cardW = 540;
+      const cardH = 960;
+      const imgSize = 340;
 
       const canvas = document.createElement("canvas");
       canvas.width = cardW * scale;
@@ -288,28 +292,41 @@ export default function TasteProfile() {
 
       // Small aperture + inner decagon, echoing BrandMark.jsx — drawn with
       // Canvas 2D primitives since this is a flat raster, not DOM/SVG.
-      drawBrandMark(ctx, cardW / 2, 20, 13);
+      drawBrandMark(ctx, cardW / 2, 56, 16);
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#a855f7";
-      ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("RE:WATCH TASTEDNA", cardW / 2, 56);
+      ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText("RE:WATCH TASTEDNA", cardW / 2, 100);
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 24px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(`${username}'s Card`, cardW / 2, 92);
+      ctx.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(`${username}'s Card`, cardW / 2, 144);
 
       ctx.fillStyle = "#d8b4fe";
-      ctx.font = "bold 14px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(archetype, cardW / 2, 116);
+      ctx.font = "bold 18px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText(archetype, cardW / 2, 174);
 
-      const imgTop = 134;
+      const imgTop = 200;
       ctx.drawImage(img, (cardW - imgSize) / 2, imgTop, imgSize, imgSize);
 
       ctx.fillStyle = "#a1a1aa";
-      ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
+      ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
       ctx.textAlign = "left";
-      wrapText(ctx, archetypeBlurb, 32, imgTop + imgSize + 30, cardW - 64, 17);
+      wrapText(ctx, archetypeBlurb, 36, imgTop + imgSize + 36, cardW - 72, 19);
+
+      // Closing brand moment, anchored to the bottom — a 9:16 card has real
+      // space left below a short blurb, so it gets a deliberate footer
+      // rather than dead air.
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.fillRect(cardW / 2 - 24, cardH - 84, 48, 1);
+      ctx.fillStyle = "#71717a";
+      ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
+      ctx.fillStyle = "#a855f7";
+      ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
 
       URL.revokeObjectURL(url);
       setexporting(false);
@@ -354,7 +371,18 @@ export default function TasteProfile() {
         <div className="archetype-banner">
           <div className="archetype-banner-row">
             <span className="archetype-label">Active Archetype: {archetype}</span>
-            <span className="archetype-confidence">{Math.round(meanConfidence * 100)}% system confidence</span>
+            {/* Below 40% (this app's own "Signal Forming" achievement threshold —
+                see AchievementService.CONFIDENCE_TIERS), a raw percentage reads as
+                a broken number ("Confidence 11%") rather than useful context. A
+                real count of what's actually been logged says the same true thing
+                without needing the reader to know what "confidence" measures. */}
+            {meanConfidence < 0.4 ? (
+              <span className="archetype-confidence">
+                Still forming — {ratingCount} rated so far
+              </span>
+            ) : (
+              <span className="archetype-confidence">{Math.round(meanConfidence * 100)}% TasteDNA confidence</span>
+            )}
           </div>
           <p className="archetype-blurb">{archetypeBlurb}</p>
         </div>
@@ -426,7 +454,7 @@ export default function TasteProfile() {
 
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button type="button" onClick={syncall} className="btn-primary" disabled={recalculating}>
-            {recalculating ? "Recalculating..." : "Force Vector Recalculation"}
+            {recalculating ? "Rebuilding..." : "Rebuild My TasteDNA"}
           </button>
         </div>
       </div>

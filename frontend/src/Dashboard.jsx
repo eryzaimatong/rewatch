@@ -256,6 +256,20 @@ export default function Dashboard() {
     }
   }
 
+  async function togglefoldercollaborative(folder) {
+    if (!userid) return;
+    const next = !folder.collaborative;
+    const res = await fetch(`${BASE}/api/watchlist/folders/${folder.id}/collaborative`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ userId: userid, collaborative: next })
+    }).catch(() => null);
+    if (res && res.ok) {
+      const updated = await res.json();
+      setfolders((current) => current.map((f) => (f.id === updated.id ? updated : f)));
+    }
+  }
+
   const visibleitems = activefolder === "all"
     ? items
     : items.filter((item) => item.folderId === activefolder);
@@ -283,7 +297,9 @@ export default function Dashboard() {
 
           <div className="stat-card">
             <span className="stat-label">TasteDNA Confidence</span>
-            <strong className="stat-value">{personalized ? `${confidence}%` : "Not yet rated"}</strong>
+            <strong className="stat-value">
+              {!personalized ? "Not yet rated" : confidence < 40 ? "Still forming" : `${confidence}%`}
+            </strong>
           </div>
 
           <div className="stat-card">
@@ -405,20 +421,39 @@ export default function Dashboard() {
           const current = folders.find((f) => f.id === activefolder);
           if (!current) return null;
           return (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
-              <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                {current.public
-                  ? "Public — listed under Community's Discover Collections for others to follow."
-                  : "Private — only you can see this shelf."}
-              </span>
-              <button
-                type="button"
-                className="auth-toggle-link"
-                style={{ fontSize: "0.8rem", background: "none", border: "none" }}
-                onClick={() => togglefoldervisibility(current)}
-              >
-                {current.public ? "Make Private" : "Make Public"}
-              </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                  {current.public
+                    ? "Public — listed under Community's Discover Collections for others to follow."
+                    : "Private — only you can see this shelf."}
+                </span>
+                <button
+                  type="button"
+                  className="auth-toggle-link"
+                  style={{ fontSize: "0.8rem", background: "none", border: "none" }}
+                  onClick={() => togglefoldervisibility(current)}
+                >
+                  {current.public ? "Make Private" : "Make Public"}
+                </button>
+              </div>
+              {current.public && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                    {current.collaborative
+                      ? "Collaborative — anyone can add titles to this shelf."
+                      : "Only you can add titles to this shelf."}
+                  </span>
+                  <button
+                    type="button"
+                    className="auth-toggle-link"
+                    style={{ fontSize: "0.8rem", background: "none", border: "none" }}
+                    onClick={() => togglefoldercollaborative(current)}
+                  >
+                    {current.collaborative ? "Turn Off Collaboration" : "Turn On Collaboration"}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })()}

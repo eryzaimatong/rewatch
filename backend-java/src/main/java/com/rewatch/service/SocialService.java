@@ -166,6 +166,8 @@ public class SocialService {
         res.put("avatarUrl", user.getAvatarUrl());
         res.put("avatarFrame", user.getAvatarFrame());
         res.put("nickname", user.getNickname());
+        res.put("bio", user.getBio());
+        res.put("profileSong", user.getProfileSong());
         res.put("profileTheme", user.getProfileTheme() == null ? "cinema" : user.getProfileTheme());
         res.put("archetype", archetype.archetype());
         res.put("archetypeBlurb", archetype.blurb());
@@ -175,6 +177,7 @@ public class SocialService {
         res.put("isFollowing", callerId != null && followRepo.existsByFollowerIdAndFolloweeId(callerId, targetId));
         res.put("isSelf", callerId != null && callerId.equals(targetId));
         res.put("compatibilityScore", compatibilityScore(targetId, callerId));
+        res.put("compatibilityBreakdown", compatibilityBreakdown(targetId, callerId));
         res.put("traits", traits);
         res.put("pinnedTitles", pinnedTitles(user));
         res.put("pinnedReview", pinnedReview(user));
@@ -253,6 +256,53 @@ public class SocialService {
         TraitVector callerVec = profileService.vectorOf(profileService.currentProfile(callerId));
         TraitVector targetVec = profileService.vectorOf(profileService.currentProfile(targetId));
         return callerVec.centredCosine(targetVec);
+    }
+
+    /**
+     * The single % score answers "how compatible," not "compatible how" — this
+     * answers the second question with real per-axis comparisons, never an
+     * invented one: "shared" is an axis where both of you sit strongly on the
+     * same side of neutral, "divergent" is the axis where you differ the most.
+     * Either or both can legitimately be null (nothing shared/divergent enough
+     * to call out) rather than forcing an example that isn't really there.
+     */
+    private Map<String, Object> compatibilityBreakdown(Long targetId, Long callerId) {
+        if (callerId == null || callerId.equals(targetId)) {
+            return null;
+        }
+        if (ratingRepo.countByUserId(callerId) < 3 || ratingRepo.countByUserId(targetId) < 3) {
+            return null;
+        }
+        TraitVector callerVec = profileService.vectorOf(profileService.currentProfile(callerId));
+        TraitVector targetVec = profileService.vectorOf(profileService.currentProfile(targetId));
+
+        Trait topShared = null;
+        double bestSharedCloseness = -1;
+        Trait topDivergent = null;
+        double bestDivergentGap = -1;
+
+        for (Trait t : Trait.values()) {
+            double a = callerVec.get(t);
+            double b = targetVec.get(t);
+            double gap = Math.abs(a - b);
+            boolean bothStrongSameSide = (a >= 0.62 && b >= 0.62) || (a <= 0.38 && b <= 0.38);
+            if (bothStrongSameSide) {
+                double closeness = 1.0 - gap;
+                if (closeness > bestSharedCloseness) {
+                    bestSharedCloseness = closeness;
+                    topShared = t;
+                }
+            }
+            if (gap > 0.25 && gap > bestDivergentGap) {
+                bestDivergentGap = gap;
+                topDivergent = t;
+            }
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("sharedTrait", topShared == null ? null : topShared.label());
+        out.put("divergentTrait", topDivergent == null ? null : topDivergent.label());
+        return out;
     }
 
     @Transactional
@@ -364,11 +414,25 @@ public class SocialService {
         if (!isProfileVisibleTo(targetId, callerId)) {
             return List.of();
         }
-        List<Rating> ratings = ratingRepo.findByUserIdOrderByCreatedAtDescIdDesc(targetId).stream()
-                .filter(r -> r.getMoment() != null && !r.getMoment().isBlank())
+        List<Rating> ratings = dedupeByTitle(ratingRepo.findByUserIdOrderByCreatedAtDescIdDesc(targetId).stream()
+                .filter(r -> r.getMoment() != null && !r.getMoment().isBlank()))
                 .limit(limit)
                 .toList();
         return withTitles(ratings);
+    }
+
+    /**
+     * Re-rating a title is intentionally NOT deduplicated at the data layer (see
+     * Rating's own javadoc — each rating is real evidence for trait-evolution
+     * replay, not a correction). But a reviews/activity LIST showing the exact
+     * same title-plus-rating back to back reads as a glitch, not a rewatch — so
+     * the newest-first stream is collapsed to one entry per title here, at the
+     * display layer only. Input must already be newest-first so "first seen"
+     * means "most recent."
+     */
+    private java.util.stream.Stream<Rating> dedupeByTitle(java.util.stream.Stream<Rating> newestFirst) {
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        return newestFirst.filter(r -> seen.add(r.getTitleId()));
     }
 
     /** Recent reviews from people the caller follows, newest first. */
@@ -380,9 +444,13 @@ public class SocialService {
         if (followedIds.isEmpty()) {
             return List.of();
         }
+        java.util.Set<String> seen = new java.util.HashSet<>();
         List<Rating> ratings = ratingRepo.findByUserIdInOrderByCreatedAtDesc(followedIds, PageRequest.of(0, limit * 3))
                 .stream()
                 .filter(r -> r.getMoment() != null && !r.getMoment().isBlank())
+                // Per (user, title), not per title alone — two different people
+                // reviewing the same film are two real, distinct feed items.
+                .filter(r -> seen.add(r.getUserId() + ":" + r.getTitleId()))
                 .limit(limit)
                 .toList();
         return withTitles(ratings);
@@ -400,17 +468,38 @@ public class SocialService {
         List<Map<String, Object>> out = new ArrayList<>();
         for (WatchlistFolder folder : folders) {
             List<WatchlistItem> items = itemRepo.findByFolderIdOrderByAddedAtDesc(folder.getId());
-            List<Map<String, Object>> titleSummaries = items.stream()
-                    .map(item -> titleRepo.findById(item.getTitleId()).orElse(null))
-                    .filter(java.util.Objects::nonNull)
-                    .map(t -> (Map<String, Object>) (Map<String, ?>) Map.of(
-                            "titleId", t.getId(), "tmdbId", t.getTmdbId(),
-                            "title", t.getTitle(), "poster", t.getPoster() == null ? "" : t.getPoster()))
-                    .toList();
+
+            // Only fetched (and only shown) when the folder actually allows more
+            // than one contributor — an ordinary list's items are all obviously
+            // the owner's, no need to look up a username per item for that case.
+            Map<Long, String> contributorNames = new HashMap<>();
+            if (folder.isCollaborative()) {
+                List<Long> contributorIds = items.stream().map(WatchlistItem::getUserId).distinct().toList();
+                userRepo.findAllById(contributorIds).forEach(u -> contributorNames.put(u.getId(), u.getUsername()));
+            }
+
+            List<Map<String, Object>> titleSummaries = new ArrayList<>();
+            for (WatchlistItem item : items) {
+                Title t = titleRepo.findById(item.getTitleId()).orElse(null);
+                if (t == null) {
+                    continue;
+                }
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("titleId", t.getId());
+                m.put("tmdbId", t.getTmdbId());
+                m.put("title", t.getTitle());
+                m.put("poster", t.getPoster() == null ? "" : t.getPoster());
+                if (folder.isCollaborative()) {
+                    m.put("addedByUserId", item.getUserId());
+                    m.put("addedByUsername", contributorNames.get(item.getUserId()));
+                }
+                titleSummaries.add(m);
+            }
 
             Map<String, Object> f = new LinkedHashMap<>();
             f.put("folderId", folder.getId());
             f.put("name", folder.getName());
+            f.put("collaborative", folder.isCollaborative());
             f.put("itemCount", titleSummaries.size());
             f.put("items", titleSummaries);
             out.add(f);
@@ -501,6 +590,7 @@ public class SocialService {
         out.put("followerCount", collectionFollowRepo.countByFolderId(folder.getId()));
         out.put("isFollowing", callerId != null && collectionFollowRepo.existsByUserIdAndFolderId(callerId, folder.getId()));
         out.put("previewPosters", previewPosters);
+        out.put("collaborative", folder.isCollaborative());
         return out;
     }
 

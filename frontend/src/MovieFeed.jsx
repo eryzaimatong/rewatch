@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { getrecs, gettitles, BASE } from "./api";
+import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
 import MatchRing from "./MatchRing";
@@ -139,7 +139,7 @@ function normalizeMovie(item, index) {
       posterPath: null,
       posterUrl: null,
       backdropPath: null,
-      matchScore: 60,
+      matchScore: undefined,
       reasons: ["Balanced storytelling fit"],
       explanation: null,
       genres: [],
@@ -258,7 +258,7 @@ function cleanReason(reason) {
 
 function timeOfDayGreeting() {
   const hour = new Date().getHours();
-  if (hour < 5) return "Still up";
+  if (hour < 5) return "You're still awake";
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
@@ -282,6 +282,7 @@ export default function MovieFeed() {
   // local-only savedIds array, which never called the server at all and
   // reset to empty on every page refresh.
   const [saveditemsbymovieid, setsaveditemsbymovieid] = useState({});
+  const [watchstatusbymovieid, setwatchstatusbymovieid] = useState({});
   const [selectedmovie, setselectedmovie] = useState(null);
   const [query, setquery] = useState("");
   const [suggestions, setsuggestions] = useState([]);
@@ -378,6 +379,37 @@ export default function MovieFeed() {
     setsaveditemsbymovieid(map);
   }
 
+  async function loadWatchStatuses() {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    const statuses = await getWatchStatuses(userId);
+    if (statuses && typeof statuses === "object") {
+      setwatchstatusbymovieid(statuses);
+    }
+  }
+
+  async function handleSetWatchStatus(movie) {
+    const userId = localStorage.getItem("userId");
+    if (!userId || !movie.titleId) return;
+    const key = String(movie.titleId);
+    const current = watchstatusbymovieid[key];
+    // Cycle: unset -> Watching -> Dropped -> unset. "WATCHED" is derived from
+    // a real rating and never reaches here (see the read-only badge below).
+    const next = current === "WATCHING" ? "DROPPED" : current === "DROPPED" ? null : "WATCHING";
+    const result = await setWatchStatus(userId, movie.titleId, next);
+    if (result?.status === "success") {
+      setwatchstatusbymovieid((prev) => {
+        const copy = { ...prev };
+        if (next) {
+          copy[key] = next;
+        } else {
+          delete copy[key];
+        }
+        return copy;
+      });
+    }
+  }
+
   async function loadDiscovery() {
     const userId = localStorage.getItem("userId");
     if (!userId) return;
@@ -441,6 +473,7 @@ export default function MovieFeed() {
     loadData();
     loadMood();
     loadWatchlist();
+    loadWatchStatuses();
     loadDiscovery();
     loadDealbreakerHiddenCount();
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -737,6 +770,7 @@ export default function MovieFeed() {
         <div className="recommendation-grid">
           {items.map((movie, index) => {
             const isSaved = Boolean(saveditemsbymovieid[String(movie.id)]);
+            const watchStatus = movie.titleId ? watchstatusbymovieid[String(movie.titleId)] : undefined;
             const drivers = movie.explanation?.drivers ?? [];
             const tensions = movie.explanation?.tensions ?? [];
             const hasExplanation = drivers.length > 0 || tensions.length > 0;
@@ -782,6 +816,38 @@ export default function MovieFeed() {
                     >
                       {isSaved ? "✓" : "+"}
                     </button>
+                    {movie.titleId && watchStatus === "WATCHED" && (
+                      <span
+                        className="save-icon-button is-watched"
+                        title="Watched"
+                        aria-label={`${movie.title}: watched`}
+                      >
+                        🎬
+                      </span>
+                    )}
+                    {movie.titleId && watchStatus !== "WATCHED" && (
+                      <button
+                        type="button"
+                        className={`save-icon-button ${watchStatus ? "is-saved" : ""}`}
+                        onClick={() => handleSetWatchStatus(movie)}
+                        aria-label={
+                          watchStatus === "WATCHING"
+                            ? `Mark ${movie.title} as dropped`
+                            : watchStatus === "DROPPED"
+                              ? `Clear watch status for ${movie.title}`
+                              : `Mark ${movie.title} as currently watching`
+                        }
+                        title={
+                          watchStatus === "WATCHING"
+                            ? "Currently watching"
+                            : watchStatus === "DROPPED"
+                              ? "Dropped"
+                              : "Mark as watching"
+                        }
+                      >
+                        {watchStatus === "WATCHING" ? "👁" : watchStatus === "DROPPED" ? "✕" : "▷"}
+                      </button>
+                    )}
                   </div>
 
                   <div className="poster-metadata">
@@ -944,7 +1010,7 @@ export default function MovieFeed() {
 
         {understoodChips && understoodChips.length > 0 && (
           <div>
-            <span style={{ fontSize: "0.86rem", marginRight: "10px" }}>We understood:</span>
+            <span style={{ fontSize: "0.86rem", marginRight: "10px" }}>Your vibe:</span>
             {/* Read-only readout, not a filter toggle — these used to be
                 clickable but the click handler never actually did anything
                 downstream. Reflects the real parsed query now, so pretending

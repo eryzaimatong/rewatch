@@ -1,6 +1,8 @@
 package com.rewatch.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -29,6 +31,7 @@ import com.rewatch.repository.TitleRepository;
 import com.rewatch.repository.TraitEventRepository;
 import com.rewatch.repository.UserRepository;
 import com.rewatch.repository.UserTraitRepository;
+import com.rewatch.repository.WatchStatusRepository;
 import com.rewatch.repository.WatchlistItemRepository;
 
 /**
@@ -47,6 +50,7 @@ class RatingServiceTest {
     @Mock private FollowRepository followRepo;
     @Mock private WatchlistItemRepository watchlistItemRepo;
     @Mock private NotificationRepository notificationRepo;
+    @Mock private WatchStatusRepository watchStatusRepo;
 
     private static final Long USER_ID = 7L;
 
@@ -56,8 +60,9 @@ class RatingServiceTest {
         AchievementService achievementService = new AchievementService(
                 ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService);
         NotificationService notificationService = new NotificationService(notificationRepo, null);
+        WatchStatusService watchStatusService = new WatchStatusService(watchStatusRepo, ratingRepo);
         return new RatingService(ratingRepo, titleRepo, null, null, profileService,
-                notificationService, achievementService);
+                notificationService, achievementService, watchStatusService);
     }
 
     private Title titleWith(long id) {
@@ -136,5 +141,48 @@ class RatingServiceTest {
         newService().submit(ratingFor(1L));
 
         verify(notificationRepo, times(0)).save(any());
+    }
+
+    @Test
+    void firstRatingEverIsNotARewatch() {
+        when(userRepo.findById(USER_ID)).thenReturn(Optional.empty());
+        when(userTraitRepo.findByUserId(USER_ID)).thenReturn(List.of());
+        org.mockito.Mockito.doNothing().when(traitEventRepo).deleteByUserId(USER_ID);
+        when(titleRepo.findById(1L)).thenReturn(Optional.of(titleWith(1L)));
+        when(titleRepo.findAllById(any())).thenReturn(List.of(titleWith(1L)));
+        when(ratingRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(ratingRepo.countByUserId(USER_ID)).thenReturn(0L, 1L);
+        when(ratingRepo.countByUserIdAndTitleId(USER_ID, 1L)).thenReturn(0L);
+        stubRatingLog(1);
+
+        RatingService.Result result = newService().submit(ratingFor(1L));
+
+        assertFalse(result.isRewatch());
+        assertEquals(1, result.watchNumber());
+        assertEquals(null, result.previousOverall());
+    }
+
+    @Test
+    void secondRatingOfTheSameTitleIsARewatchWithThePriorScore() {
+        when(userRepo.findById(USER_ID)).thenReturn(Optional.empty());
+        when(userTraitRepo.findByUserId(USER_ID)).thenReturn(List.of());
+        org.mockito.Mockito.doNothing().when(traitEventRepo).deleteByUserId(USER_ID);
+        when(titleRepo.findById(1L)).thenReturn(Optional.of(titleWith(1L)));
+        when(titleRepo.findAllById(any())).thenReturn(List.of(titleWith(1L)));
+        when(ratingRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(ratingRepo.countByUserId(USER_ID)).thenReturn(2L);
+        when(ratingRepo.countByUserIdAndTitleId(USER_ID, 1L)).thenReturn(1L);
+        com.rewatch.model.Rating priorRating = new com.rewatch.model.Rating();
+        priorRating.setOverall(3);
+        when(ratingRepo.findFirstByUserIdAndTitleIdOrderByCreatedAtDescIdDesc(USER_ID, 1L))
+                .thenReturn(Optional.of(priorRating));
+        stubRatingLog(2);
+
+        RatingService.Result result = newService().submit(ratingFor(1L));
+
+        assertTrue(result.isRewatch());
+        assertEquals(2, result.watchNumber());
+        assertEquals(3, result.previousOverall());
+        verify(watchStatusRepo, times(1)).deleteByUserIdAndTitleId(USER_ID, 1L);
     }
 }

@@ -1,7 +1,12 @@
 package com.rewatch.controller;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,10 +16,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.rewatch.dto.MovieDTO;
 import com.rewatch.model.Title;
 import com.rewatch.repository.TitleRepository;
+import com.rewatch.security.RateLimiterService;
 import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.Recommender;
 import com.rewatch.service.TmdbClient;
@@ -23,19 +30,65 @@ import com.rewatch.service.TmdbClient;
 @RequestMapping("/api/titles")
 public class TitleController {
 
+    /** Same audience-signal floor as Recommender.candidatePool, applied here per-type. */
+    private static final int MIN_VOTE_COUNT = 150;
+
+    /**
+     * A type bucket only gets biased toward well-known titles if enough of them
+     * exist to still be worth browsing — anime/kdrama are much thinner than
+     * movies, and a threshold tuned for a 1000+ title catalog would otherwise
+     * wipe out a 22-title one. Same graceful-fallback shape as candidatePool.
+     */
+    private static final int MIN_WELLKNOWN_PER_TYPE = 10;
+
+    /** GET /api/titles is the one permitAll route on this controller — same anonymous-abuse reasoning as TmdbController's public routes. */
+    private static final int MAX_PUBLIC_REQUESTS_PER_MINUTE = 120;
+
     private final TitleRepository titleRepository;
     private final Recommender recommender;
     private final TmdbClient tmdbClient;
+    private final RateLimiterService rateLimiter;
 
-    public TitleController(TitleRepository titleRepository, Recommender recommender, TmdbClient tmdbClient) {
+    public TitleController(TitleRepository titleRepository, Recommender recommender, TmdbClient tmdbClient,
+                           RateLimiterService rateLimiter) {
         this.titleRepository = titleRepository;
         this.recommender = recommender;
         this.tmdbClient = tmdbClient;
+        this.rateLimiter = rateLimiter;
     }
 
+    /**
+     * The full browsable catalog — onboarding's favourites picker and search's
+     * no-personalization fallback both read this raw. A title with no synopsis
+     * or poster is broken data regardless of context, dropped unconditionally;
+     * near-zero-vote titles (an ingestion side effect of broad keyword sweeps —
+     * e.g. two dozen unrelated "Avatar"-titled documentaries and fan works
+     * alongside the three real Avatar films) are biased out per-type, never at
+     * the cost of emptying a genuinely thin type bucket.
+     */
     @GetMapping
-    public List<Title> getAllTitles() {
-        return titleRepository.findAll();
+    public List<Title> getAllTitles(HttpServletRequest request) {
+        String key = "titles-public:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(key, MAX_PUBLIC_REQUESTS_PER_MINUTE, Duration.ofMinutes(1))) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please slow down.");
+        }
+        Map<String, List<Title>> byType = titleRepository.findAll().stream()
+                .filter(this::hasRenderableData)
+                .collect(Collectors.groupingBy(Title::getType));
+
+        List<Title> out = new ArrayList<>();
+        byType.forEach((type, titles) -> {
+            List<Title> wellKnown = titles.stream()
+                    .filter(t -> t.getVoteCount() != null && t.getVoteCount() >= MIN_VOTE_COUNT)
+                    .toList();
+            out.addAll(wellKnown.size() >= MIN_WELLKNOWN_PER_TYPE ? wellKnown : titles);
+        });
+        return out;
+    }
+
+    private boolean hasRenderableData(Title t) {
+        return t.getSynopsis() != null && !t.getSynopsis().isBlank()
+                && t.getPoster() != null && !t.getPoster().isBlank();
     }
 
     /**

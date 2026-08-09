@@ -1155,6 +1155,13 @@ input[type="range"] {
 }
 
 .mini-card {
+  /* auto-fit lets a lone (or nearly-lone) item's column stretch to fill the
+     whole row — without a cap, a 1-item grid (a freshly-started collaborative
+     list, most obviously) renders one card at full container width, and at
+     aspect-ratio 2/3 that's a ~1700px-tall poster. A real bug, not specific
+     to any one broken image — it would happen with a working poster too. */
+  max-width: 220px;
+
   border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
@@ -1681,9 +1688,21 @@ input[type="range"] {
   left: 10px;
   z-index: 1;
 
+  display: flex;
+  gap: 8px;
+
   opacity: 0;
   transform: translateY(-4px);
   transition: opacity 200ms ease, transform 200ms ease;
+}
+
+/* Read-only "already watched" badge — no hover/active treatment since it
+   isn't clickable (see MovieFeed.jsx: WATCHED is derived from a rating, not
+   a togglable status). */
+.poster-quick-actions .save-icon-button.is-watched {
+  cursor: default;
+  background: rgba(74, 222, 128, 0.18);
+  border-color: rgba(74, 222, 128, 0.35);
 }
 
 .recommendation-card:hover .poster-quick-actions,
@@ -3476,6 +3495,19 @@ input[type="range"] {
   color: var(--text-muted);
   font-size: 0.88rem;
   font-style: italic;
+}
+
+.social-profile-bio {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 480px;
+}
+
+.social-profile-song {
+  margin: 0 0 8px;
+  color: var(--text-faint);
+  font-size: 0.8rem;
 }
 
 /* ==========================================

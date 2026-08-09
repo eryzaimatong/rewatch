@@ -21,6 +21,7 @@ import com.rewatch.model.User;
 import com.rewatch.repository.UserRepository;
 import com.rewatch.security.JwtService;
 import com.rewatch.security.RateLimiterService;
+import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.PasswordResetService;
 
 /**
@@ -55,18 +56,13 @@ public class AuthController {
                 .toList();
     }
 
-    /** X-Forwarded-For first — a real deployment sits behind nginx/a load balancer, where getRemoteAddr() would just be that proxy's own address. */
-    private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
-
     private static final int MAX_REGISTER_PER_HOUR = 5;
     private static final int MAX_LOGIN_PER_15_MIN = 10;
     private static final int MAX_FORGOT_PASSWORD_PER_HOUR = 3;
+    // Generous relative to forgot-password: a legit user can retry a typo'd new
+    // password several times against the same valid link without tripping this,
+    // while still bounding how many guesses an attacker gets against one token.
+    private static final int MAX_RESET_PASSWORD_PER_HOUR = 10;
 
     private ResponseEntity<?> tooManyRequests() {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
@@ -75,7 +71,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user, HttpServletRequest request) {
-        if (!rateLimiter.allow("register:" + clientIp(request), MAX_REGISTER_PER_HOUR, Duration.ofHours(1))) {
+        if (!rateLimiter.allow("register:" + SecurityUtil.clientIp(request), MAX_REGISTER_PER_HOUR, Duration.ofHours(1))) {
             return tooManyRequests();
         }
         if (user.getPassword() == null || user.getPassword().length() < 6) {
@@ -105,7 +101,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials, HttpServletRequest request) {
-        if (!rateLimiter.allow("login:" + clientIp(request), MAX_LOGIN_PER_15_MIN, Duration.ofMinutes(15))) {
+        if (!rateLimiter.allow("login:" + SecurityUtil.clientIp(request), MAX_LOGIN_PER_15_MIN, Duration.ofMinutes(15))) {
             return tooManyRequests();
         }
         String loginInput = credentials.get("username");
@@ -137,7 +133,7 @@ public class AuthController {
         // Both keys checked: the IP limit stops one attacker spraying many
         // addresses, the email limit stops a real Gmail sending account from
         // being used to bomb one specific victim's inbox from many IPs.
-        boolean ipOk = rateLimiter.allow("forgot-ip:" + clientIp(request), MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
+        boolean ipOk = rateLimiter.allow("forgot-ip:" + SecurityUtil.clientIp(request), MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
         boolean emailOk = email.isBlank()
                 || rateLimiter.allow("forgot-email:" + email, MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
         if (!ipOk || !emailOk) {
@@ -149,7 +145,10 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        if (!rateLimiter.allow("reset:" + SecurityUtil.clientIp(request), MAX_RESET_PASSWORD_PER_HOUR, Duration.ofHours(1))) {
+            return tooManyRequests();
+        }
         try {
             passwordResetService.resetPassword(body.get("token"), body.get("newPassword"));
             return ResponseEntity.ok(Map.of("status", "success", "message", "Password reset. Please log in."));
