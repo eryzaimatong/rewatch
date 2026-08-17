@@ -1,7 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { authHeaders } from "./auth";
 import { BASE, gettitles, gettastedna } from "./api";
+import { playChime } from "./sound";
 import "./App.css";
+
+// A staggered reveal for the one moment this whole wizard has been building
+// toward — "You are... [Archetype]" was previously static, appearing fully
+// formed on the very first frame with zero buildup, on the single highest-
+// payoff screen in onboarding. Each line lands a beat after the last so the
+// archetype name (the actual reveal) gets its own moment rather than
+// competing with everything around it for attention.
+const revealParent = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } }
+};
+const revealItem = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } }
+};
+const revealArchetype = {
+  hidden: { opacity: 0, scale: 0.82 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.55, ease: [0.34, 1.56, 0.64, 1] } }
+};
 
 const GENRES = [
   "Drama", "Sci-Fi", "Slice of Life", "Romance", "Thriller", "Anime", "Comedy", "Mystery"
@@ -62,6 +83,18 @@ function emojiFor(archetype) {
   return ARCHETYPE_EMOJI[archetype] || "🎬";
 }
 
+const TMDB_POSTER_THUMB_BASE = "https://image.tmdb.org/t/p/w154";
+const FALLBACK_POSTER_THUMB = "https://placehold.co/154x231/191a21/a855f7?text=%20";
+
+function posterThumbUrl(t) {
+  return t.poster ? `${TMDB_POSTER_THUMB_BASE}${t.poster}` : FALLBACK_POSTER_THUMB;
+}
+
+function handlePosterThumbError(event) {
+  event.currentTarget.onerror = null;
+  event.currentTarget.src = FALLBACK_POSTER_THUMB;
+}
+
 function bucketFor(type) {
   if (type === "movie") return "movie";
   if (type === "anime") return "anime";
@@ -89,16 +122,24 @@ function AnalyzingScreen() {
 }
 
 function RevealScreen({ archetype, archetypeBlurb, onContinue }) {
+  useEffect(() => {
+    // Timed to land roughly when the archetype name itself scales in (see
+    // revealArchetype's delay: delayChildren + staggerChildren*2 ≈ 0.34s) —
+    // the chime should mark the actual reveal, not the screen just appearing.
+    const id = setTimeout(playChime, 340);
+    return () => clearTimeout(id);
+  }, []);
+
   return (
-    <div className="onboard-reveal">
-      <span className="onboard-reveal-emoji">{emojiFor(archetype)}</span>
-      <p className="onboard-reveal-kicker">You are...</p>
-      <h2 className="onboard-reveal-archetype">{archetype}</h2>
-      <p className="onboard-reveal-blurb">{archetypeBlurb}</p>
-      <button type="button" onClick={onContinue} className="btn-primary">
+    <motion.div className="onboard-reveal" variants={revealParent} initial="hidden" animate="visible">
+      <motion.span className="onboard-reveal-emoji" variants={revealItem}>{emojiFor(archetype)}</motion.span>
+      <motion.p className="onboard-reveal-kicker" variants={revealItem}>You are...</motion.p>
+      <motion.h2 className="onboard-reveal-archetype" variants={revealArchetype}>{archetype}</motion.h2>
+      <motion.p className="onboard-reveal-blurb" variants={revealItem}>{archetypeBlurb}</motion.p>
+      <motion.button type="button" onClick={onContinue} className="btn-primary" variants={revealItem}>
         Continue to Re:Watch
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   );
 }
 
@@ -180,21 +221,9 @@ export default function Onboarding({ onFinish }) {
     });
   }
 
-  async function submitall() {
-    seterr("");
-    if (favs.length < 5) {
-      seterr("Pick at least 5 favorites so we can seed your starting profile.");
-      setstep(1);
-      return;
-    }
-
+  async function doSubmit(payload) {
     setsubmitting(true);
     setanalyzing(true);
-
-    const payload = {
-      userId: userid,
-      favs, genres, avoid, tropes, emotionalGoals, pacing, intensity
-    };
 
     const minDelay = new Promise((resolve) => setTimeout(resolve, 1200));
     const [res] = await Promise.all([
@@ -220,6 +249,26 @@ export default function Onboarding({ onFinish }) {
       archetype: profile?.archetype || "Emotional Storyteller",
       archetypeBlurb: profile?.archetypeBlurb || ""
     });
+  }
+
+  async function submitall() {
+    seterr("");
+    if (favs.length < 5) {
+      seterr("Pick at least 5 favorites so we can seed your starting profile.");
+      setstep(1);
+      return;
+    }
+    await doSubmit({ userId: userid, favs, genres, avoid, tropes, emotionalGoals, pacing, intensity });
+  }
+
+  // A blank profile is an already-supported state, not a fabricated one — a
+  // fresh account with no rating history and no onboarding answers both fall
+  // back to the same neutral (all-0.5) TraitVector server-side (see
+  // ProfileService). Skipping just reaches that state immediately instead of
+  // forcing five mandatory steps before a first-time visitor can look around.
+  async function skiponboarding() {
+    seterr("");
+    await doSubmit({ userId: userid, favs: [], genres: {}, avoid: [], tropes: [], emotionalGoals: [] });
   }
 
   if (reveal) {
@@ -249,10 +298,21 @@ export default function Onboarding({ onFinish }) {
   return (
     <div className="onboard-shell">
       <div className="page-panel onboard-panel">
-        <span className="eyebrow">TasteDNA Onboarding</span>
-        <h1 className="onboard-title">
-          Step {step} of 5: {STEP_TITLES[step - 1]}
-        </h1>
+        <div className="onboard-header-row">
+          <div>
+            <span className="eyebrow">TasteDNA Onboarding</span>
+            <h1 className="onboard-title">
+              Step {step} of 5: {STEP_TITLES[step - 1]}
+            </h1>
+          </div>
+          {/* A brand-new visitor's very first screen was a mandatory five-step
+              wizard with no way out — "just let me look around" wasn't an
+              option. Skipping seeds a neutral profile (see skiponboarding's
+              comment) rather than blocking entry entirely. */}
+          <button type="button" className="onboard-skip-link" onClick={skiponboarding} disabled={submitting}>
+            Skip for now →
+          </button>
+        </div>
 
         <div className="onboard-progress">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -295,7 +355,7 @@ export default function Onboarding({ onFinish }) {
             {catalog.length === 0 ? (
               <p className="onboard-intro">Loading the catalog...</p>
             ) : (
-              <div className="onboard-chip-grid">
+              <div className="onboard-fav-grid">
                 {visibleFavTitles.map((t) => {
                   const active = favs.includes(t.title);
                   return (
@@ -303,9 +363,14 @@ export default function Onboarding({ onFinish }) {
                       key={t.id}
                       type="button"
                       onClick={() => togglefav(t.title)}
-                      className={`onboard-chip${active ? " active" : ""}`}
+                      className={`onboard-fav-chip${active ? " active" : ""}`}
+                      aria-pressed={active}
                     >
-                      {active ? "✓ " : "+ "} {t.title}
+                      <span className="onboard-fav-poster">
+                        <img src={posterThumbUrl(t)} alt="" loading="lazy" onError={handlePosterThumbError} />
+                        {active && <span className="onboard-fav-check" aria-hidden="true">✓</span>}
+                      </span>
+                      <span className="onboard-fav-title">{t.title}</span>
                     </button>
                   );
                 })}

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
   changePassword, deleteAccount, getBlockedUsers, unblockUser,
-  getProfileVisibility, setProfileVisibility, setAccentColor, setAvatar,
+  getProfileVisibility, setProfileVisibility, getEmailNotifications, setEmailNotifications,
+  setAccentColor, setAvatar,
   setAvatarFrame, getAchievements, setNickname, setBio, setProfileSong, setPinnedContent, setProfileTheme, BASE
 } from "./api";
 import { saveSession, clearSession, applyAccentColor, authHeaders } from "./auth";
 import { getAccessibilityPrefs, setAccessibilityPref } from "./accessibility";
+import { isSoundEnabled, setSoundEnabled, playConfirm } from "./sound";
 import ConfirmDialog from "./ConfirmDialog";
 import Avatar from "./Avatar";
 import InstallAppButton from "./InstallAppButton";
@@ -94,6 +96,10 @@ export default function Settings() {
   const [visibilityloading, setvisibilityloading] = useState(true);
   const [visibilitysaving, setvisibilitysaving] = useState(false);
 
+  const [emailnotifsenabled, setemailnotifsenabled] = useState(true);
+  const [emailnotifsloading, setemailnotifsloading] = useState(true);
+  const [emailnotifssaving, setemailnotifssaving] = useState(false);
+
   const [accentcolor, setaccentcolor] = useState(localStorage.getItem("accentColor") || "purple");
   const [accentsaving, setaccentsaving] = useState(false);
 
@@ -103,6 +109,18 @@ export default function Settings() {
   function updatea11y(key, value) {
     setAccessibilityPref(key, value);
     seta11yprefs(getAccessibilityPrefs());
+  }
+
+  const [soundenabled, setsoundenabled] = useState(() => isSoundEnabled());
+  function updatesound(enabled) {
+    setSoundEnabled(enabled);
+    setsoundenabled(enabled);
+    // A little proof-of-life right when it's turned on, so the toggle
+    // itself confirms what it just changed instead of leaving it to be
+    // discovered (or not) on some later action.
+    if (enabled) {
+      playConfirm();
+    }
   }
 
   const [avatarurl, setavatarurl] = useState(localStorage.getItem("avatarUrl") || null);
@@ -204,10 +222,20 @@ export default function Settings() {
     setvisibilityloading(false);
   }
 
+  async function loademailnotifs() {
+    setemailnotifsloading(true);
+    const res = await getEmailNotifications(userid);
+    if (res && typeof res.enabled === "boolean") {
+      setemailnotifsenabled(res.enabled);
+    }
+    setemailnotifsloading(false);
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadblocked();
     loadvisibility();
+    loademailnotifs();
     loadachievements();
     loadnickname();
     loadpinnedpickers();
@@ -257,6 +285,16 @@ export default function Settings() {
       setprofilepublic(next);
     }
     setvisibilitysaving(false);
+  }
+
+  async function handletoggleemailnotifs() {
+    const next = !emailnotifsenabled;
+    setemailnotifssaving(true);
+    const res = await setEmailNotifications(userid, next);
+    if (res?.status === "success") {
+      setemailnotifsenabled(next);
+    }
+    setemailnotifssaving(false);
   }
 
   async function handleselectaccent(key) {
@@ -754,6 +792,23 @@ export default function Settings() {
               </button>
             ))}
           </div>
+
+          <p style={{ margin: "var(--sp-2) 0 6px", fontSize: "0.8rem", fontWeight: 700 }}>Sound</p>
+          <p style={{ margin: "0 0 6px", color: "var(--text-muted)", fontSize: "0.82rem" }}>
+            A few small sounds — a rating landing, TasteDNA's reveal. Off by default.
+          </p>
+          <div className="pill-row">
+            {[[false, "Off"], [true, "On"]].map(([value, label]) => (
+              <button
+                key={label}
+                type="button"
+                className={`pill${soundenabled === value ? " active" : ""}`}
+                onClick={() => updatesound(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="feed-section">
@@ -786,6 +841,30 @@ export default function Settings() {
                 disabled={visibilitysaving}
               >
                 {visibilitysaving ? "..." : profilepublic ? "Make Private" : "Make Public"}
+              </button>
+            </div>
+          )}
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Email notifications</p>
+          {emailnotifsloading ? (
+            <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
+          ) : (
+            <div className="trait-card settings-toggle-row">
+              <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
+                {emailnotifsenabled
+                  ? "On: we'll email you when someone new follows you."
+                  : "Off: new-follower activity only shows up in-app."}
+              </p>
+              <button
+                type="button"
+                className={emailnotifsenabled ? "btn-primary" : "btn-block"}
+                style={{ maxWidth: "140px" }}
+                onClick={handletoggleemailnotifs}
+                disabled={emailnotifssaving}
+              >
+                {emailnotifssaving ? "..." : emailnotifsenabled ? "Turn Off" : "Turn On"}
               </button>
             </div>
           )}

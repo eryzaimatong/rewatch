@@ -315,6 +315,12 @@ nav span {
   font-size: 0.82rem;
   font-weight: 700;
   text-decoration: none;
+  /* At the width just above the 900px breakpoint that switches to the mobile
+     bottom nav, the desktop nav had just enough room to fit but not enough to
+     keep each two-word label ("Home Feed", "TasteDNA Profile") on one line —
+     wrapping mid-phrase inside a pill reads as broken, not as a label that's
+     simply narrow. */
+  white-space: nowrap;
 
   transition: color 160ms ease, background 160ms ease;
 }
@@ -519,16 +525,37 @@ input[type="range"] {
    APP HEADER / NAV
    ========================================== */
 
+/* Grid, not flex `justify-content: space-between` — with three unequal-width
+   children (a wide logo+tagline block, the nav, a narrow bell+avatar
+   cluster), space-between places the nav wherever falls between the other
+   two, not at the header's actual visual center. It read as skewed left
+   because the logo block is wider than the actions cluster. Two equal `1fr`
+   flanking columns guarantee the middle column — and the nav centered
+   within it — sits at the true center regardless of how wide the outer
+   content is. */
 .app-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--sp-2);
 
   padding: var(--sp-2) var(--sp-5);
   margin-bottom: var(--sp-1);
 
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+}
+
+.app-header > .brand-mark {
+  justify-self: start;
+}
+
+.app-header > .app-nav {
+  justify-self: center;
+}
+
+.app-header > .app-header-actions {
+  justify-self: end;
 }
 
 .brand-mark {
@@ -551,9 +578,24 @@ input[type="range"] {
   font-weight: var(--fw-metadata);
   letter-spacing: normal;
   text-transform: none;
+  /* A grid item sized to `justify-self: start` (see .app-header > .brand-mark)
+     fits to its column rather than stretching to fill it the way it did
+     under the old flex layout — with no explicit nowrap, that left this one
+     short phrase free to wrap mid-sentence onto a second line the instant
+     the column narrowed even slightly, which reads as a bug, not a design
+     choice. */
+  white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+/* 1150px, not 900px — the nav's labels no longer wrap (white-space: nowrap
+   above), which fixed the mid-word-wrap look but means the nav now has a
+   fixed minimum width it won't shrink below. Between roughly 900-1150px
+   that width, plus this tagline, plus the brand mark and the actions
+   cluster no longer fit the header — the old 900px threshold left the
+   tagline visible right into that gap, and the header spilled into a
+   horizontal scrollbar for the whole page rather than just dropping the
+   one piece of chrome that isn't essential at this width. */
+@media (max-width: 1150px) {
   .header-tagline {
     display: none;
   }
@@ -561,8 +603,16 @@ input[type="range"] {
 
 .app-nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-1);
+  /* Paired with .app-nav-link's white-space: nowrap — a label like "TasteDNA
+     Profile" always stays on one line inside its own pill; if the row as a
+     whole doesn't fit, a whole pill wraps to a second line instead of text
+     breaking mid-phrase inside one. Unlike relying on a specific breakpoint
+     to guarantee enough width, this can never force the *page* to overflow
+     horizontally — a too-narrow row just grows taller, which is always safe. */
 }
 
 /* ==========================================
@@ -1279,6 +1329,37 @@ input[type="range"] {
   font-weight: 700;
 }
 
+.modal-share-trigger {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  border-radius: 50%;
+  border-color: rgba(168, 85, 247, 0.4);
+  color: var(--primary-light);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.modal-share-trigger:hover {
+  border-color: var(--primary);
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.modal-share-trigger.is-saved {
+  border-color: var(--primary);
+  background: rgba(168, 85, 247, 0.35);
+  color: #ffffff;
+}
+
+.modal-share-trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .modal-tabs {
   display: flex;
   gap: var(--sp-1);
@@ -1670,7 +1751,7 @@ input[type="range"] {
 }
 
 .match-ring-arc {
-  transition: stroke-dashoffset 700ms ease, stroke 700ms ease;
+  transition: stroke-dashoffset 900ms cubic-bezier(0.16, 1, 0.3, 1), stroke 900ms ease;
 }
 
 .match-ring-label {
@@ -1678,10 +1759,26 @@ input[type="range"] {
   color: #ffffff;
   font-size: 0.68rem;
   font-weight: 800;
+
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 400ms ease 350ms, transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1) 350ms;
+}
+
+.match-ring-label.is-visible {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* Quick actions — revealed on card hover, over the poster itself, rather
-   than a permanently-visible icon competing with the card body. */
+   than a permanently-visible icon competing with the card body. Hover-only
+   would make "save to watchlist" — a primary action, not a nice-to-have —
+   flatly unreachable on any touchscreen: touch has no hover state, so the
+   button never appeared at all rather than requiring an extra tap.
+   `(hover: none)` targets exactly that (a device whose primary input can't
+   hover), not a viewport-width guess that would also catch a touch laptop
+   with a mouse plugged in and hide the button for people who could hover
+   just fine. */
 .poster-quick-actions {
   position: absolute;
   top: 10px;
@@ -1694,6 +1791,13 @@ input[type="range"] {
   opacity: 0;
   transform: translateY(-4px);
   transition: opacity 200ms ease, transform 200ms ease;
+}
+
+@media (hover: none) {
+  .poster-quick-actions {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Read-only "already watched" badge — no hover/active treatment since it
@@ -2167,6 +2271,23 @@ input[type="range"] {
 
 .shift-toast-text strong {
   color: var(--primary-light);
+}
+
+/* Gold, not purple — an unlocked achievement is a distinct kind of moment
+   from a routine TasteDNA nudge, and reusing --gold (the star-rating color
+   elsewhere in this app) keeps that distinction consistent rather than
+   introducing a new hue for it. */
+.achievement-toast {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.1);
+}
+
+.achievement-toast .shift-toast-icon {
+  background: var(--gold);
+}
+
+.achievement-toast .shift-toast-text strong {
+  color: var(--gold);
 }
 
 /* Floats over the page rather than sitting in a modal's document flow —
@@ -2656,6 +2777,54 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* ==========================================
+   ADMIN REPORTS
+   ========================================== */
+
+.admin-report-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.admin-report-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.admin-report-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: 6px;
+}
+
+.admin-report-reason {
+  font-weight: var(--fw-card);
+  color: var(--coral);
+}
+
+.admin-report-time {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.admin-report-line {
+  margin: 4px 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.admin-report-details {
+  margin: 8px 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--text);
+}
+
 .trait-card-row {
   display: flex;
   justify-content: space-between;
@@ -2746,6 +2915,42 @@ input[type="range"] {
   font-size: 0.88rem;
 }
 
+/* Match Card's preview — the poster is the whole point, so it gets far more
+   visual weight in this modal than the other share cards, which are
+   chart/stat led. */
+.match-share-preview {
+  position: relative;
+  width: 200px;
+  margin: 0 auto var(--sp-3);
+}
+
+.match-share-preview-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+  display: block;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+.match-share-preview-badge {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+
+  background: var(--surface);
+  border: 3px solid var(--primary);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
 /* ==========================================
    ONBOARDING
    ========================================== */
@@ -2765,6 +2970,34 @@ input[type="range"] {
   margin: 8px 0 var(--sp-3);
   font-size: 1.75rem;
   font-weight: var(--fw-hero);
+}
+
+.onboard-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.onboard-skip-link {
+  flex-shrink: 0;
+  margin-top: 4px;
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 0.82rem;
+  font-weight: var(--fw-card);
+  text-decoration: underline;
+}
+
+.onboard-skip-link:hover {
+  color: var(--text-muted);
+}
+
+.onboard-skip-link:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .onboard-intro {
@@ -2819,6 +3052,85 @@ input[type="range"] {
 
 .onboard-chip.avoid.active {
   background: var(--danger);
+}
+
+/* Favorites picker specifically (step 1) — a poster thumbnail grid rather
+   than text-only pills, so recognizing a title you actually love doesn't
+   depend on reading hundreds of plain-text names. */
+.onboard-fav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px;
+  margin-bottom: var(--sp-3);
+}
+
+.onboard-fav-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  overflow: hidden;
+}
+
+.onboard-fav-poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+
+.onboard-fav-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.onboard-fav-chip.active .onboard-fav-poster {
+  box-shadow: 0 0 0 3px var(--primary);
+}
+
+.onboard-fav-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.onboard-fav-title {
+  font-size: 0.76rem;
+  line-height: 1.25;
+  color: var(--text-muted);
+
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.onboard-fav-chip.active .onboard-fav-title {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .genre-row {

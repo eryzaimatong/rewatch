@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Avatar from "./Avatar";
+import { isAdmin } from "./auth";
 import "./App.css";
 
 /**
@@ -17,6 +18,7 @@ import "./App.css";
 export default function AccountMenu({ userId, username, avatarUrl, onLogout }) {
   const [open, setopen] = useState(false);
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
   const navigate = useNavigate();
   const [avatarFrame, setavatarFrame] = useState(() => localStorage.getItem("avatarFrame"));
 
@@ -29,6 +31,22 @@ export default function AccountMenu({ userId, username, avatarUrl, onLogout }) {
     document.addEventListener("mousedown", handleoutside);
     return () => document.removeEventListener("mousedown", handleoutside);
   }, []);
+
+  // Same reasoning as MovieModal's useModalA11y, scaled down for a menu
+  // rather than a full dialog: a keyboard user could open this but had no
+  // way to close it except Tab-ing all the way past its items, and closing
+  // never returned focus to the button that opened it.
+  useEffect(() => {
+    if (!open) return;
+    function handlekeydown(e) {
+      if (e.key === "Escape") {
+        setopen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handlekeydown);
+    return () => document.removeEventListener("keydown", handlekeydown);
+  }, [open]);
 
   useEffect(() => {
     function handleavatarchange() {
@@ -47,6 +65,7 @@ export default function AccountMenu({ userId, username, avatarUrl, onLogout }) {
     <div className="account-menu-wrap" ref={containerRef}>
       <button
         type="button"
+        ref={triggerRef}
         className="account-menu-trigger"
         onClick={() => setopen((v) => !v)}
         aria-label="Account menu"
@@ -73,6 +92,11 @@ export default function AccountMenu({ userId, username, avatarUrl, onLogout }) {
           <button type="button" className="account-menu-item" role="menuitem" onClick={() => go("/settings")}>
             Settings
           </button>
+          {isAdmin() && (
+            <button type="button" className="account-menu-item" role="menuitem" onClick={() => go("/admin/reports")}>
+              Reports (Admin)
+            </button>
+          )}
           <div className="account-menu-divider" />
           <button type="button" className="account-menu-item account-menu-item--danger" role="menuitem" onClick={onLogout}>
             Sign Out

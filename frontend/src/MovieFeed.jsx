@@ -12,19 +12,6 @@ import "./App.css";
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 const FALLBACK_POSTER = "https://placehold.co/500x750/191a21/a855f7?text=Re:Watch";
 
-const POSTERS = {
-  "Interstellar": "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
-  "Parasite": "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
-  "Arrival": "https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg",
-  "Reply 1988": "https://image.tmdb.org/t/p/w500/3EwozHAGKvg8q4R6M33A9fI5Ggg.jpg",
-  "Hospital Playlist": "https://image.tmdb.org/t/p/w500/vGk4SffgokMWhK2xS2786BnpwPj.jpg",
-  "Our Beloved Summer": "https://image.tmdb.org/t/p/w500/w70rP9c7B8H7S8h0P0z5S7S0K0.jpg",
-  "Twenty Five Twenty One": "https://image.tmdb.org/t/p/w500/eWeuKntQ1x4S9H6VbQ7Z9xV3bM0.jpg",
-  "My Liberation Notes": "https://image.tmdb.org/t/p/w500/xR4aL3S5Z6J1qA5Vv9W8kG9qQ0n.jpg",
-  "The Glory": "https://image.tmdb.org/t/p/w500/6jOqZ9A1A1u7WwS6A1Bw7V9S2E.jpg",
-  "La La Land": "https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg"
-};
-
 // ISO 639-1 -> display name, for whatever originalLanguage codes actually
 // turn up in the catalog. Falls back to the raw code for anything unmapped
 // rather than hiding it — real data stays visible even if unlabeled.
@@ -234,9 +221,6 @@ function normalizeMovie(item, index) {
 }
 
 function getPosterUrl(movie) {
-  if (POSTERS[movie.title]) {
-    return POSTERS[movie.title];
-  }
   if (typeof movie.posterUrl === "string" && movie.posterUrl.startsWith("http")) {
     return movie.posterUrl;
   }

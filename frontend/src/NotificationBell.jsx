@@ -39,6 +39,7 @@ export default function NotificationBell({ userId }) {
   const [items, setitems] = useState([]);
   const [loaded, setloaded] = useState(false);
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -55,6 +56,21 @@ export default function NotificationBell({ userId }) {
     document.addEventListener("mousedown", handleoutside);
     return () => document.removeEventListener("mousedown", handleoutside);
   }, []);
+
+  // Same reasoning as AccountMenu: a keyboard user opening this panel had no
+  // way to close it short of Tab-ing past every notification, and closing
+  // never returned focus to the bell button that opened it.
+  useEffect(() => {
+    if (!open) return;
+    function handlekeydown(e) {
+      if (e.key === "Escape") {
+        setopen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handlekeydown);
+    return () => document.removeEventListener("keydown", handlekeydown);
+  }, [open]);
 
   async function togglepanel() {
     const next = !open;
@@ -82,6 +98,7 @@ export default function NotificationBell({ userId }) {
     <div className="notification-bell-wrap" ref={containerRef}>
       <button
         type="button"
+        ref={triggerRef}
         className="notification-bell"
         onClick={togglepanel}
         aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}

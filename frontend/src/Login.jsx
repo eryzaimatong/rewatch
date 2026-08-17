@@ -46,7 +46,7 @@ export default function Login({ onLogin }) {
         // Registration now returns a full session, same as login — no reason to
         // make the user re-enter their password immediately after choosing it.
         const uid = res.userId || 1;
-        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame });
+        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame, role: res.role });
         if (onLogin) {
           onLogin(uid);
         } else {
@@ -59,7 +59,7 @@ export default function Login({ onLogin }) {
       const res = await login(username, password);
       if (res && res.token) {
         const uid = res.userId || 1;
-        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame });
+        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame, role: res.role });
         if (onLogin) {
           onLogin(uid);
         } else {
