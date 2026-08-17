@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.rewatch.model.User;
 import com.rewatch.model.WatchlistFolder;
+import com.rewatch.model.WatchlistItem;
 import com.rewatch.repository.BlockRepository;
 import com.rewatch.repository.CollectionFollowRepository;
 import com.rewatch.repository.FollowRepository;
@@ -122,7 +123,12 @@ class SocialServiceCollectionTest {
         owner4.setId(4L);
         owner4.setUsername("visible-owner");
         when(userRepo.findAllById(any())).thenReturn(List.of(owner4));
-        when(itemRepo.findByFolderIdOrderByAddedAtDesc(3L)).thenReturn(List.of());
+        // Non-empty on purpose: discoverCollections filters out folders with no
+        // items (an empty public folder has nothing to discover), so an empty
+        // fixture here would fail this test for the same reason a real empty
+        // "Just Mine" default shelf no longer surfaces in production.
+        WatchlistItem item = new WatchlistItem(4L, 100L, 3L, Instant.now());
+        when(itemRepo.findByFolderIdOrderByAddedAtDesc(3L)).thenReturn(List.of(item));
         when(collectionFollowRepo.countByFolderId(3L)).thenReturn(0L);
 
         List<java.util.Map<String, Object>> results = newService().discoverCollections(1L, 20);

@@ -37,8 +37,11 @@ const DOT_RADIUS = 4.5;
 // NOT expand the raster canvas when this SVG is flattened to a bitmap (the
 // share-card PNG export does exactly that via drawImage) — a rasterizer clips
 // to the declared viewBox bounds regardless of overflow. Padding the viewBox
-// itself keeps the export honest with what's on screen.
-const VIEWBOX_PAD = 90;
+// itself keeps the export honest with what's on screen. 90 measured too tight
+// in practice — live on the Social Profile comparison radar, the leading "H"
+// of that same label clipped against the left edge, so this carries a wider
+// margin than the bare label-width math suggests it needs.
+const VIEWBOX_PAD = 112;
 
 function polar(cx, cy, r, angle) {
   return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];

@@ -542,9 +542,16 @@ public class SocialService {
 
         return folders.stream()
                 .sorted(Comparator.comparingLong((WatchlistFolder f) -> collectionFollowRepo.countByFolderId(f.getId())).reversed())
-                .limit(limit)
                 .map(f -> collectionSummary(f, owners.get(f.getUserId()), callerId))
                 .filter(java.util.Objects::nonNull)
+                // An empty folder someone made public (often by accident, or a
+                // leftover default "Just Mine" shelf) has nothing to preview and
+                // nothing worth discovering — surfacing it just makes the whole
+                // rail look broken/unfinished. Filtered here rather than at the
+                // WatchlistFolder query level since itemCount only exists once
+                // collectionSummary has already loaded the folder's items.
+                .filter(summary -> ((Integer) summary.get("itemCount")) > 0)
+                .limit(limit)
                 .toList();
     }
 

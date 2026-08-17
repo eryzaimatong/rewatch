@@ -465,14 +465,14 @@ export default function Settings() {
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             An expressive line shown under your @{username} on your profile — purely for personality, not used for login or search.
           </p>
-          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "flex-start" }}>
             <input
               type="text"
               placeholder="the girl who cries at movies"
               value={nickname}
               onChange={(e) => setnicknameField(e.target.value)}
               maxLength={60}
-              style={{ flex: 1, margin: 0 }}
+              style={{ flex: "1 1 200px", minWidth: "160px", margin: 0 }}
             />
             <button type="button" className="btn-primary" onClick={handlesavenickname} disabled={nicknamesaving}>
               {nicknamesaving ? "..." : "Save"}
