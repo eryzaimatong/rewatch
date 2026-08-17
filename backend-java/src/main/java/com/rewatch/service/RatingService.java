@@ -51,7 +51,8 @@ public class RatingService {
     }
 
     public record Result(Rating rating, List<ProfileService.Shift> shifts,
-                          boolean isRewatch, int watchNumber, Integer previousOverall) {}
+                          boolean isRewatch, int watchNumber, Integer previousOverall,
+                          List<String> newlyUnlockedAchievements) {}
 
     @Transactional
     public Result submit(RatingDTO dto) {
@@ -96,13 +97,19 @@ public class RatingService {
                 .max(Comparator.comparingDouble(s -> Math.abs(s.delta())))
                 .ifPresent(s -> notificationService.notifyTasteMilestone(dto.getUserId(), s.trait(), s.delta()));
 
+        // Collected (not just notified) so the caller can react in the same
+        // request/response round-trip — a bell-icon badge someone might not
+        // check for hours is a weak payoff for the exact moment something
+        // was actually unlocked.
+        List<String> newlyUnlocked = new java.util.ArrayList<>();
         achievementService.unlockedTitles(dto.getUserId()).forEach((key, achievementTitle) -> {
             if (!unlockedBefore.containsKey(key)) {
                 notificationService.notifyAchievementUnlocked(dto.getUserId(), achievementTitle);
+                newlyUnlocked.add(achievementTitle);
             }
         });
 
-        return new Result(r, shifts, isRewatch, (int) priorCount + 1, previousOverall);
+        return new Result(r, shifts, isRewatch, (int) priorCount + 1, previousOverall, newlyUnlocked);
     }
 
     /**

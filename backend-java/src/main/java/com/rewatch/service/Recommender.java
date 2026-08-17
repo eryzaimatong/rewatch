@@ -121,10 +121,10 @@ public class Recommender {
 
         scored.sort(Comparator.comparingDouble(MovieDTO::getMatchScore).reversed());
 
-        if (diversify && scored.size() > limit) {
-            return mmrRerank(scored, limit);
-        }
-        return scored.subList(0, Math.min(limit, scored.size()));
+        List<MovieDTO> ranked = (diversify && scored.size() > limit)
+                ? mmrRerank(scored, limit)
+                : scored.subList(0, Math.min(limit, scored.size()));
+        return coldStartSafeReorder(ranked, meanConf);
     }
 
     /**
@@ -287,6 +287,77 @@ public class Recommender {
             out.add("Balanced fit across your profile");
         }
         return out;
+    }
+
+    /**
+     * ProfileService seeds every trait at exactly ONBOARDING_CONFIDENCE (0.35)
+     * the moment onboarding finishes, regardless of how many real answers were
+     * given — a skip and a fully-answered wizard both land here. Confidence can
+     * briefly dip *below* this once ratings start (VectorEngine's n/(n+8) curve
+     * restarts a touched trait's evidence count from 1), so meanConfidence is
+     * not monotonic — it does not simply climb from 0 as the case study's
+     * general framing might suggest. The threshold must therefore be strictly
+     * greater-than 0.35, not >=: a `>=` comparison treats "just finished
+     * onboarding, zero ratings" — the exact case this exists to catch — as
+     * already trustworthy, which is how this shipped once already without
+     * ever actually engaging (verified live: a fresh account's mean confidence
+     * sat at precisely 0.35 and the swap never fired).
+     *
+     * Below this, a raw top-match-score pick for the single featured "Tonight's
+     * Pick" card can be whatever the thinnest signal happened to favor — which
+     * showed up in practice as a fresh account's #1 card being a tonally
+     * intense, niche pick ahead of far more broadly-appealing titles it was
+     * matched almost as well against. The match isn't wrong, but leading a
+     * brand-new user's first screen with it is a bad first impression the low
+     * confidence itself should have been a signal to avoid.
+     */
+    private static final double COLD_START_CONFIDENCE_THRESHOLD = ProfileService.ONBOARDING_CONFIDENCE;
+    private static final double COLD_START_INTENSITY_CEILING = 0.6;
+    private static final double COLD_START_MIN_VOTE_AVERAGE = 6.5;
+    // INTENSITY alone tracks action/violence-style intensity (Trait.java), which
+    // let a genuinely heavy pick through untouched (grief, abuse, loss — low
+    // action-intensity, still a hard first impression). BITTER (labelled
+    // "Bittersweet Drama") is the axis that actually tracks tonal heaviness, so
+    // both are gated.
+    private static final double COLD_START_BITTER_CEILING = 0.6;
+    private static final int COLD_START_LOOKAHEAD = 6;
+
+    /**
+     * Promotes the first broadly-appealing title within the top {@link
+     * #COLD_START_LOOKAHEAD} results to the front, when the profile is still
+     * cold. Re-orders ONLY — same rule as {@link #mmrRerank}: the displayed
+     * score is never touched, so what's promoted is still a real, already-ranked
+     * match, just not necessarily the single highest-scoring one. A no-op once
+     * enough ratings exist to trust the ranking as-is.
+     */
+    private List<MovieDTO> coldStartSafeReorder(List<MovieDTO> ranked, double meanConf) {
+        if (meanConf > COLD_START_CONFIDENCE_THRESHOLD || ranked.size() < 2) {
+            return ranked;
+        }
+        int lookahead = Math.min(COLD_START_LOOKAHEAD, ranked.size());
+        int safeIdx = -1;
+        for (int i = 0; i < lookahead; i++) {
+            MovieDTO cand = ranked.get(i);
+            TraitVector v = TraitVector.fromMap(keyedToEnum(cand.getStoryVector()));
+            Double voteAvg = cand.getVoteAverage();
+            boolean broadlyAppealing = v.get(Trait.INTENSITY) <= COLD_START_INTENSITY_CEILING
+                    && v.get(Trait.BITTER) <= COLD_START_BITTER_CEILING
+                    && (voteAvg == null || voteAvg >= COLD_START_MIN_VOTE_AVERAGE);
+            if (broadlyAppealing) {
+                safeIdx = i;
+                break;
+            }
+        }
+        if (safeIdx <= 0) {
+            // Already leading with a safe pick, or nothing in the lookahead
+            // qualifies — leave the score-based ranking alone rather than
+            // forcing a swap that has nothing better to offer.
+            return ranked;
+        }
+        List<MovieDTO> reordered = new ArrayList<>(ranked);
+        MovieDTO promoted = reordered.remove(safeIdx);
+        reordered.add(0, promoted);
+        return reordered;
     }
 
     /**

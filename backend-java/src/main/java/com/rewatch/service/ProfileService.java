@@ -55,7 +55,8 @@ public class ProfileService {
     /** How fast steps shrink as evidence accumulates, so the profile settles. */
     private static final double SETTLE_RATE = 0.02;
 
-    private static final double ONBOARDING_CONFIDENCE = 0.35;
+    /** Package-visible — Recommender.coldStartSafeReorder reads this directly rather than duplicating the value, so the two can't silently drift apart. */
+    static final double ONBOARDING_CONFIDENCE = 0.35;
 
     private final RatingRepository ratingRepo;
     private final TitleRepository titleRepo;

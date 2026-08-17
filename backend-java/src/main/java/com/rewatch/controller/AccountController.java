@@ -25,6 +25,7 @@ import com.rewatch.dto.AccountRequests.SetProfileSong;
 import com.rewatch.dto.AccountRequests.SetNickname;
 import com.rewatch.dto.AccountRequests.SetPinnedContent;
 import com.rewatch.dto.AccountRequests.SetProfileVisibility;
+import com.rewatch.dto.AccountRequests.SetEmailNotifications;
 import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.AccountService;
 
@@ -61,6 +62,19 @@ public class AccountController {
         SecurityUtil.requireSelf(authentication, req.getUserId());
         accountService.setProfileVisibility(req.getUserId(), req.getIsPublic());
         return ResponseEntity.ok(Map.of("status", "success", "public", req.getIsPublic()));
+    }
+
+    @GetMapping("/email-notifications/{userId}")
+    public ResponseEntity<?> getEmailNotifications(@PathVariable Long userId, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        return ResponseEntity.ok(Map.of("enabled", accountService.getEmailNotificationsEnabled(userId)));
+    }
+
+    @PostMapping("/email-notifications")
+    public ResponseEntity<?> setEmailNotifications(@Valid @RequestBody SetEmailNotifications req, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        accountService.setEmailNotificationsEnabled(req.getUserId(), req.getEnabled());
+        return ResponseEntity.ok(Map.of("status", "success", "enabled", req.getEnabled()));
     }
 
     @PostMapping("/accent-color")

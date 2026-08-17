@@ -199,6 +199,9 @@ public class TmdbController {
             if (result.previousOverall() != null) {
                 res.put("previousOverall", result.previousOverall());
             }
+            if (!result.newlyUnlockedAchievements().isEmpty()) {
+                res.put("newlyUnlockedAchievements", result.newlyUnlockedAchievements());
+            }
             if (topShift != null) {
                 Map<String, Object> top = new HashMap<>();
                 top.put("trait", topShift.trait().key());

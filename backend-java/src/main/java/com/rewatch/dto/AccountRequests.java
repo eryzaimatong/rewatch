@@ -41,6 +41,16 @@ public class AccountRequests {
         public void setIsPublic(Boolean v) { this.isPublic = v; }
     }
 
+    public static class SetEmailNotifications {
+        @NotNull private Long userId;
+        @NotNull private Boolean enabled;
+
+        public Long getUserId() { return userId; }
+        public void setUserId(Long v) { this.userId = v; }
+        public Boolean getEnabled() { return enabled; }
+        public void setEnabled(Boolean v) { this.enabled = v; }
+    }
+
     public static class SetAccentColor {
         @NotNull private Long userId;
         @NotBlank private String accentColor;

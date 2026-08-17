@@ -3,6 +3,9 @@ package com.rewatch.service;
 import java.time.Instant;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,7 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.rewatch.dto.UserSummaryDTO;
 import com.rewatch.model.Notification;
 import com.rewatch.model.Trait;
+import com.rewatch.model.User;
 import com.rewatch.repository.NotificationRepository;
+import com.rewatch.repository.UserRepository;
 
 /**
  * Fetch-on-mount notifications — no polling/websocket infra exists anywhere in
@@ -25,15 +30,25 @@ import com.rewatch.repository.NotificationRepository;
 @Service
 public class NotificationService {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+
     /** Cosine similarity (range -1..1) considered a "strikingly similar" match. */
     private static final double DNA_MATCH_THRESHOLD = 0.85;
 
     private final NotificationRepository notificationRepo;
     private final SocialService socialService;
+    private final UserRepository userRepo;
+    private final EmailService emailService;
+    private final String frontendBaseUrl;
 
-    public NotificationService(NotificationRepository notificationRepo, SocialService socialService) {
+    public NotificationService(NotificationRepository notificationRepo, SocialService socialService,
+                               UserRepository userRepo, EmailService emailService,
+                               @Value("${rewatch.frontend.base-url}") String frontendBaseUrl) {
         this.notificationRepo = notificationRepo;
         this.socialService = socialService;
+        this.userRepo = userRepo;
+        this.emailService = emailService;
+        this.frontendBaseUrl = frontendBaseUrl;
     }
 
     public List<Notification> list(Long userId, int limit) {
@@ -70,6 +85,26 @@ public class NotificationService {
     public void notifyNewFollower(Long followeeId, Long followerId, String followerUsername) {
         notificationRepo.save(new Notification(followeeId, Notification.Type.NEW_FOLLOWER,
                 followerUsername + " started following you", followerId, Instant.now()));
+        emailNewFollowerIfOptedIn(followeeId, followerUsername);
+    }
+
+    /**
+     * Best-effort — a broken/unreachable SMTP server (Gmail sending limits,
+     * network issues) must never fail the follow action itself or leave the
+     * in-app notification unwritten. The in-app notification above is already
+     * saved and is this feature's source of truth; the email is a bonus
+     * nudge, not a requirement.
+     */
+    private void emailNewFollowerIfOptedIn(Long followeeId, String followerUsername) {
+        User followee = userRepo.findById(followeeId).orElse(null);
+        if (followee == null || !followee.isEmailNotificationsEnabled() || followee.getEmail() == null) {
+            return;
+        }
+        try {
+            emailService.sendNewFollowerEmail(followee.getEmail(), followee.getUsername(), followerUsername, frontendBaseUrl);
+        } catch (Exception e) {
+            log.warn("Failed to send new-follower email to user {}: {}", followeeId, e.getMessage());
+        }
     }
 
     @Transactional

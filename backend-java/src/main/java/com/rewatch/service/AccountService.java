@@ -124,6 +124,20 @@ public class AccountService {
         userRepo.save(user);
     }
 
+    public boolean getEmailNotificationsEnabled(Long userId) {
+        return userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"))
+                .isEmailNotificationsEnabled();
+    }
+
+    @Transactional
+    public void setEmailNotificationsEnabled(Long userId, boolean enabled) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        user.setEmailNotificationsEnabled(enabled);
+        userRepo.save(user);
+    }
+
     /** Interactive-chrome accent — see User.accentColor for what this does and doesn't recolor. */
     public static final java.util.Set<String> VALID_ACCENT_COLORS =
             java.util.Set.of("purple", "blue", "orange", "emerald");

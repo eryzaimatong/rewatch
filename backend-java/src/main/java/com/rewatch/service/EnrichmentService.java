@@ -230,6 +230,13 @@ public class EnrichmentService {
 
         pageCalls = pullGenres(MOVIE_GENRES, "movie", PAGES_PER_GENRE, targetCount, pageCalls);
         pageCalls = pullGenres(TV_GENRES, "series", PAGES_PER_GENRE, targetCount, pageCalls);
+        // Anime previously came only from ingestStandardLists' single-page,
+        // movie-only discoverAnime() call — ~20 titles, ever, and none of them
+        // TV series, which is most of what "anime" actually means on TMDB.
+        // Same genre-16 + Japanese-language signal as discoverAnime(), but
+        // paginated across both movie and TV, the way every other genre above
+        // already is.
+        pageCalls = pullAnime(PAGES_PER_GENRE, targetCount, pageCalls);
 
         for (int page = 1; page <= PAGES_GENERAL && titleRepo.count() < targetCount && pageCalls < MAX_PAGE_CALLS; page++) {
             pageCalls++;
@@ -274,6 +281,35 @@ public class EnrichmentService {
                 for (TmdbClient.TmdbMovie m : results) {
                     ingest(m, type);
                 }
+            }
+        }
+        return pageCalls;
+    }
+
+    /** Same shape as pullGenres, but a fixed with_original_language=ja + with_genres=16 filter across both movie and TV, instead of one genre id at a time. */
+    private int pullAnime(int pagesPerType, int targetCount, int pageCalls) {
+        java.util.Map<String, String> animeParams = java.util.Map.of(
+                "with_original_language", "ja",
+                "with_genres", "16",
+                "sort_by", "popularity.desc");
+        for (int page = 1; page <= pagesPerType; page++) {
+            if (titleRepo.count() >= targetCount || pageCalls >= MAX_PAGE_CALLS) {
+                return pageCalls;
+            }
+            pageCalls++;
+            sleep();
+            for (TmdbClient.TmdbMovie m : tmdb.discoverMoviesPage(page, animeParams)) {
+                ingest(m, "anime");
+            }
+        }
+        for (int page = 1; page <= pagesPerType; page++) {
+            if (titleRepo.count() >= targetCount || pageCalls >= MAX_PAGE_CALLS) {
+                return pageCalls;
+            }
+            pageCalls++;
+            sleep();
+            for (TmdbClient.TmdbMovie m : tmdb.discoverTvPage(page, animeParams)) {
+                ingest(m, "anime");
             }
         }
         return pageCalls;
