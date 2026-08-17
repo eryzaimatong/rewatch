@@ -13,10 +13,13 @@ export function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function saveSession({ userId, username, token, onboarded, accentColor, avatarUrl, avatarFrame }) {
+export function saveSession({ userId, username, token, onboarded, accentColor, avatarUrl, avatarFrame, role }) {
   if (userId != null) localStorage.setItem("userId", userId);
   if (username != null) localStorage.setItem("username", username);
   if (token) localStorage.setItem("token", token);
+  // Display-only — see AuthController.sessionResponse's comment. Every admin
+  // endpoint re-checks the real role server-side regardless of this value.
+  if (role != null) localStorage.setItem("role", role);
   // Explicitly set (not just left over from a previous account in this browser) —
   // the server is the source of truth for whether onboarding already ran.
   if (onboarded !== undefined) {
@@ -61,5 +64,10 @@ export function clearSession() {
   localStorage.removeItem("accentColor");
   localStorage.removeItem("avatarUrl");
   localStorage.removeItem("avatarFrame");
+  localStorage.removeItem("role");
   applyAccentColor(null);
+}
+
+export function isAdmin() {
+  return localStorage.getItem("role") === "ADMIN";
 }

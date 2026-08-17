@@ -1,27 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
-import MovieFeed from "./MovieFeed";
-import Onboarding from "./Onboarding";
-import TasteProfile from "./TasteProfile";
-import Wrapped from "./Wrapped";
-import Achievements from "./Achievements";
-import Dashboard from "./Dashboard";
-import Community from "./Community";
-import SocialProfile from "./SocialProfile";
 import Login from "./Login";
-import ForgotPassword from "./ForgotPassword";
-import ResetPassword from "./ResetPassword";
-import Settings from "./Settings";
-import NotFound from "./NotFound";
-import PrivacyPolicy from "./PrivacyPolicy";
-import TermsOfService from "./TermsOfService";
 import Footer from "./Footer";
 import BrandMark from "./BrandMark";
 import NotificationBell from "./NotificationBell";
 import AccountMenu from "./AccountMenu";
-import { getToken, clearSession, applyAccentColor } from "./auth";
+import ErrorBoundary from "./ErrorBoundary";
+import RouteLoading from "./RouteLoading";
+import { getToken, clearSession, applyAccentColor, isAdmin } from "./auth";
 import { applyAccessibilityPrefs } from "./accessibility";
 import "./App.css";
+
+// Code-split: everything past the login screen. Login is the one route every
+// signed-out visitor needs on first paint, so it stays a static import; every
+// other screen (including Onboarding, reached one hop later) is fetched on
+// first visit instead of shipping in the initial bundle every session pays
+// for regardless of which pages actually get used.
+const MovieFeed = lazy(() => import("./MovieFeed"));
+const Onboarding = lazy(() => import("./Onboarding"));
+const TasteProfile = lazy(() => import("./TasteProfile"));
+const Wrapped = lazy(() => import("./Wrapped"));
+const Achievements = lazy(() => import("./Achievements"));
+const Dashboard = lazy(() => import("./Dashboard"));
+const Community = lazy(() => import("./Community"));
+const SocialProfile = lazy(() => import("./SocialProfile"));
+const ForgotPassword = lazy(() => import("./ForgotPassword"));
+const ResetPassword = lazy(() => import("./ResetPassword"));
+const Settings = lazy(() => import("./Settings"));
+const NotFound = lazy(() => import("./NotFound"));
+const PrivacyPolicy = lazy(() => import("./PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./TermsOfService"));
+const AdminReports = lazy(() => import("./AdminReports"));
 
 // Runs once, synchronously, before the first paint — so a page reload with
 // an existing session shows the right accent immediately instead of a flash
@@ -92,7 +101,7 @@ function AppShell({ onLogout }) {
           <NavLinks linkClassName={navLinkClass} />
         </nav>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+        <div className="app-header-actions" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
           <NotificationBell userId={userid} />
           <AccountMenu userId={userid} username={username} avatarUrl={avatarUrl} onLogout={onLogout} />
         </div>
@@ -108,6 +117,10 @@ function AppShell({ onLogout }) {
           <Route path="/wrapped" element={<Wrapped />} />
           <Route path="/achievements" element={<Achievements />} />
           <Route path="/settings" element={<Settings />} />
+          {/* Client-side gate is UX only (hides the link, avoids a dead-end page for
+              a non-admin who guesses the URL) — the real check is the server's
+              hasRole("ADMIN") on every /api/admin/** request this page makes. */}
+          <Route path="/admin/reports" element={isAdmin() ? <AdminReports /> : <NotFound />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
@@ -157,19 +170,23 @@ function Root() {
   }
 
   return (
-    <Routes>
-      {/* Reachable regardless of login state — a still-logged-in user clicking
-          an old reset-password email link should also land here, not get
-          shunted back into the app. */}
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="/terms" element={<TermsOfService />} />
-      <Route
-        path="/*"
-        element={logged ? <AuthenticatedApp onLogout={dologout} /> : <Login onLogin={handlelogin} />}
-      />
-    </Routes>
+    <ErrorBoundary>
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
+          {/* Reachable regardless of login state — a still-logged-in user clicking
+              an old reset-password email link should also land here, not get
+              shunted back into the app. */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route
+            path="/*"
+            element={logged ? <AuthenticatedApp onLogout={dologout} /> : <Login onLogin={handlelogin} />}
+          />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

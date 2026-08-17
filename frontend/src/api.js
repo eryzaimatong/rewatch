@@ -111,6 +111,20 @@ export async function setProfileVisibility(userId, isPublic) {
   return await res.json().catch(() => null);
 }
 
+export async function getEmailNotifications(userId) {
+  const res = await fetch(`${BASE}/api/account/email-notifications/${userId}`, { headers: authHeaders() });
+  return await res.json().catch(() => null);
+}
+
+export async function setEmailNotifications(userId, enabled) {
+  const res = await fetch(`${BASE}/api/account/email-notifications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, enabled })
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function setAccentColor(userId, accentColor) {
   const res = await fetch(`${BASE}/api/account/accent-color`, {
     method: "POST",
@@ -345,6 +359,23 @@ export async function fileReport(reportedUserId, reason, details, commentId) {
     body: JSON.stringify({ reportedUserId, reason, details, commentId })
   });
   return await res.json().catch(() => null);
+}
+
+/** Admin-only — see AdminReports.jsx. 403s for a non-admin caller, same as any other /api/admin/** route. */
+export async function listOpenReports() {
+  const res = await fetch(`${BASE}/api/admin/reports`, { headers: authHeaders() });
+  if (!res.ok) {
+    return null;
+  }
+  return await res.json();
+}
+
+export async function resolveReport(id) {
+  const res = await fetch(`${BASE}/api/admin/reports/${id}/resolve`, {
+    method: "POST",
+    headers: authHeaders()
+  });
+  return { ok: res.ok, data: await res.json().catch(() => null) };
 }
 
 export async function gettastedna(id) {
