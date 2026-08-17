@@ -9,7 +9,17 @@
  * dim, muted arc at low confidence and a bright, saturated one at high
  * confidence stays inside the established purple-discipline rule rather
  * than introducing a second accent color for the same meaning.
+ *
+ * Draws in from empty on mount rather than appearing already-at-value — the
+ * ring's `transition` (see App.css) only animates a value that *changes*
+ * after mount, so without this it painted at its final state on the very
+ * first frame, silent, on every card in the feed simultaneously. Starting
+ * at 0 and flipping to the real offset one frame later gives the transition
+ * something to animate, so the "here's your match" moment actually reads as
+ * one — the single most-repeated visual in the app, so this is the highest-
+ * leverage place for that first impression to land.
  */
+import { useEffect, useState } from "react";
 
 const R = 15;
 const CIRCUMFERENCE = 2 * Math.PI * R;
@@ -24,6 +34,14 @@ function colorForScore(score) {
 }
 
 export default function MatchRing({ score, size = 44 }) {
+  // Hooks first, unconditionally — the "no score, render nothing" bailout
+  // below can't come before these without breaking the rules of hooks.
+  const [drawn, setdrawn] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setdrawn(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   // No fallback default — an absent score renders nothing rather than a
   // fabricated number (this ring used to be fed `?? 60`/`?? 50` upstream).
   if (score === null || score === undefined || Number.isNaN(Number(score))) {
@@ -31,7 +49,7 @@ export default function MatchRing({ score, size = 44 }) {
   }
 
   const clamped = Math.max(0, Math.min(100, Math.round(score)));
-  const offset = CIRCUMFERENCE * (1 - clamped / 100);
+  const offset = drawn ? CIRCUMFERENCE * (1 - clamped / 100) : CIRCUMFERENCE;
   const color = colorForScore(clamped);
 
   return (
@@ -57,7 +75,7 @@ export default function MatchRing({ score, size = 44 }) {
           className="match-ring-arc"
         />
       </svg>
-      <span className="match-ring-label" aria-hidden="true">{clamped}</span>
+      <span className={`match-ring-label${drawn ? " is-visible" : ""}`} aria-hidden="true">{clamped}</span>
     </div>
   );
 }

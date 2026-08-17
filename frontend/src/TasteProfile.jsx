@@ -5,7 +5,9 @@ import BrandMark from "./BrandMark";
 import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
-import { drawBrandMark } from "./canvasBrandMark";
+import {
+  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, svgElementToImage, shareOrDownloadBlob, wrapText
+} from "./shareCard";
 import "./App.css";
 
 function getpercent(node) {
@@ -80,7 +82,7 @@ function ShareCardModal({
             Close
           </button>
           <button type="button" onClick={onExport} className="btn-primary btn-block" disabled={exporting}>
-            {exporting ? "Exporting..." : "Download PNG"}
+            {exporting ? "Exporting..." : "Share Card"}
           </button>
         </div>
       </div>
@@ -111,26 +113,6 @@ const FALLBACK_LABELS = {
   romance: "Romance",
   intensity: "Emotional Intensity"
 };
-
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-  const words = text.split(" ");
-  let line = "";
-  let cursorY = y;
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      ctx.fillText(line, x, cursorY);
-      line = word;
-      cursorY += lineHeight;
-    } else {
-      line = test;
-    }
-  }
-  if (line) {
-    ctx.fillText(line, x, cursorY);
-  }
-  return cursorY + lineHeight;
-}
 
 export default function TasteProfile() {
   const [traits, settraits] = useState({});
@@ -235,7 +217,7 @@ export default function TasteProfile() {
     loadprofile();
   }
 
-  function exportTasteCardPNG() {
+  async function exportTasteCardPNG() {
     const svg = document.getElementById("profile-radar-svg");
     if (!svg) {
       return;
@@ -247,105 +229,58 @@ export default function TasteProfile() {
     // <style> embedded IN the SVG itself survive. The radar's series colors are
     // already inline (see TraitRadar.jsx), but the grid/spokes/axis-label/dot
     // classes live in App.css and would render unstyled (or invisible) without
-    // this. Clone the node and inject a small self-contained stylesheet with
-    // literal resolved values — CSS custom properties (var(--x)) also wouldn't
-    // resolve in a detached document, so these are hex, not tokens.
-    const clone = svg.cloneNode(true);
-    const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
-    style.textContent = `
-      .radar-grid-ring { stroke: rgba(255,255,255,0.15); stroke-width: 1; }
-      .radar-spoke { stroke: rgba(255,255,255,0.085); stroke-width: 1; }
-      .radar-confidence-band { stroke: none; opacity: 0.16; }
-      .radar-series-path { stroke-width: 2; fill-opacity: 0.1; }
-      .radar-dot { stroke: #1f2029; stroke-width: 2; paint-order: stroke fill; }
-      .radar-axis-label { fill: #71717a; font-size: 0.62rem; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; }
-    `;
-    clone.insertBefore(style, clone.firstChild);
-
-    const svgData = new XMLSerializer().serializeToString(clone);
-    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(svgBlob);
-    const img = new Image();
-
-    img.onload = () => {
-      // 9:16 — Stories/Reels/TikTok's native canvas, not a feed-post square.
-      // At scale 2 this exports at exactly 1080x1920.
-      const scale = 2;
-      const cardW = 540;
-      const cardH = 960;
-      const imgSize = 340;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = cardW * scale;
-      canvas.height = cardH * scale;
-      const ctx = canvas.getContext("2d");
-      ctx.scale(scale, scale);
-
-      const grad = ctx.createLinearGradient(0, 0, cardW, cardH);
-      grad.addColorStop(0, "#1f2029");
-      grad.addColorStop(1, "#14151a");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, cardW, cardH);
-      ctx.strokeStyle = "rgba(168,85,247,0.5)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(1, 1, cardW - 2, cardH - 2);
-
-      // Small aperture + inner decagon, echoing BrandMark.jsx — drawn with
-      // Canvas 2D primitives since this is a flat raster, not DOM/SVG.
-      drawBrandMark(ctx, cardW / 2, 56, 16);
-
-      ctx.textAlign = "center";
-      ctx.fillStyle = "#a855f7";
-      ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("RE:WATCH TASTEDNA", cardW / 2, 100);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(`${username}'s Card`, cardW / 2, 144);
-
-      ctx.fillStyle = "#d8b4fe";
-      ctx.font = "bold 18px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(archetype, cardW / 2, 174);
-
-      const imgTop = 200;
-      ctx.drawImage(img, (cardW - imgSize) / 2, imgTop, imgSize, imgSize);
-
-      ctx.fillStyle = "#a1a1aa";
-      ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
-      ctx.textAlign = "left";
-      wrapText(ctx, archetypeBlurb, 36, imgTop + imgSize + 36, cardW - 72, 19);
-
-      // Closing brand moment, anchored to the bottom — a 9:16 card has real
-      // space left below a short blurb, so it gets a deliberate footer
-      // rather than dead air.
-      ctx.textAlign = "center";
-      ctx.fillStyle = "rgba(255,255,255,0.12)";
-      ctx.fillRect(cardW / 2 - 24, cardH - 84, 48, 1);
-      ctx.fillStyle = "#71717a";
-      ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
-      ctx.fillStyle = "#a855f7";
-      ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
-
-      URL.revokeObjectURL(url);
+    // this. Literal resolved values, not CSS custom properties — var(--x)
+    // also wouldn't resolve in a detached document.
+    let img;
+    try {
+      img = await svgElementToImage(svg, `
+        .radar-grid-ring { stroke: rgba(255,255,255,0.15); stroke-width: 1; }
+        .radar-spoke { stroke: rgba(255,255,255,0.085); stroke-width: 1; }
+        .radar-confidence-band { stroke: none; opacity: 0.16; }
+        .radar-series-path { stroke-width: 2; fill-opacity: 0.1; }
+        .radar-dot { stroke: #1f2029; stroke-width: 2; paint-order: stroke fill; }
+        .radar-axis-label { fill: #71717a; font-size: 0.62rem; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; }
+      `);
+    } catch {
       setexporting(false);
+      return;
+    }
 
-      canvas.toBlob((blob) => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `${username}-tastedna-card.png`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+    const imgSize = 340;
+    const canvas = document.createElement("canvas");
+    canvas.width = CARD_W * CARD_SCALE;
+    canvas.height = CARD_H * CARD_SCALE;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(CARD_SCALE, CARD_SCALE);
+
+    drawCardFrame(ctx, "RE:WATCH TASTEDNA");
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(`${username}'s Card`, CARD_W / 2, 144);
+
+    ctx.fillStyle = "#d8b4fe";
+    ctx.font = "bold 18px 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText(archetype, CARD_W / 2, 174);
+
+    const imgTop = 200;
+    ctx.drawImage(img, (CARD_W - imgSize) / 2, imgTop, imgSize, imgSize);
+
+    ctx.fillStyle = "#a1a1aa";
+    ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
+    ctx.textAlign = "left";
+    wrapText(ctx, archetypeBlurb, 36, imgTop + imgSize + 36, CARD_W - 72, 19);
+
+    drawCardFooter(ctx);
+
+    setexporting(false);
+    canvas.toBlob((blob) => {
+      shareOrDownloadBlob(blob, `${username}-tastedna-card.png`, {
+        title: "My Re:Watch TasteDNA",
+        text: `My TasteDNA archetype on Re:Watch: ${archetype}`
       });
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      setexporting(false);
-    };
-
-    img.src = url;
+    });
   }
 
   return (

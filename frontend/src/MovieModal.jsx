@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import TraitRadar from "./TraitRadar";
 import useModalA11y from "./useModalA11y";
+import MatchShareCard from "./MatchShareCard";
 import { authHeaders } from "./auth";
 import { BASE, rateMovie } from "./api";
+import { playConfirm, playChime, playSoftError } from "./sound";
 import "./App.css";
 
 // Matches the validated pair in TraitRadar.jsx: purple (user) vs --cyan
@@ -147,6 +149,18 @@ export default function MovieModal({ movie, onClose }) {
   const [err, seterr] = useState("");
   const [topshift, settopshift] = useState(null);
   const [rewatchInfo, setrewatchInfo] = useState(null);
+  const [unlockedAchievement, setunlockedAchievement] = useState(null);
+  const [saving, setsaving] = useState(false);
+  const [showsharecard, setshowsharecard] = useState(false);
+  // The modal previously had no watchlist action at all — the only way to
+  // save a title was the poster's quick-action icon back in the feed grid,
+  // which meant "Discover Something New" (Dashboard.jsx's MiniCard, opened
+  // straight into this modal with no surrounding card chrome) had no save
+  // path whatsoever. Self-contained here (its own fetch/toggle) rather than
+  // threaded through as props, since this modal is opened from more than one
+  // parent (MovieFeed, Dashboard) with different local watchlist-state shapes.
+  const [savedItemId, setsavedItemId] = useState(null);
+  const [savingWatchlist, setsavingWatchlist] = useState(false);
 
   const [matchData, setmatchData] = useState(null);
   const [matchLoading, setmatchLoading] = useState(true);
@@ -190,6 +204,53 @@ export default function MovieModal({ movie, onClose }) {
     setdetailsLoading(false);
   }
 
+  async function loadWatchlistStatus(movieId, uid) {
+    if (!movieId) {
+      setsavedItemId(null);
+      return;
+    }
+    const res = await fetch(`${BASE}/api/watchlist/${uid}`, { headers: authHeaders() }).catch(() => null);
+    const items = res && res.ok ? await res.json().catch(() => null) : null;
+    if (!Array.isArray(items)) {
+      return;
+    }
+    const match = items.find((item) => String(item.tmdbId ?? item.titleId) === String(movieId));
+    setsavedItemId(match ? match.id : null);
+  }
+
+  async function toggleWatchlist() {
+    if (savingWatchlist || !movie) {
+      return;
+    }
+    setsavingWatchlist(true);
+    if (savedItemId) {
+      const res = await fetch(`${BASE}/api/watchlist/items/${savedItemId}?userId=${userid}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      }).catch(() => null);
+      if (res && res.ok) {
+        setsavedItemId(null);
+      }
+    } else {
+      const res = await fetch(`${BASE}/api/watchlist/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          userId: userid,
+          tmdbId: movie.id,
+          titleId: movie.titleId ?? undefined,
+          title: movie.title
+        })
+      }).catch(() => null);
+      const saved = res && res.ok ? await res.json().catch(() => null) : null;
+      if (saved?.id) {
+        setsavedItemId(saved.id);
+        playConfirm();
+      }
+    }
+    setsavingWatchlist(false);
+  }
+
   useEffect(() => {
     // See EvolutionTimeline.jsx for why this needs a targeted disable: a
     // fetch keyed on the title/user changing is exactly what an effect is
@@ -198,7 +259,8 @@ export default function MovieModal({ movie, onClose }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMatch(movie?.titleId, userid);
     loadDetails(movie?.titleId);
-  }, [movie?.titleId, userid]);
+    loadWatchlistStatus(movie?.id, userid);
+  }, [movie?.id, movie?.titleId, userid]);
 
   const modalRef = useModalA11y(onClose);
 
@@ -215,17 +277,29 @@ export default function MovieModal({ movie, onClose }) {
     movieValues[c.trait] = c.movieVal;
   });
   const tradeoffs = deriveTradeoffs(explanation?.all, matchData?.matchScore ?? movie.matchScore);
+  // Same "+12.4 Bittersweet Drama" shape as the on-screen Drivers list
+  // (ContributionRow) — the share card's reasons should read identically to
+  // what's already on screen, not a second, drifting phrasing of the same data.
+  const shareDrivers = (explanation?.drivers ?? [])
+    .slice(0, 3)
+    .map((d) => `${d.contribution >= 0 ? "+" : ""}${d.contribution.toFixed(1)} ${d.label}`);
 
   async function dorate() {
+    if (saving) {
+      return;
+    }
     setmsg("");
     seterr("");
     settopshift(null);
     setrewatchInfo(null);
+    setunlockedAchievement(null);
 
     if (overall === 0) {
       seterr("Rate at least Overall before saving.");
       return;
     }
+
+    setsaving(true);
 
     // Facets the user never touched are sent as undefined, not faked as a
     // middle "3" — an untouched star row isn't the same signal as an
@@ -243,26 +317,41 @@ export default function MovieModal({ movie, onClose }) {
       moment: moment
     };
 
-    const { ok, data: result } = await rateMovie(payload);
+    try {
+      const { ok, data: result } = await rateMovie(payload);
 
-    if (!ok) {
-      seterr("Could not save this rating to the server.");
-      return;
-    }
+      if (!ok) {
+        seterr("Could not save this rating to the server.");
+        playSoftError();
+        return;
+      }
 
-    if (result?.isRewatch) {
-      setrewatchInfo({ watchNumber: result.watchNumber, previousOverall: result.previousOverall });
-    } else {
-      // Shown only when the shift-toast isn't (no trait moved enough to name) —
-      // still real feedback that the rating landed, not a generic "saved."
-      setmsg("Got it — that's now part of your story.");
-    }
-    if (result?.topShift) {
-      settopshift(result.topShift);
+      if (result?.isRewatch) {
+        setrewatchInfo({ watchNumber: result.watchNumber, previousOverall: result.previousOverall });
+      } else {
+        // Shown only when the shift-toast isn't (no trait moved enough to name) —
+        // still real feedback that the rating landed, not a generic "saved."
+        setmsg("Got it — that's now part of your story.");
+      }
+      if (result?.topShift) {
+        settopshift(result.topShift);
+      }
+      // The bigger chime takes priority over the plain confirm — an
+      // achievement unlocking is the more exciting of the two things that
+      // could have just happened, so it gets the sound that matches that.
+      if (result?.newlyUnlockedAchievements?.length > 0) {
+        setunlockedAchievement(result.newlyUnlockedAchievements[0]);
+        playChime();
+      } else {
+        playConfirm();
+      }
+    } finally {
+      setsaving(false);
     }
   }
 
   return (
+    <>
     <div
       className="modal-overlay"
       onClick={(e) => {
@@ -291,9 +380,32 @@ export default function MovieModal({ movie, onClose }) {
             </p>
           </div>
 
-          <button type="button" onClick={onClose} className="modal-close" aria-label="Close">
-            ✕
-          </button>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={toggleWatchlist}
+              disabled={savingWatchlist}
+              className={`modal-share-trigger${savedItemId ? " is-saved" : ""}`}
+              aria-label={savedItemId ? `Remove ${movie.title} from watchlist` : `Save ${movie.title} to watchlist`}
+              title={savedItemId ? "Remove from watchlist" : "Save to watchlist"}
+            >
+              {savedItemId ? "✓" : "+"}
+            </button>
+            {(matchData?.matchScore ?? movie.matchScore) != null && (
+              <button
+                type="button"
+                onClick={() => setshowsharecard(true)}
+                className="modal-share-trigger"
+                aria-label="Share this match"
+                title="Share this match"
+              >
+                ⤴
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="modal-close" aria-label="Close">
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="modal-tabs">
@@ -478,10 +590,28 @@ export default function MovieModal({ movie, onClose }) {
                 </motion.div>
               )}
             </AnimatePresence>
+            <AnimatePresence>
+              {unlockedAchievement && (
+                <motion.div
+                  className="shift-toast achievement-toast"
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  style={{ marginBottom: "var(--sp-2)" }}
+                >
+                  <span className="shift-toast-icon">🏆</span>
+                  <span className="shift-toast-text">
+                    Achievement unlocked — <strong>{unlockedAchievement}</strong>
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {msg && !topshift && <p className="status-message status-message--success">{msg}</p>}
 
-            <button type="button" onClick={dorate} className="btn-primary btn-block">
-              Save Rating & Evolve Profile
+            <button type="button" onClick={dorate} disabled={saving} className="btn-primary btn-block">
+              {saving ? "Saving…" : "Save Rating & Evolve Profile"}
             </button>
           </div>
         )}
@@ -559,5 +689,15 @@ export default function MovieModal({ movie, onClose }) {
         )}
       </div>
     </div>
+    {showsharecard && (
+      <MatchShareCard
+        movie={movie}
+        matchScore={matchData?.matchScore ?? movie.matchScore}
+        drivers={shareDrivers}
+        username={localStorage.getItem("username") || "friend"}
+        onClose={() => setshowsharecard(false)}
+      />
+    )}
+    </>
   );
 }

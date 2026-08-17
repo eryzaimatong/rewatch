@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
-import { drawBrandMark } from "./canvasBrandMark";
+import {
+  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, loadImage, shareOrDownloadBlob
+} from "./shareCard";
 import EmptyState from "./EmptyState";
 import "./App.css";
 
@@ -70,51 +72,92 @@ export default function Wrapped() {
     return `${arrow} ${sign}${points.toFixed(1)}pts`;
   }
 
-  function exportWrappedPNG() {
+  async function exportWrappedPNG() {
     if (!summary) return;
     setexporting(true);
 
-    // 9:16 — Stories/Reels/TikTok's native canvas, not a feed-post square. At
-    // scale 2 this exports at exactly 1080x1920, the platform-standard size.
-    const scale = 2;
-    const cardW = 540;
-    const cardH = 960;
+    const topPosters = summary.topRatings.slice(0, 5);
+    // Posters loaded before any drawing starts — a poster collage is the
+    // single biggest lever for this card actually looking like something
+    // worth sharing rather than a stats readout; the previous version had
+    // no imagery at all. Failures degrade to no image for that slot rather
+    // than failing the whole export (a dead TMDB poster URL shouldn't cost
+    // someone their whole recap).
+    const posterImages = await Promise.all(
+      topPosters.map((r) => loadImage(poster(r.poster)).catch(() => null))
+    );
 
     const canvas = document.createElement("canvas");
-    canvas.width = cardW * scale;
-    canvas.height = cardH * scale;
+    canvas.width = CARD_W * CARD_SCALE;
+    canvas.height = CARD_H * CARD_SCALE;
     const ctx = canvas.getContext("2d");
-    ctx.scale(scale, scale);
+    ctx.scale(CARD_SCALE, CARD_SCALE);
 
-    const grad = ctx.createLinearGradient(0, 0, cardW, cardH);
-    grad.addColorStop(0, "#1f2029");
-    grad.addColorStop(1, "#14151a");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, cardW, cardH);
-    ctx.strokeStyle = "rgba(168,85,247,0.5)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(1, 1, cardW - 2, cardH - 2);
-
-    drawBrandMark(ctx, cardW / 2, 56, 16);
+    drawCardFrame(ctx, "RE:WATCH WRAPPED");
 
     ctx.textAlign = "center";
-    ctx.fillStyle = "#a855f7";
-    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("RE:WATCH WRAPPED", cardW / 2, 100);
-
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 32px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(summary.period, cardW / 2, 146);
+    ctx.fillText(summary.period, CARD_W / 2, 146);
 
     ctx.fillStyle = "#a1a1aa";
     ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, cardW / 2, 172);
+    ctx.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, CARD_W / 2, 172);
 
     ctx.fillStyle = "#d8b4fe";
     ctx.font = "bold 19px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(summary.archetype, cardW / 2, 214);
+    ctx.fillText(summary.archetype, CARD_W / 2, 214);
 
-    let y = 280;
+    // Poster collage — the visual hook. Real cover art, not just numbers.
+    let y = 250;
+    if (posterImages.some(Boolean)) {
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#71717a";
+      ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+      ctx.fillText("TOP RATED", 36, y);
+      y += 18;
+
+      // Sized for a fixed 5-slot row (this section's max, per TOP_RATING_COUNT
+      // server-side) regardless of how many titles actually rendered — dividing
+      // by topPosters.length instead scaled a single poster up to nearly the
+      // full card width on a light month (1-2 ratings) and blew straight
+      // through the footer below it. Centered as a row instead of always
+      // left-aligned, so 1-2 posters don't look stranded against the margin.
+      const gap = 10;
+      const slotCount = 5;
+      const posterW = (CARD_W - 72 - gap * (slotCount - 1)) / slotCount;
+      const posterH = posterW * 1.5;
+      const rowWidth = topPosters.length * posterW + gap * (topPosters.length - 1);
+      const rowStart = (CARD_W - rowWidth) / 2;
+      topPosters.forEach((r, i) => {
+        const x = rowStart + i * (posterW + gap);
+        const img = posterImages[i];
+        ctx.save();
+        ctx.beginPath();
+        const radius = 8;
+        ctx.moveTo(x + radius, y);
+        ctx.arcTo(x + posterW, y, x + posterW, y + posterH, radius);
+        ctx.arcTo(x + posterW, y + posterH, x, y + posterH, radius);
+        ctx.arcTo(x, y + posterH, x, y, radius);
+        ctx.arcTo(x, y, x + posterW, y, radius);
+        ctx.closePath();
+        ctx.clip();
+        if (img) {
+          ctx.drawImage(img, x, y, posterW, posterH);
+        } else {
+          ctx.fillStyle = "#20212a";
+          ctx.fillRect(x, y, posterW, posterH);
+        }
+        ctx.restore();
+
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
+        ctx.font = "11px 'Plus Jakarta Sans', sans-serif";
+        ctx.fillText("★".repeat(r.overall || 0), x + posterW / 2, y + posterH + 16);
+      });
+      y += posterH + 40;
+    }
+
     ctx.textAlign = "left";
     ctx.fillStyle = "#71717a";
     ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
@@ -129,50 +172,19 @@ export default function Wrapped() {
       ctx.textAlign = "right";
       ctx.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171"; // mirrors --success/--danger — Canvas can't resolve CSS vars
       ctx.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(shiftLabel(s), cardW - 36, y);
+      ctx.fillText(shiftLabel(s), CARD_W - 36, y);
       ctx.textAlign = "left";
       y += 40;
     });
 
-    y += 20;
-    ctx.fillStyle = "#71717a";
-    ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("TOP RATED", 36, y);
-    y += 34;
-
-    summary.topRatings.slice(0, 5).forEach((r) => {
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
-      const title = r.title.length > 28 ? r.title.slice(0, 28) + "…" : r.title;
-      ctx.fillText(title, 36, y);
-
-      ctx.textAlign = "right";
-      ctx.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
-      ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("★".repeat(r.overall || 0), cardW - 36, y);
-      ctx.textAlign = "left";
-      y += 34;
-    });
-
-    // Closing brand moment — a 9:16 card has real space left below a typical
-    // month's content, so it gets a deliberate footer rather than dead air.
-    ctx.textAlign = "center";
-    ctx.fillStyle = "rgba(255,255,255,0.12)";
-    ctx.fillRect(cardW / 2 - 24, cardH - 84, 48, 1);
-    ctx.fillStyle = "#71717a";
-    ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
-    ctx.fillStyle = "#a855f7";
-    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
+    drawCardFooter(ctx);
 
     setexporting(false);
     canvas.toBlob((blob) => {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `${username}-wrapped-${month}.png`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      shareOrDownloadBlob(blob, `${username}-wrapped-${month}.png`, {
+        title: "My Re:Watch Wrapped",
+        text: `My ${summary.period} on Re:Watch: ${summary.archetype}`
+      });
     });
   }
 
@@ -196,7 +208,7 @@ export default function Wrapped() {
             />
             {summary && summary.hasData && (
               <button type="button" onClick={exportWrappedPNG} className="btn-primary" disabled={exporting}>
-                {exporting ? "Exporting..." : "Download Card"}
+                {exporting ? "Exporting..." : "Share Card"}
               </button>
             )}
           </div>
