@@ -79,6 +79,25 @@ data) — generated from the controllers/DTOs via springdoc, not hand-written,
 so it can't drift from the actual routes. `GET /v3/api-docs` is the raw
 OpenAPI 3.0 JSON if you want to feed it to another tool.
 
+## Catalog seeding
+
+The `titles` table starts empty on a fresh database. `CatalogSeeder`
+(`service/CatalogSeeder.java`) runs automatically on every boot and, if fewer
+than 200 titles exist, calls the same bulk-expand operation below in a
+background thread to seed ~1500 titles — a first-time deploy no longer needs
+a manual step for Mood Search and Discovery to have something to work with.
+
+To re-run it manually (e.g. to grow the catalog further, or immediately
+rather than waiting on the next restart):
+
+```
+POST /api/admin/expand-catalog?target=1500
+```
+
+Requires an ADMIN-role account (see `rewatch.admin.emails`) and a configured
+`TMDB_API_KEY`. Takes real wall-clock time — hundreds of rate-limited TMDB
+calls, roughly a couple of minutes at the default target.
+
 ## Health check
 
 `GET /api/health` (no auth required) checks the database connection and
