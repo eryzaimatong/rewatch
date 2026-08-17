@@ -129,6 +129,7 @@ function normalizeMovie(item, index) {
       matchScore: undefined,
       reasons: ["Balanced storytelling fit"],
       explanation: null,
+      storyVector: null,
       genres: [],
       trailerUrl: null,
       originalLanguage: null,
@@ -204,6 +205,10 @@ function normalizeMovie(item, index) {
     // MatchExplanation.java. Falls back to the flat `reasons` list above
     // when absent (e.g. a shape that hasn't been scored yet).
     explanation: item?.explanation ?? source.explanation ?? null,
+    // Keyed by Trait.java's wire keys (comfort, intensity, bitter, ...),
+    // 0..1. Powers the mood-row split below — without this, "Comforting" and
+    // "Bittersweet" had nothing but reason/genre text to filter on.
+    storyVector: item?.storyVector ?? source.storyVector ?? null,
     genres,
     trailerUrl:
       source.trailerUrl ??
@@ -723,20 +728,21 @@ export default function MovieFeed() {
   }
 
   const shortlist = visiblemovies.slice(0, 4);
-  const comfortlist = [];
-  const bitterlist = [];
 
-  for (let i = 0; i < visiblemovies.length; i++) {
-    const m = visiblemovies[i];
-    const text = (m.reasons.join(" ") + " " + m.genres.join(" ") + " " + m.title).toLowerCase();
-
-    if (comfortlist.length < 4 && (text.includes("comfort") || text.includes("family") || text.includes("slice"))) {
-      comfortlist.push(m);
-    }
-    if (bitterlist.length < 4 && (text.includes("bitter") || text.includes("drama") || text.includes("slow"))) {
-      bitterlist.push(m);
-    }
-  }
+  // Was keyword-matching against each title's reasons/genres/title text for
+  // "comfort"/"family"/"slice" vs. "bitter"/"drama"/"slow" — but "drama" and
+  // "family" are common enough genre words that both lists degenerately
+  // matched the same already-top-ranked titles as shortlist, in the same
+  // order, making three "different" mood rows render identically. These now
+  // read the title's own storyVector (Trait.java's comfort/intensity/bitter
+  // axes, 0..1, movie-side — see MovieDTO.storyVector) instead of scanning
+  // display text for lucky substring hits.
+  const comfortlist = visiblemovies
+    .filter((m) => (m.storyVector?.comfort ?? 0) >= 0.55 && (m.storyVector?.intensity ?? 1) <= 0.5)
+    .slice(0, 4);
+  const bitterlist = visiblemovies
+    .filter((m) => (m.storyVector?.bitter ?? 0) >= 0.55)
+    .slice(0, 4);
 
   function renderRow(title, eyebrow, subtitle, items) {
     if (items.length === 0) {
