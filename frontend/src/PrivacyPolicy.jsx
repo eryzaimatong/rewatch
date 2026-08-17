@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
         <span className="eyebrow">Legal</span>
         <h1>Privacy Policy</h1>
         <p style={{ color: "var(--text-faint)", fontSize: "0.82rem" }}>
-          Effective date: [effective date]
+          Effective date: August 18, 2026
         </p>
 
         <p>
@@ -53,8 +53,8 @@ export default function PrivacyPolicy() {
 
         <h2>Contact</h2>
         <p>
-          Questions about this policy: [contact email]. This app operates under the
-          laws of [jurisdiction].
+          Questions about this policy: imatongeryzamae@gmail.com. This app operates
+          under the laws of the Philippines.
         </p>
       </div>
     </div>

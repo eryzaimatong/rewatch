@@ -84,7 +84,14 @@ function emojiFor(archetype) {
 }
 
 const TMDB_POSTER_THUMB_BASE = "https://image.tmdb.org/t/p/w154";
-const FALLBACK_POSTER_THUMB = "https://placehold.co/154x231/191a21/a855f7?text=%20";
+// A plain color swatch, not a placehold.co URL — placehold.co treats a
+// whitespace `text=` param as "none given" and falls back to rendering its
+// own "154 × 231" dimension label instead of staying blank, which is exactly
+// what real, unrelated dimension text was doing here in production. An
+// inline SVG data URI has no such fallback behavior and no network
+// dependency for something that's just a solid rectangle.
+const FALLBACK_POSTER_THUMB =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='154' height='231'%3E%3Crect width='100%25' height='100%25' fill='%23191a21'/%3E%3C/svg%3E";
 
 function posterThumbUrl(t) {
   return t.poster ? `${TMDB_POSTER_THUMB_BASE}${t.poster}` : FALLBACK_POSTER_THUMB;

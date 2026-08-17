@@ -7,7 +7,7 @@ export default function TermsOfService() {
         <span className="eyebrow">Legal</span>
         <h1>Terms of Service</h1>
         <p style={{ color: "var(--text-faint)", fontSize: "0.82rem" }}>
-          Effective date: [effective date]
+          Effective date: August 18, 2026
         </p>
 
         <h2>Using Re:Watch</h2>
@@ -50,8 +50,8 @@ export default function TermsOfService() {
 
         <h2>Contact</h2>
         <p>
-          Questions about these terms: [contact email]. These terms are governed by
-          the laws of [jurisdiction].
+          Questions about these terms: imatongeryzamae@gmail.com. These terms are
+          governed by the laws of the Philippines.
         </p>
       </div>
     </div>
