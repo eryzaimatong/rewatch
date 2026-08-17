@@ -95,7 +95,16 @@ public class TmdbService {
         }
 
         NlpQueryParser.ParsedQuery parsed = nlpQueryParser.parse(query, titleRepo.findAll());
-        List<Title> candidates = titleRepo.findAll();
+        // Unlike recommend()'s candidate pool, this used to be the raw, entirely
+        // unfiltered catalog — including titles with a single stray vote and a
+        // two-word TMDB overview (bulkExpand ingests broadly, and not every
+        // TMDB entry is a real, well-documented release). A mood query has no
+        // per-user profile to gate against — see this method's own doc comment
+        // — so a coincidentally-decent score against a target vector was
+        // enough for one of those to become someone's top, or even featured,
+        // "match" for what they typed. Same quality bar recommend() already
+        // applies, reused here rather than re-derived.
+        List<Title> candidates = recommender.candidatePool(30);
 
         List<MovieDTO> scored = new ArrayList<>(candidates.size());
         for (Title t : candidates) {

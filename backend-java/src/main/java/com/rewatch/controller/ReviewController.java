@@ -73,9 +73,14 @@ public class ReviewController {
     public ResponseEntity<?> addComment(@PathVariable Long ratingId, @RequestBody Map<String, Object> body,
                                         Authentication authentication) {
         Long callerId = requireAuth(authentication);
+        Object rawBody = body.get("body");
+        if (!(rawBody instanceof String commentText)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", "'body' must be a string"));
+        }
         try {
             boolean hasSpoilers = Boolean.TRUE.equals(body.get("hasSpoilers"));
-            ReviewComment comment = reviewService.addComment(callerId, ratingId, (String) body.get("body"), hasSpoilers);
+            ReviewComment comment = reviewService.addComment(callerId, ratingId, commentText, hasSpoilers);
             notifyReviewOwner(ratingId, callerId,
                     (owner, commenter, title) -> notificationService.notifyReviewCommented(owner, callerId, commenter, title));
             return ResponseEntity.ok(Map.of(

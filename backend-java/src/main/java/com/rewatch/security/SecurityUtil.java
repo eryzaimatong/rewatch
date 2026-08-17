@@ -37,11 +37,31 @@ public final class SecurityUtil {
         }
     }
 
-    /** X-Forwarded-For first — a real deployment sits behind nginx/a load balancer, where getRemoteAddr() would just be that proxy's own address. */
+    /**
+     * Off by default: {@code X-Forwarded-For} is a plain request header, so
+     * any client can set it to a fresh fake value on every request. Trusting
+     * it unconditionally turns RateLimiterService into a no-op — a login
+     * brute-forcer just sends a different X-Forwarded-For each attempt and
+     * gets a brand-new bucket every time. Only flip this on
+     * ({@code rewatch.security.trust-proxy-headers=true}) when this app
+     * actually sits behind a reverse proxy/load balancer that overwrites
+     * (not appends to) any client-supplied X-Forwarded-For before forwarding
+     * — the current docker-compose setup exposes the backend directly, so
+     * the header is fully attacker-controlled there.
+     */
+    private static volatile boolean trustProxyHeaders = false;
+
+    static void setTrustProxyHeaders(boolean trust) {
+        trustProxyHeaders = trust;
+    }
+
+    /** The caller's IP for rate-limiting. See {@link #trustProxyHeaders} for why X-Forwarded-For isn't trusted by default. */
     public static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+        if (trustProxyHeaders) {
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                return forwarded.split(",")[0].trim();
+            }
         }
         return request.getRemoteAddr();
     }

@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,6 +37,23 @@ public class SecurityExceptionHandler {
         return ResponseEntity.status(ex.getStatusCode())
                 .body(Map.of("status", "error", "message",
                         ex.getReason() != null ? ex.getReason() : "Request failed"));
+    }
+
+    /**
+     * Without this, a @Valid failure (e.g. POST /api/auth/register missing
+     * email) fell through to the catch-all below — the same "no explicit
+     * handler for this exception type" gap that used to misroute 403s as
+     * 401s, here turning a real, clean 400 into a generic 500. Same
+     * highest-precedence-resolver reasoning as the class-level doc comment.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<?> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(fe -> fe.getField() + " " + fe.getDefaultMessage())
+                .orElse("Invalid request.");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("status", "error", "message", message));
     }
 
     @ExceptionHandler(Exception.class)

@@ -328,15 +328,20 @@ public class SocialService {
         return Map.of("status", "success", "following", false);
     }
 
+    /** Hard cap on the follower/following lists a single request returns — see the class-level pagination note. */
+    private static final int MAX_CONNECTIONS_PER_PAGE = 200;
+
     public List<UserSummaryDTO> followers(Long targetId, Long callerId) {
-        List<Long> ids = followRepo.findByFolloweeIdOrderByCreatedAtDesc(targetId).stream()
-                .map(Follow::getFollowerId).toList();
+        List<Long> ids = followRepo
+                .findByFolloweeIdOrderByCreatedAtDesc(targetId, PageRequest.of(0, MAX_CONNECTIONS_PER_PAGE))
+                .stream().map(Follow::getFollowerId).toList();
         return summarize(ids, callerId);
     }
 
     public List<UserSummaryDTO> following(Long targetId, Long callerId) {
-        List<Long> ids = followRepo.findByFollowerIdOrderByCreatedAtDesc(targetId).stream()
-                .map(Follow::getFolloweeId).toList();
+        List<Long> ids = followRepo
+                .findByFollowerIdOrderByCreatedAtDesc(targetId, PageRequest.of(0, MAX_CONNECTIONS_PER_PAGE))
+                .stream().map(Follow::getFolloweeId).toList();
         return summarize(ids, callerId);
     }
 
@@ -414,7 +419,14 @@ public class SocialService {
         if (!isProfileVisibleTo(targetId, callerId)) {
             return List.of();
         }
-        List<Rating> ratings = dedupeByTitle(ratingRepo.findByUserIdOrderByCreatedAtDescIdDesc(targetId).stream()
+        // Filtering (non-blank moment) and dedupeByTitle both shrink the candidate
+        // set, so the DB fetch is sized generously above `limit` rather than exactly
+        // `limit` — but still bounded, so a long-time user's entire rating log
+        // doesn't load into memory on every profile view (see MAX_CONNECTIONS_PER_PAGE
+        // for the same reasoning applied to followers/following).
+        int fetchWindow = Math.min(Math.max(limit * 5, limit), 500);
+        List<Rating> ratings = dedupeByTitle(ratingRepo
+                .findByUserIdOrderByCreatedAtDescIdDesc(targetId, PageRequest.of(0, fetchWindow)).stream()
                 .filter(r -> r.getMoment() != null && !r.getMoment().isBlank()))
                 .limit(limit)
                 .toList();

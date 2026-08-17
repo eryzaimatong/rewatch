@@ -9,7 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -161,7 +163,7 @@ public class TmdbClient {
             }
             return out;
         } catch (RestClientException | ClassCastException e) {
-            log.warn("TMDB keyword lookup failed for {}: {}", tmdbId, e.getMessage());
+            logTmdbFailure("/movie/" + tmdbId + " (keywords)", e);
             return List.of();
         }
     }
@@ -218,7 +220,7 @@ public class TmdbClient {
                     extractRuntimeMinutes(res, isTv),
                     extractCertification(res, isTv));
         } catch (RestClientException | ClassCastException e) {
-            log.warn("TMDB details lookup failed for {} (tv={}): {}", tmdbId, isTv, e.getMessage());
+            logTmdbFailure((isTv ? "/tv/" : "/movie/") + tmdbId + " (details)", e);
             return null;
         }
     }
@@ -418,7 +420,7 @@ public class TmdbClient {
             }
             return out;
         } catch (RestClientException | ClassCastException e) {
-            log.warn("TMDB request to {} failed: {}", path, e.getMessage());
+            logTmdbFailure(path, e);
             return List.of();
         }
     }
@@ -449,7 +451,7 @@ public class TmdbClient {
             }
             return out;
         } catch (RestClientException | ClassCastException e) {
-            log.warn("TMDB request to {} failed: {}", path, e.getMessage());
+            logTmdbFailure(path, e);
             return List.of();
         }
     }
@@ -515,6 +517,21 @@ public class TmdbClient {
                 asDouble(item.get("vote_average")),
                 asInt(item.get("vote_count")),
                 asDouble(item.get("popularity")));
+    }
+
+    /**
+     * A 429 (rate-limited) and a genuinely empty/unavailable result both degrade
+     * to an empty list to the caller — by design, see the class doc — but they
+     * shouldn't look identical in the logs. Without this, a traffic spike that
+     * trips TMDB's rate limit silently blanks out search/discovery with no
+     * signal that it's rate-limiting rather than "nothing found."
+     */
+    private void logTmdbFailure(String path, Exception e) {
+        if (e instanceof HttpClientErrorException httpEx && httpEx.getStatusCode() == HttpStatusCode.valueOf(429)) {
+            log.warn("TMDB rate-limited (429) request to {} — serving empty/stale result until the next successful call", path);
+        } else {
+            log.warn("TMDB request to {} failed: {}", path, e.getMessage());
+        }
     }
 
     private static String str(Object o) {

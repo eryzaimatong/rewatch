@@ -17,6 +17,9 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
 
     List<Rating> findByUserIdOrderByCreatedAtDescIdDesc(Long userId);
 
+    /** Bounded variant for SocialService.reviews — a long-time user's whole rating log shouldn't load into memory on every profile view. */
+    List<Rating> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, org.springframework.data.domain.Pageable pageable);
+
     long countByUserId(Long userId);
 
     boolean existsByUserIdAndTitleId(Long userId, Long titleId);

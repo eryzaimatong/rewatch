@@ -2,6 +2,7 @@ package com.rewatch.repository;
 
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,6 +18,11 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
     List<Follow> findByFollowerIdOrderByCreatedAtDesc(Long followerId);
 
     List<Follow> findByFolloweeIdOrderByCreatedAtDesc(Long followeeId);
+
+    /** Bounded variants for endpoints that return this list to a client — see SocialService.followers/following. */
+    List<Follow> findByFollowerIdOrderByCreatedAtDesc(Long followerId, Pageable pageable);
+
+    List<Follow> findByFolloweeIdOrderByCreatedAtDesc(Long followeeId, Pageable pageable);
 
     long countByFollowerId(Long followerId);
 

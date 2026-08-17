@@ -10,15 +10,41 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 
 @Entity
 @Table(name = "users")
 public class User {
 
+    /**
+     * READ_ONLY for the same mass-assignment reason as role/tokenVersion/etc
+     * below, but the sharper case: AuthController.register binds a request
+     * body straight onto this entity, and Spring Data's save() does a merge
+     * (UPDATE) rather than an insert whenever id is non-null. Without this
+     * guard, POSTing {"id": 1, "email": "...", ...} to /api/auth/register
+     * would overwrite an arbitrary existing user's row — an unauthenticated
+     * account takeover, not just a privilege escalation.
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private Long id;
 
+    /**
+     * Bean Validation here (not just the JPA `nullable = false`) is what
+     * turns a missing/blank email on POST /api/auth/register into a clean
+     * 400 instead of an unhandled DataIntegrityViolationException surfacing
+     * as a raw 500 with the underlying SQL error leaked to the client —
+     * confirmed live: register() bound the request straight onto this
+     * entity with no @Valid anywhere in the chain, so a request missing
+     * email skipped every check and hit the NOT NULL constraint at the DB.
+     * The frontend already always sends a fallback synthetic email (see
+     * api.js's register()), so this only ever fires for a raw API caller
+     * bypassing that — but it should fail cleanly regardless of who's calling.
+     */
+    @NotBlank
+    @Email
     @Column(unique = true, nullable = false)
     private String email;
 
@@ -33,6 +59,17 @@ public class User {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
+    /**
+     * No @Column(nullable = false) here deliberately — changing that now
+     * would need a migration this app doesn't have (see DEPLOYMENT.md's
+     * known gaps). @NotBlank still closes the actual gap: without it, a
+     * request with a missing/blank username skipped straight past
+     * register()'s own uniqueness check (`if (username != null) ...`,
+     * a no-op for null) and created an account with no username at all —
+     * unable to ever be found by findByUsername again, i.e. permanently
+     * un-loggable-into.
+     */
+    @NotBlank
     private String username;
 
     /**
@@ -82,6 +119,18 @@ public class User {
     @Column(name = "profile_public", nullable = false, columnDefinition = "boolean not null default true")
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private boolean profilePublic = true;
+
+    /**
+     * Gates the one re-engagement email this app sends outside of password
+     * reset (a new-follower notice, see NotificationService.notifyNewFollower)
+     * — defaults to on so the feature actually does something for existing
+     * accounts, with an explicit opt-out rather than requiring a user to find
+     * and enable it. Same READ_ONLY mass-assignment guard as profilePublic —
+     * changed only via AccountController.
+     */
+    @Column(name = "email_notifications_enabled", nullable = false, columnDefinition = "boolean not null default true")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private boolean emailNotificationsEnabled = true;
 
     /**
      * Comma-separated dealbreaker keys picked at onboarding (e.g.
@@ -212,6 +261,9 @@ public class User {
 
     public boolean isProfilePublic() { return profilePublic; }
     public void setProfilePublic(boolean v) { this.profilePublic = v; }
+
+    public boolean isEmailNotificationsEnabled() { return emailNotificationsEnabled; }
+    public void setEmailNotificationsEnabled(boolean v) { this.emailNotificationsEnabled = v; }
 
     public String getDealbreakers() { return dealbreakers; }
     public void setDealbreakers(String v) { this.dealbreakers = v; }

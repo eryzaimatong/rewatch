@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -70,7 +71,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody User user, HttpServletRequest request) {
+    public ResponseEntity<?> register(@Valid @RequestBody User user, HttpServletRequest request) {
         if (!rateLimiter.allow("register:" + SecurityUtil.clientIp(request), MAX_REGISTER_PER_HOUR, Duration.ofHours(1))) {
             return tooManyRequests();
         }
@@ -178,6 +179,12 @@ public class AuthController {
         response.put("avatarUrl", user.getAvatarUrl());
         response.put("avatarFrame", user.getAvatarFrame());
         response.put("nickname", user.getNickname());
+        // Read-only signal for the frontend to show/hide the admin reports entry
+        // point — purely a UX convenience. The actual authorization is the
+        // route-level hasRole("ADMIN") check on /api/admin/** (SecurityConfig),
+        // re-derived from the live DB row on every request by JwtAuthFilter, so
+        // this value being stale or tampered with client-side grants nothing.
+        response.put("role", user.getRole().name());
         response.put("token", jwtService.issue(user.getId(), user.getUsername(), user.getTokenVersion()));
         return response;
     }

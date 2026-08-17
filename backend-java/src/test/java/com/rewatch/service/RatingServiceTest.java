@@ -59,7 +59,7 @@ class RatingServiceTest {
                 ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
         AchievementService achievementService = new AchievementService(
                 ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService);
-        NotificationService notificationService = new NotificationService(notificationRepo, null);
+        NotificationService notificationService = new NotificationService(notificationRepo, null, null, null, null);
         WatchStatusService watchStatusService = new WatchStatusService(watchStatusRepo, ratingRepo);
         return new RatingService(ratingRepo, titleRepo, null, null, profileService,
                 notificationService, achievementService, watchStatusService);
