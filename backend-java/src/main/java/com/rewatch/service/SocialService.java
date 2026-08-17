@@ -316,10 +316,17 @@ public class SocialService {
         if (isBlocked(followerId, followeeId)) {
             throw new IllegalArgumentException("Cannot follow this user");
         }
-        if (!followRepo.existsByFollowerIdAndFolloweeId(followerId, followeeId)) {
+        // Reported to the caller so it can gate the new-follower notification/email
+        // on this specifically — the endpoint used to fire both unconditionally on
+        // every call, so a repeated request for an edge that already existed (a
+        // double-click, a retried request, or just calling follow again on someone
+        // already followed) sent a duplicate notification and a duplicate email
+        // every time, with no rate limit on this endpoint to blunt it.
+        boolean isNew = !followRepo.existsByFollowerIdAndFolloweeId(followerId, followeeId);
+        if (isNew) {
             followRepo.save(new Follow(followerId, followeeId, Instant.now()));
         }
-        return Map.of("status", "success", "following", true);
+        return Map.of("status", "success", "following", true, "isNewFollow", isNew);
     }
 
     @Transactional

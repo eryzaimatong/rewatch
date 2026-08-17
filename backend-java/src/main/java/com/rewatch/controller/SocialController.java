@@ -75,11 +75,15 @@ public class SocialController {
         Map<String, String> followeeUnlockedBefore = achievementService.unlockedTitles(userId);
         try {
             Map<String, Object> result = socialService.follow(callerId, userId);
-            // Composed here, not inside SocialService, so NotificationService (which
-            // depends on SocialService for the DNA-match piggyback) doesn't create a
-            // circular bean dependency by also being depended on by SocialService.
-            userRepo.findById(callerId).ifPresent(caller ->
-                    notificationService.notifyNewFollower(userId, callerId, caller.getUsername()));
+            // Only on an edge that didn't already exist — see SocialService.follow's
+            // isNewFollow comment. Composed here, not inside SocialService, so
+            // NotificationService (which depends on SocialService for the DNA-match
+            // piggyback) doesn't create a circular bean dependency by also being
+            // depended on by SocialService.
+            if (Boolean.TRUE.equals(result.get("isNewFollow"))) {
+                userRepo.findById(callerId).ifPresent(caller ->
+                        notificationService.notifyNewFollower(userId, callerId, caller.getUsername()));
+            }
             notifyNewlyUnlocked(callerId, callerUnlockedBefore);
             notifyNewlyUnlocked(userId, followeeUnlockedBefore);
             return ResponseEntity.ok(result);
