@@ -1111,7 +1111,10 @@ input[type="range"] {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  /* auto-fill, not auto-fit — see .recommendation-grid's comment. No
+     aspect-ratio child here to balloon in height the way a poster does, but
+     a lone stat card stretched to the full row width still looks wrong. */
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--sp-2);
 }
 
