@@ -953,12 +953,15 @@ input[type="range"] {
   right: 8px;
   transform: translateY(-50%);
 
+  display: inline-flex;
+  align-items: center;
+
   min-height: unset;
   padding: 4px 8px;
   border: none;
   background: none;
 
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1;
   color: var(--text-faint);
 }
@@ -1005,6 +1008,28 @@ input[type="range"] {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Shared alignment for the Icons.jsx SVG set wherever one sits inline next
+   to text inside a button/pill/badge — an SVG's default baseline alignment
+   sits a couple pixels low next to text, so every icon usage would
+   otherwise need this same nudge repeated per call site. */
+.pill svg,
+.btn-primary svg,
+.save-icon-button svg,
+.avatar-frame-option-label svg,
+.social-profile-song svg,
+.review-comment-spoiler-veil svg,
+.review-comment-spoiler-check svg {
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
+/* .streak-badge is already a flex row with its own gap — an added margin
+   here would stack on top of that gap instead of replacing it. */
+.streak-badge svg,
+.shift-toast-icon svg {
+  vertical-align: -2px;
 }
 
 .chip,
@@ -3259,10 +3284,24 @@ input[type="range"] {
   text-align: center;
 }
 
-.onboard-reveal-emoji {
-  font-size: 3.4rem;
-  line-height: 1;
-  margin-bottom: 4px;
+/* Replaces a per-archetype emoji (which only ever covered 4 of the 23
+   ArchetypeService can now return, silently falling back to a generic
+   clapperboard for the rest) with one abstract mark that fits any
+   archetype — a soft glowing dot, not a literal pictogram. */
+.onboard-reveal-mark {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0.16), 0 0 28px 4px rgba(var(--primary-rgb), 0.55);
+  animation: onboard-reveal-mark-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes onboard-reveal-mark-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
 }
 
 .onboard-reveal-kicker {

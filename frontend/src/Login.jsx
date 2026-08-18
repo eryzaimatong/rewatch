@@ -4,6 +4,7 @@ import { login, register } from "./api";
 import { saveSession } from "./auth";
 import BrandMark from "./BrandMark";
 import Footer from "./Footer";
+import { IconEye, IconEyeOff } from "./Icons";
 import "./App.css";
 
 const MIN_PASSWORD_LENGTH = 6;
@@ -122,7 +123,7 @@ export default function Login({ onLogin }) {
                 aria-label={showpassword ? "Hide password" : "Show password"}
                 tabIndex={-1}
               >
-                {showpassword ? "🙈" : "👁"}
+                {showpassword ? <IconEyeOff /> : <IconEye />}
               </button>
             </div>
             {passwordTooShort && (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toggleReviewLike, getReviewComments, addReviewComment, deleteReviewComment, fileReport, saveToWatchlist } from "./api";
 import ReportDialog from "./ReportDialog";
+import { IconWarning } from "./Icons";
 import "./App.css";
 
 /**
@@ -145,7 +146,7 @@ export default function ReviewInteractions({ review }) {
               <span className="review-comment-author">{c.authorUsername}</span>
               {c.hasSpoilers && !revealedSpoilers.has(c.id) ? (
                 <button type="button" className="review-comment-spoiler-veil" onClick={() => revealSpoiler(c.id)}>
-                  ⚠️ Contains spoilers — click to reveal
+                  <IconWarning /> Contains spoilers — click to reveal
                 </button>
               ) : (
                 <span className="review-comment-body">{c.body}</span>
@@ -187,7 +188,7 @@ export default function ReviewInteractions({ review }) {
                 checked={newCommentSpoiler}
                 onChange={(e) => setnewCommentSpoiler(e.target.checked)}
               />
-              ⚠️ This contains spoilers
+              <IconWarning /> This contains spoilers
             </label>
           )}
         </div>

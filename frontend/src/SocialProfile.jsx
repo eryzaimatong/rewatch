@@ -11,6 +11,7 @@ import EmptyState from "./EmptyState";
 import ReviewInteractions from "./ReviewInteractions";
 import CollageCover from "./CollageCover";
 import { drawBrandMark } from "./canvasBrandMark";
+import { IconMusic } from "./Icons";
 import "./App.css";
 
 // dnaMatches()/publicProfile() send raw centred-cosine similarity in [-1, 1];
@@ -285,7 +286,7 @@ export default function SocialProfile() {
             {profile.nickname && <p className="social-profile-nickname">{profile.nickname}</p>}
             {profile.bio && <p className="social-profile-bio">{profile.bio}</p>}
             {profile.profileSong && (
-              <p className="social-profile-song">🎵 {profile.profileSong}</p>
+              <p className="social-profile-song"><IconMusic /> {profile.profileSong}</p>
             )}
             <span className="share-card-badge">{profile.archetype}</span>
             <div className="social-profile-counts">

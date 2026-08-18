@@ -11,6 +11,7 @@ import { isSoundEnabled, setSoundEnabled, playConfirm } from "./sound";
 import ConfirmDialog from "./ConfirmDialog";
 import Avatar from "./Avatar";
 import InstallAppButton from "./InstallAppButton";
+import { IconLock } from "./Icons";
 import "./App.css";
 
 // Interactive-chrome accents only — the brand mark and TasteDNA radar
@@ -580,7 +581,7 @@ export default function Settings() {
                   title={unlocked ? f.label : `Locked — unlock "${f.achievementTitle}" first`}
                 >
                   <Avatar username={username} avatarUrl={avatarurl} avatarFrame={f.key} size={48} />
-                  <span className="avatar-frame-option-label">{unlocked ? f.label : "🔒"}</span>
+                  <span className="avatar-frame-option-label">{unlocked ? f.label : <IconLock />}</span>
                 </button>
               );
             })}

@@ -6,6 +6,7 @@ import MatchShareCard from "./MatchShareCard";
 import { authHeaders } from "./auth";
 import { BASE, rateMovie } from "./api";
 import { playConfirm, playChime, playSoftError } from "./sound";
+import { IconTrophy } from "./Icons";
 import "./App.css";
 
 // Matches the validated pair in TraitRadar.jsx: purple (user) vs --cyan
@@ -616,7 +617,7 @@ export default function MovieModal({ movie, onClose }) {
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   style={{ marginBottom: "var(--sp-2)" }}
                 >
-                  <span className="shift-toast-icon">🏆</span>
+                  <span className="shift-toast-icon"><IconTrophy /></span>
                   <span className="shift-toast-text">
                     Achievement unlocked — <strong>{unlockedAchievement}</strong>
                   </span>

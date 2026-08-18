@@ -72,17 +72,6 @@ const ANALYZING_LINES = [
   "Almost there..."
 ];
 
-const ARCHETYPE_EMOJI = {
-  "Cozy Nostalgic": "🧸",
-  "Bittersweet Realist": "🍂",
-  "Found-Family Idealist": "🫂",
-  "Emotional Storyteller": "📖"
-};
-
-function emojiFor(archetype) {
-  return ARCHETYPE_EMOJI[archetype] || "🎬";
-}
-
 const TMDB_POSTER_THUMB_BASE = "https://image.tmdb.org/t/p/w154";
 // A plain color swatch, not a placehold.co URL — placehold.co treats a
 // whitespace `text=` param as "none given" and falls back to rendering its
@@ -139,7 +128,7 @@ function RevealScreen({ archetype, archetypeBlurb, onContinue }) {
 
   return (
     <motion.div className="onboard-reveal" variants={revealParent} initial="hidden" animate="visible">
-      <motion.span className="onboard-reveal-emoji" variants={revealItem}>{emojiFor(archetype)}</motion.span>
+      <motion.span className="onboard-reveal-mark" variants={revealItem} aria-hidden="true" />
       <motion.p className="onboard-reveal-kicker" variants={revealItem}>You are...</motion.p>
       <motion.h2 className="onboard-reveal-archetype" variants={revealArchetype}>{archetype}</motion.h2>
       <motion.p className="onboard-reveal-blurb" variants={revealItem}>{archetypeBlurb}</motion.p>

@@ -7,6 +7,7 @@ import MatchRing from "./MatchRing";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import { SkeletonPosterGrid } from "./Skeleton";
+import { IconEye, IconFlame, IconShuffle, IconFilmCheck } from "./Icons";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -853,7 +854,7 @@ export default function MovieFeed() {
                         title="Watched"
                         aria-label={`${movie.title}: watched`}
                       >
-                        🎬
+                        <IconFilmCheck />
                       </span>
                     )}
                     {movie.titleId && watchStatus !== "WATCHED" && (
@@ -876,7 +877,7 @@ export default function MovieFeed() {
                               : "Mark as watching"
                         }
                       >
-                        {watchStatus === "WATCHING" ? "👁" : watchStatus === "DROPPED" ? "✕" : "▷"}
+                        {watchStatus === "WATCHING" ? <IconEye /> : watchStatus === "DROPPED" ? "✕" : "▷"}
                       </button>
                     )}
                   </div>
@@ -968,7 +969,7 @@ export default function MovieFeed() {
                 : "Rate something today to keep it alive"
             }
           >
-            🔥 {streak.current}-day streak
+            <IconFlame /> {streak.current}-day streak
             {!streak.activeToday && <span className="streak-badge-nudge">rate something today</span>}
           </div>
         )}
@@ -1009,7 +1010,7 @@ export default function MovieFeed() {
               className="pill surprise-me-btn"
               title="One random pick from your real top matches — no lowered bar, just less choosing."
             >
-              🎲 Surprise Me
+              <IconShuffle /> Surprise Me
             </button>
           )}
 
