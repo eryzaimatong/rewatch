@@ -3,11 +3,20 @@ import { authHeaders } from "./auth";
 export const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8080";
 
 export async function gettitles() {
-  const res = await fetch(`${BASE}/api/titles`);
-  if (!res.ok) {
+  // Catches network-level failure (offline, DNS, an aborted request), not just
+  // a non-2xx response — fetch() itself rejects in that case, and an uncaught
+  // rejection here used to propagate straight out to callers like MovieFeed's
+  // loadData(), skipping every statement after the await including
+  // setLoading(false) and leaving the feed on its skeleton loader forever.
+  try {
+    const res = await fetch(`${BASE}/api/titles`);
+    if (!res.ok) {
+      return [];
+    }
+    return await res.json();
+  } catch {
     return [];
   }
-  return await res.json();
 }
 
 export async function rateMovie(payload) {
@@ -37,11 +46,16 @@ export async function setWatchStatus(userId, titleId, status) {
 }
 
 export async function getrecs(id) {
-  const res = await fetch(`${BASE}/api/recommendations/${id}`, { headers: authHeaders() });
-  if (!res.ok) {
+  // See gettitles() above — same network-vs-HTTP-error gap, same fix.
+  try {
+    const res = await fetch(`${BASE}/api/recommendations/${id}`, { headers: authHeaders() });
+    if (!res.ok) {
+      return [];
+    }
+    return await res.json();
+  } catch {
     return [];
   }
-  return await res.json();
 }
 
 export async function login(user, pass) {

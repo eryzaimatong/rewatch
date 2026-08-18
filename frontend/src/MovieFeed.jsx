@@ -494,36 +494,48 @@ export default function MovieFeed() {
     setLoading(true);
     setError("");
 
-    const userId = localStorage.getItem("userId");
-    // The backend derives the personalizing id from the JWT (see TmdbController),
-    // not a query param — a permitAll route that trusted `?userId=` would let
-    // anyone read anyone's personalized feed without logging in.
-    const tmdbRes = await fetch(`${BASE}/api/movies/popular`, { headers: authHeaders() }).catch(() => null);
+    // getrecs()/gettitles() only guard against a non-2xx response — a genuine
+    // network failure (offline, DNS, an aborted request) makes fetch() itself
+    // reject, which used to propagate straight out of this function and skip
+    // every statement below, including setLoading(false) — the feed was stuck
+    // on the skeleton loader forever with no error shown and no way to retry.
+    // Wrapping the whole load in try/catch/finally is what actually surfaces
+    // ErrorState (with its retry button, already wired to call this function
+    // again) instead of a permanent spinner.
+    try {
+      const userId = localStorage.getItem("userId");
+      // The backend derives the personalizing id from the JWT (see TmdbController),
+      // not a query param — a permitAll route that trusted `?userId=` would let
+      // anyone read anyone's personalized feed without logging in.
+      const tmdbRes = await fetch(`${BASE}/api/movies/popular`, { headers: authHeaders() }).catch(() => null);
 
-    if (tmdbRes && tmdbRes.ok) {
-      const liveData = await tmdbRes.json();
-      if (Array.isArray(liveData) && liveData.length > 0) {
-        const normalizedMovies = liveData.map((item, index) => normalizeMovie(item, index));
-        setMovies(normalizedMovies);
-        setLoading(false);
-        return;
+      if (tmdbRes && tmdbRes.ok) {
+        const liveData = await tmdbRes.json();
+        if (Array.isArray(liveData) && liveData.length > 0) {
+          const normalizedMovies = liveData.map((item, index) => normalizeMovie(item, index));
+          setMovies(normalizedMovies);
+          return;
+        }
       }
+
+      let response = [];
+
+      if (userId) {
+        response = await getrecs(userId);
+      }
+
+      if (!Array.isArray(response) || response.length === 0) {
+        const titles = await gettitles();
+        response = Array.isArray(titles) ? titles : [];
+      }
+
+      const normalizedMovies = response.map((item, index) => normalizeMovie(item, index));
+      setMovies(normalizedMovies);
+    } catch {
+      setError("Couldn't load your feed. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-
-    let response = [];
-
-    if (userId) {
-      response = await getrecs(userId);
-    }
-
-    if (!Array.isArray(response) || response.length === 0) {
-      const titles = await gettitles();
-      response = Array.isArray(titles) ? titles : [];
-    }
-
-    const normalizedMovies = response.map((item, index) => normalizeMovie(item, index));
-    setMovies(normalizedMovies);
-    setLoading(false);
   }
 
   useEffect(() => {
