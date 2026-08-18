@@ -84,19 +84,22 @@ OpenAPI 3.0 JSON if you want to feed it to another tool.
 The `titles` table starts empty on a fresh database. `CatalogSeeder`
 (`service/CatalogSeeder.java`) runs automatically on every boot and, if fewer
 than 200 titles exist, calls the same bulk-expand operation below in a
-background thread to seed ~1500 titles — a first-time deploy no longer needs
-a manual step for Mood Search and Discovery to have something to work with.
+background thread to seed ~6000 titles — a first-time deploy no longer needs
+a manual step for Mood Search, genre browsing, and Discovery to have real
+breadth to work with.
 
 To re-run it manually (e.g. to grow the catalog further, or immediately
 rather than waiting on the next restart):
 
 ```
-POST /api/admin/expand-catalog?target=1500
+POST /api/admin/expand-catalog?target=6000
 ```
 
 Requires an ADMIN-role account (see `rewatch.admin.emails`) and a configured
-`TMDB_API_KEY`. Takes real wall-clock time — hundreds of rate-limited TMDB
-calls, roughly a couple of minutes at the default target.
+`TMDB_API_KEY`. Takes real wall-clock time — on the order of ten to twenty
+minutes at the default target (verified live: a real run against production
+TMDB took ~7 minutes and added 4,382 titles in 454 page calls, well under
+the 1,500-call safety cap).
 
 ## Health check
 

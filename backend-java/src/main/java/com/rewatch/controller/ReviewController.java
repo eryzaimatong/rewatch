@@ -1,5 +1,6 @@
 package com.rewatch.controller;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +21,7 @@ import com.rewatch.model.Title;
 import com.rewatch.model.User;
 import com.rewatch.repository.TitleRepository;
 import com.rewatch.repository.UserRepository;
+import com.rewatch.security.RateLimiterService;
 import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.NotificationService;
 import com.rewatch.service.ReviewService;
@@ -38,13 +40,20 @@ public class ReviewController {
     private final NotificationService notificationService;
     private final UserRepository userRepo;
     private final TitleRepository titleRepo;
+    private final RateLimiterService rateLimiter;
+
+    // Generous for a real conversation, tight enough to blunt a comment-spam
+    // script — nothing here previously bounded volume at all, only content
+    // (ReviewService already caps length and blocks blocked-user pairs).
+    private static final int MAX_COMMENTS_PER_HOUR = 30;
 
     public ReviewController(ReviewService reviewService, NotificationService notificationService,
-                            UserRepository userRepo, TitleRepository titleRepo) {
+                            UserRepository userRepo, TitleRepository titleRepo, RateLimiterService rateLimiter) {
         this.reviewService = reviewService;
         this.notificationService = notificationService;
         this.userRepo = userRepo;
         this.titleRepo = titleRepo;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/{ratingId}/like")
@@ -73,6 +82,10 @@ public class ReviewController {
     public ResponseEntity<?> addComment(@PathVariable Long ratingId, @RequestBody Map<String, Object> body,
                                         Authentication authentication) {
         Long callerId = requireAuth(authentication);
+        if (!rateLimiter.allow("comment:" + callerId, MAX_COMMENTS_PER_HOUR, Duration.ofHours(1))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("status", "error", "message", "Too many comments. Please try again later."));
+        }
         Object rawBody = body.get("body");
         if (!(rawBody instanceof String commentText)) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

@@ -1,5 +1,6 @@
 package com.rewatch.controller;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.rewatch.dto.UserSummaryDTO;
 import com.rewatch.repository.UserRepository;
+import com.rewatch.security.RateLimiterService;
 import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.AchievementService;
 import com.rewatch.service.NotificationService;
@@ -38,15 +40,23 @@ public class SocialController {
     private final UserRepository userRepo;
     private final AchievementService achievementService;
     private final ReviewService reviewService;
+    private final RateLimiterService rateLimiter;
+
+    // Generous relative to any realistic legitimate session (exploring the
+    // app and following a bunch of people you find on it) while still
+    // bounding a script that follows/unfollows in a loop purely to spam
+    // notifications and emails at other users.
+    private static final int MAX_FOLLOWS_PER_HOUR = 60;
 
     public SocialController(SocialService socialService, NotificationService notificationService,
                             UserRepository userRepo, AchievementService achievementService,
-                            ReviewService reviewService) {
+                            ReviewService reviewService, RateLimiterService rateLimiter) {
         this.socialService = socialService;
         this.notificationService = notificationService;
         this.userRepo = userRepo;
         this.achievementService = achievementService;
         this.reviewService = reviewService;
+        this.rateLimiter = rateLimiter;
     }
 
     @GetMapping("/profile/{userId}")
@@ -67,6 +77,10 @@ public class SocialController {
     @PostMapping("/follow/{userId}")
     public ResponseEntity<?> follow(@PathVariable Long userId, Authentication authentication) {
         Long callerId = requireAuth(authentication);
+        if (!rateLimiter.allow("follow:" + callerId, MAX_FOLLOWS_PER_HOUR, Duration.ofHours(1))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("status", "error", "message", "Too many follows. Please try again later."));
+        }
         // Achievements on both sides of a follow depend on data this call is about
         // to change (the follower's following-count, the followee's follower-count)
         // — snapshot each before the write, diff after, same pattern as

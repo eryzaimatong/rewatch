@@ -1,5 +1,6 @@
 package com.rewatch.controller;
 
+import java.time.Duration;
 import java.util.Map;
 
 import jakarta.validation.Valid;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.rewatch.dto.ReportRequest;
+import com.rewatch.security.RateLimiterService;
 import com.rewatch.security.SecurityUtil;
 import com.rewatch.service.ReportService;
 
@@ -22,9 +24,16 @@ import com.rewatch.service.ReportService;
 public class ReportController {
 
     private final ReportService reportService;
+    private final RateLimiterService rateLimiter;
 
-    public ReportController(ReportService reportService) {
+    // Legitimate reporting is rare by nature — this is tight on purpose,
+    // mainly to stop the moderation queue from being flooded with duplicate
+    // or spam reports rather than to accommodate high real volume.
+    private static final int MAX_REPORTS_PER_HOUR = 10;
+
+    public ReportController(ReportService reportService, RateLimiterService rateLimiter) {
         this.reportService = reportService;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping
@@ -33,6 +42,10 @@ public class ReportController {
         if (reporterId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("status", "error", "message", "Login required"));
+        }
+        if (!rateLimiter.allow("report:" + reporterId, MAX_REPORTS_PER_HOUR, Duration.ofHours(1))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("status", "error", "message", "Too many reports. Please try again later."));
         }
         try {
             reportService.file(reporterId, req.getReportedUserId(), req.getReason(), req.getDetails(), req.getCommentId());
