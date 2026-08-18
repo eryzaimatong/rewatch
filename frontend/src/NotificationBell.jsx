@@ -14,7 +14,16 @@ function timeago(iso) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-function targetFor(n) {
+/**
+ * @param ownUserId the recipient's own id — needed for REVIEW_LIKED/
+ *   REVIEW_COMMENTED, which otherwise have nowhere obvious to send someone:
+ *   `relatedUserId` on those two is the liker/commenter, not the review
+ *   itself, and Notification carries no titleId/ratingId to deep-link to
+ *   the specific review. Routing to the recipient's own profile (where
+ *   their reviews are listed) was a silent dead end before this — clicking
+ *   either of these notification types navigated nowhere at all.
+ */
+function targetFor(n, ownUserId) {
   if (n.type === "NEW_FOLLOWER" || n.type === "DNA_MATCH") {
     return n.relatedUserId ? `/social/${n.relatedUserId}` : null;
   }
@@ -23,6 +32,9 @@ function targetFor(n) {
   }
   if (n.type === "ACHIEVEMENT_UNLOCKED") {
     return "/achievements";
+  }
+  if (n.type === "REVIEW_LIKED" || n.type === "REVIEW_COMMENTED") {
+    return ownUserId ? `/social/${ownUserId}` : null;
   }
   return null;
 }
@@ -88,7 +100,7 @@ export default function NotificationBell({ userId }) {
 
   function handleclick(n) {
     setopen(false);
-    const target = targetFor(n);
+    const target = targetFor(n, userId);
     if (target) {
       navigate(target);
     }
