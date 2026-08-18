@@ -292,6 +292,11 @@ export default function MovieFeed() {
     setlanguagefilterRaw(next);
     localStorage.setItem("languageFilter", next);
   }
+  const [genrefilter, setgenrefilterRaw] = useState(() => localStorage.getItem("genreFilter") || "All");
+  function setgenrefilter(next) {
+    setgenrefilterRaw(next);
+    localStorage.setItem("genreFilter", next);
+  }
   const [moodline, setmoodline] = useState("");
   const [streak, setstreak] = useState(null);
   const [trending, settrending] = useState([]);
@@ -721,10 +726,23 @@ export default function MovieFeed() {
     movies.map((m) => m.originalLanguage).filter(Boolean)
   )].sort();
 
+  // Real TMDB genre taxonomy (Horror, Documentary, ...) — distinct from the
+  // "vibe" pills above (Comfort, Bittersweet, ...), which are curated
+  // emotional categories, not genres. The backend used to never resolve
+  // genre ids to names at all (MovieDTO had no genres field), so this row
+  // had nothing real to filter by even though this exact parsing already
+  // existed in normalizeMovie waiting for data that never arrived.
+  const availablegenres = [...new Set(
+    movies.flatMap((m) => m.genres || [])
+  )].sort();
+
   const visiblemovies = [];
   for (let i = 0; i < movies.length; i++) {
     const m = movies[i];
     if (languagefilter !== "All" && m.originalLanguage !== languagefilter) {
+      continue;
+    }
+    if (genrefilter !== "All" && !(m.genres || []).includes(genrefilter)) {
       continue;
     }
     if (vibe === "All") {
@@ -1119,6 +1137,28 @@ export default function MovieFeed() {
           </div>
         </div>
 
+        {availablegenres.length > 1 && (
+          <div className="pill-row" style={{ marginBottom: "var(--sp-2)" }}>
+            <button
+              type="button"
+              onClick={() => setgenrefilter("All")}
+              className={`pill${genrefilter === "All" ? " active" : ""}`}
+            >
+              All genres
+            </button>
+            {availablegenres.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setgenrefilter(g)}
+                className={`pill${genrefilter === g ? " active" : ""}`}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        )}
+
         {availablelanguages.length > 1 && (
           <div className="pill-row" style={{ marginBottom: "var(--sp-3)" }}>
             <button
@@ -1193,10 +1233,25 @@ export default function MovieFeed() {
         {!loading && !error && visiblemovies.length === 0 && (
           <EmptyState
             title="We searched every universe."
-            message={`Nothing matched "${vibe}". Try lowering one emotional filter or switching back to "All".`}
+            message={
+              genrefilter !== "All" || languagefilter !== "All"
+                // The vibe/genre/language filters compound (all three must
+                // match), so a zero-result state is often two filters
+                // narrowing each other out rather than one being too
+                // strict — the old message only ever named the vibe, even
+                // when genre or language was the actual reason nothing
+                // matched, and "Reset to All Vibes" cleared vibe alone,
+                // leaving the real culprit filter still applied.
+                ? "That combination of vibe, genre, and language filters is too narrow. Try clearing one."
+                : `Nothing matched "${vibe}". Try lowering one emotional filter or switching back to "All".`
+            }
             action={
-              <button type="button" onClick={() => setvibe("All")} className="btn-primary">
-                Reset to All Vibes
+              <button
+                type="button"
+                onClick={() => { setvibe("All"); setgenrefilter("All"); setlanguagefilter("All"); }}
+                className="btn-primary"
+              >
+                Reset All Filters
               </button>
             }
           />

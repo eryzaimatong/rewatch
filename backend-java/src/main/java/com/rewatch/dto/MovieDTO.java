@@ -34,6 +34,12 @@ public class MovieDTO {
     private boolean rated;
     private String originalLanguage;
 
+    /** Real TMDB genre names (Horror, Documentary, ...), resolved from the
+     *  stored genre ids — see GenreLexicon.namesFor. Distinct from the
+     *  emotional "vibe" categories (Comfort, Bittersweet, ...) the home feed
+     *  filters by; this is the traditional genre taxonomy. */
+    private List<String> genres;
+
     public MovieDTO() {}
 
     public Long getId() { return id; }
@@ -100,4 +106,7 @@ public class MovieDTO {
 
     public String getOriginalLanguage() { return originalLanguage; }
     public void setOriginalLanguage(String v) { this.originalLanguage = v; }
+
+    public List<String> getGenres() { return genres; }
+    public void setGenres(List<String> v) { this.genres = v; }
 }

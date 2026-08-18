@@ -115,6 +115,68 @@ public final class GenreLexicon {
     }
 
     /**
+     * Display names for the same TMDB genre ids mapped above — kept as a
+     * second map rather than folding a name into TraitDelta, since a display
+     * label has nothing to do with trait-vector derivation and the two
+     * shouldn't need to change together.
+     */
+    private static final Map<Integer, String> NAMES = new HashMap<>();
+
+    static {
+        NAMES.put(28, "Action");
+        NAMES.put(12, "Adventure");
+        NAMES.put(16, "Animation");
+        NAMES.put(35, "Comedy");
+        NAMES.put(80, "Crime");
+        NAMES.put(99, "Documentary");
+        NAMES.put(18, "Drama");
+        NAMES.put(10751, "Family");
+        NAMES.put(14, "Fantasy");
+        NAMES.put(36, "History");
+        NAMES.put(27, "Horror");
+        NAMES.put(10402, "Music");
+        NAMES.put(9648, "Mystery");
+        NAMES.put(10749, "Romance");
+        NAMES.put(878, "Sci-Fi");
+        NAMES.put(10770, "TV Movie");
+        NAMES.put(53, "Thriller");
+        NAMES.put(10752, "War");
+        NAMES.put(37, "Western");
+        // TV's own id for the same bucket a movie would just call "Action"/
+        // "Sci-Fi"/"War" — named to match the movie-side label rather than
+        // TMDB's TV-specific wording, so a genre filter shows one "Action"
+        // pill covering both movies and shows instead of two near-duplicate
+        // pills a user has to realize mean the same thing.
+        NAMES.put(10759, "Action");
+        NAMES.put(10762, "Kids");
+        NAMES.put(10763, "News");
+        NAMES.put(10764, "Reality");
+        NAMES.put(10765, "Sci-Fi");
+        NAMES.put(10766, "Soap");
+        NAMES.put(10767, "Talk");
+        NAMES.put(10768, "War");
+    }
+
+    /** Parses a Title.genreIds CSV string ("28,12,16") into display names, skipping anything unrecognized rather than failing. */
+    public static java.util.List<String> namesFor(String csvGenreIds) {
+        if (csvGenreIds == null || csvGenreIds.isBlank()) {
+            return java.util.List.of();
+        }
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String part : csvGenreIds.split(",")) {
+            try {
+                String name = NAMES.get(Integer.parseInt(part.trim()));
+                if (name != null && !out.contains(name)) {
+                    out.add(name);
+                }
+            } catch (NumberFormatException ignored) {
+                // Malformed id in stored data — skip it, don't fail the whole title.
+            }
+        }
+        return out;
+    }
+
+    /**
      * Signals available for free on every list response that aren't genres.
      * These encode what the old code was groping at with a hardcoded
      * `with_original_language=ja&with_genres=16` discover filter — as an actual

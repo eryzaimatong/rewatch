@@ -260,6 +260,7 @@ public class Recommender {
         dto.setYear(t.getYear());
         dto.setVoteAverage(t.getVoteAverage());
         dto.setOriginalLanguage(t.getOriginalLanguage());
+        dto.setGenres(com.rewatch.features.GenreLexicon.namesFor(t.getGenreIds()));
         dto.setMatchScore(s.score());
         dto.setExplanation(s.explanation());
         dto.setStoryVector(movie.toKeyedMap());
