@@ -68,6 +68,10 @@ export default function Dashboard() {
   const [activefolder, setactivefolder] = useState("all");
   const [newfoldername, setnewfoldername] = useState("");
   const [showfolderinput, setshowfolderinput] = useState(false);
+  const [foldererr, setfoldererr] = useState("");
+  const [renamingfolder, setrenamingfolder] = useState(false);
+  const [renamevalue, setrenamevalue] = useState("");
+  const [confirmingDeleteFolderId, setconfirmingDeleteFolderId] = useState(null);
   const [followedcollections, setfollowedcollections] = useState([]);
 
   const [loading, setloading] = useState(true);
@@ -226,6 +230,7 @@ export default function Dashboard() {
 
   async function createfolder() {
     if (!userid || !newfoldername.trim()) return;
+    setfoldererr("");
     const res = await fetch(`${BASE}/api/watchlist/folders`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -236,6 +241,56 @@ export default function Dashboard() {
       setfolders((current) => (current.some((f) => f.id === folder.id) ? current : [...current, folder]));
       setnewfoldername("");
       setshowfolderinput(false);
+      return;
+    }
+    // Used to fail silently here (the input just sat there with nothing
+    // changing, e.g. an over-length name that previously 500'd server-side)
+    // — the request's own error message is real now that the backend
+    // validates length before it ever reaches the database.
+    const body = await res?.json().catch(() => null);
+    setfoldererr(body?.message || "Couldn't create that shelf. Try again.");
+  }
+
+  async function renamefolder(folder) {
+    const trimmed = renamevalue.trim();
+    if (!userid || !trimmed || trimmed === folder.name) {
+      setrenamingfolder(false);
+      return;
+    }
+    setfoldererr("");
+    const res = await fetch(`${BASE}/api/watchlist/folders/${folder.id}/name`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ userId: userid, name: trimmed })
+    }).catch(() => null);
+    if (res && res.ok) {
+      const updated = await res.json();
+      setfolders((current) => current.map((f) => (f.id === updated.id ? updated : f)));
+      setrenamingfolder(false);
+      return;
+    }
+    const body = await res?.json().catch(() => null);
+    setfoldererr(body?.message || "Couldn't rename that shelf. Try again.");
+  }
+
+  async function deletefolder(folderId) {
+    if (!userid) return;
+    const res = await fetch(`${BASE}/api/watchlist/folders/${folderId}?userId=${userid}`, {
+      method: "DELETE",
+      headers: authHeaders()
+    }).catch(() => null);
+    setconfirmingDeleteFolderId(null);
+    if (res && res.ok) {
+      // Items in the deleted folder move back to "no folder" server-side —
+      // reflected here by clearing folderId locally rather than dropping
+      // those items, so they still show up under "All."
+      setitems((current) => current.map((item) => (
+        item.folderId === folderId ? { ...item, folderId: null, folderName: null } : item
+      )));
+      setfolders((current) => current.filter((f) => f.id !== folderId));
+      if (activefolder === folderId) {
+        setactivefolder("all");
+      }
     }
   }
 
@@ -417,11 +472,61 @@ export default function Dashboard() {
           )}
         </div>
 
+        {foldererr && (
+          <p style={{ color: "var(--danger)", fontSize: "0.8rem", margin: "6px 0 0" }}>{foldererr}</p>
+        )}
+
         {activefolder !== "all" && (() => {
           const current = folders.find((f) => f.id === activefolder);
           if (!current) return null;
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {renamingfolder ? (
+                  <span style={{ display: "inline-flex", gap: "6px" }}>
+                    <input
+                      type="text"
+                      value={renamevalue}
+                      onChange={(e) => setrenamevalue(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && renamefolder(current)}
+                      style={{ margin: 0, padding: "4px 8px", width: "140px", borderRadius: "999px" }}
+                      autoFocus
+                    />
+                    <button type="button" className="pill" onClick={() => renamefolder(current)}>Save</button>
+                    <button
+                      type="button"
+                      className="auth-toggle-link"
+                      style={{ fontSize: "0.8rem", background: "none", border: "none" }}
+                      onClick={() => setrenamingfolder(false)}
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="auth-toggle-link"
+                      style={{ fontSize: "0.8rem", background: "none", border: "none" }}
+                      onClick={() => {
+                        setfoldererr("");
+                        setrenamevalue(current.name);
+                        setrenamingfolder(true);
+                      }}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="auth-toggle-link"
+                      style={{ fontSize: "0.8rem", background: "none", border: "none", color: "var(--danger)" }}
+                      onClick={() => setconfirmingDeleteFolderId(current.id)}
+                    >
+                      Delete Shelf
+                    </button>
+                  </>
+                )}
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
                   {current.public
@@ -587,6 +692,16 @@ export default function Dashboard() {
 
       {pendingRemoval && (
         <UndoToast message={`Removed "${pendingRemoval.item.title}"`} onUndo={undoremove} />
+      )}
+
+      {confirmingDeleteFolderId != null && (
+        <ConfirmDialog
+          title="Delete this shelf?"
+          message="Titles on it stay in your watchlist under All — only the shelf grouping goes away."
+          confirmLabel="Delete Shelf"
+          onConfirm={() => deletefolder(confirmingDeleteFolderId)}
+          onCancel={() => setconfirmingDeleteFolderId(null)}
+        />
       )}
     </div>
   );

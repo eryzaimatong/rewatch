@@ -14,6 +14,7 @@ import com.rewatch.dto.WatchlistRequests.AddItem;
 import com.rewatch.model.Title;
 import com.rewatch.model.WatchlistFolder;
 import com.rewatch.model.WatchlistItem;
+import com.rewatch.repository.CollectionFollowRepository;
 import com.rewatch.repository.TitleRepository;
 import com.rewatch.repository.WatchlistFolderRepository;
 import com.rewatch.repository.WatchlistItemRepository;
@@ -33,16 +34,19 @@ public class WatchlistService {
     private final TmdbClient tmdb;
     private final EnrichmentService enrichmentService;
     private final Recommender recommender;
+    private final CollectionFollowRepository collectionFollowRepo;
 
     public WatchlistService(WatchlistItemRepository itemRepo, WatchlistFolderRepository folderRepo,
                             TitleRepository titleRepo, TmdbClient tmdb,
-                            EnrichmentService enrichmentService, Recommender recommender) {
+                            EnrichmentService enrichmentService, Recommender recommender,
+                            CollectionFollowRepository collectionFollowRepo) {
         this.itemRepo = itemRepo;
         this.folderRepo = folderRepo;
         this.titleRepo = titleRepo;
         this.tmdb = tmdb;
         this.enrichmentService = enrichmentService;
         this.recommender = recommender;
+        this.collectionFollowRepo = collectionFollowRepo;
     }
 
     public List<WatchlistItemDTO> listItems(Long userId) {
@@ -102,6 +106,54 @@ public class WatchlistService {
             itemRepo.delete(item);
             return true;
         }).orElse(false);
+    }
+
+    /**
+     * @throws IllegalArgumentException if the trimmed name collides with a
+     *         DIFFERENT folder the same user already has — silently merging
+     *         two folders' contents under one name would be a much bigger,
+     *         surprising behavior change for what looks like a simple rename.
+     */
+    @Transactional
+    public WatchlistFolder renameFolder(Long userId, Long folderId, String name) {
+        WatchlistFolder folder = folderRepo.findById(folderId)
+                .filter(f -> f.getUserId().equals(userId))
+                .orElse(null);
+        if (folder == null) {
+            return null;
+        }
+        String trimmed = name.trim();
+        folderRepo.findByUserIdAndName(userId, trimmed).ifPresent(existing -> {
+            if (!existing.getId().equals(folderId)) {
+                throw new IllegalArgumentException("You already have a list named \"" + trimmed + "\".");
+            }
+        });
+        folder.setName(trimmed);
+        return folderRepo.save(folder);
+    }
+
+    /**
+     * Deleting a folder only ungroups its items back to "no folder" — it never
+     * deletes the underlying watchlist entries. A shelf is an organizational
+     * label on titles someone already chose to save; losing the label isn't
+     * grounds to lose the save itself. Collection-follow edges pointing at it
+     * are cleaned up explicitly (rather than left as harmless orphans, the
+     * pattern used elsewhere) since there's a real repository method for it.
+     */
+    @Transactional
+    public boolean deleteFolder(Long userId, Long folderId) {
+        WatchlistFolder folder = folderRepo.findById(folderId)
+                .filter(f -> f.getUserId().equals(userId))
+                .orElse(null);
+        if (folder == null) {
+            return false;
+        }
+        List<WatchlistItem> items = itemRepo.findByFolderIdOrderByAddedAtDesc(folderId);
+        items.forEach(item -> item.setFolderId(null));
+        itemRepo.saveAll(items);
+        collectionFollowRepo.deleteByFolderId(folderId);
+        folderRepo.delete(folder);
+        return true;
     }
 
     /** Toggles whether a folder is shareable on the owner's public profile. */

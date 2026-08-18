@@ -22,6 +22,7 @@ import com.rewatch.dto.WatchlistItemDTO;
 import com.rewatch.dto.WatchlistRequests.AddItem;
 import com.rewatch.dto.WatchlistRequests.CreateFolder;
 import com.rewatch.dto.WatchlistRequests.MoveItem;
+import com.rewatch.dto.WatchlistRequests.RenameFolder;
 import com.rewatch.dto.WatchlistRequests.SetFolderCollaborative;
 import com.rewatch.dto.WatchlistRequests.SetFolderVisibility;
 import com.rewatch.model.WatchlistFolder;
@@ -89,6 +90,35 @@ public class WatchlistController {
         if (!removed) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("status", "error", "message", "Item not found"));
+        }
+        return ResponseEntity.ok(Map.of("status", "success"));
+    }
+
+    @PatchMapping("/folders/{folderId}/name")
+    public ResponseEntity<?> renameFolder(@PathVariable Long folderId, @Valid @RequestBody RenameFolder req,
+                                          Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        try {
+            WatchlistFolder updated = watchlistService.renameFolder(req.getUserId(), folderId, req.getName());
+            if (updated == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("status", "error", "message", "Folder not found"));
+            }
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/folders/{folderId}")
+    public ResponseEntity<?> deleteFolder(@PathVariable Long folderId, @RequestParam Long userId,
+                                          Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        boolean deleted = watchlistService.deleteFolder(userId, folderId);
+        if (!deleted) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", "error", "message", "Folder not found"));
         }
         return ResponseEntity.ok(Map.of("status", "success"));
     }
