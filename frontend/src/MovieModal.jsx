@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import TraitRadar from "./TraitRadar";
 import useModalA11y from "./useModalA11y";
@@ -151,6 +151,15 @@ export default function MovieModal({ movie, onClose }) {
   const [rewatchInfo, setrewatchInfo] = useState(null);
   const [unlockedAchievement, setunlockedAchievement] = useState(null);
   const [saving, setsaving] = useState(false);
+  // A second, ref-backed guard alongside the `saving` state above. `saving`
+  // is only checked/set for the *disabled* attribute and other render-driven
+  // UI — state updates are scheduled, not synchronous, so two dorate() calls
+  // fired back-to-back in the same tick (a fast real double-click, or two
+  // 'click' events dispatched before React re-renders) both read the same
+  // stale `saving === false` from closure and both pass the guard. A ref
+  // mutates immediately, so the second call sees the first call's write
+  // regardless of whether a render has happened yet.
+  const savingRef = useRef(false);
   const [showsharecard, setshowsharecard] = useState(false);
   // The modal previously had no watchlist action at all — the only way to
   // save a title was the poster's quick-action icon back in the feed grid,
@@ -161,6 +170,7 @@ export default function MovieModal({ movie, onClose }) {
   // parent (MovieFeed, Dashboard) with different local watchlist-state shapes.
   const [savedItemId, setsavedItemId] = useState(null);
   const [savingWatchlist, setsavingWatchlist] = useState(false);
+  const savingWatchlistRef = useRef(false);
 
   const [matchData, setmatchData] = useState(null);
   const [matchLoading, setmatchLoading] = useState(true);
@@ -219,9 +229,12 @@ export default function MovieModal({ movie, onClose }) {
   }
 
   async function toggleWatchlist() {
-    if (savingWatchlist || !movie) {
+    // Ref-backed for the same reason as dorate()/savingRef — a state read
+    // from closure can't see another call's write until React re-renders.
+    if (savingWatchlistRef.current || !movie) {
       return;
     }
+    savingWatchlistRef.current = true;
     setsavingWatchlist(true);
     if (savedItemId) {
       const res = await fetch(`${BASE}/api/watchlist/items/${savedItemId}?userId=${userid}`, {
@@ -248,6 +261,7 @@ export default function MovieModal({ movie, onClose }) {
         playConfirm();
       }
     }
+    savingWatchlistRef.current = false;
     setsavingWatchlist(false);
   }
 
@@ -285,7 +299,7 @@ export default function MovieModal({ movie, onClose }) {
     .map((d) => `${d.contribution >= 0 ? "+" : ""}${d.contribution.toFixed(1)} ${d.label}`);
 
   async function dorate() {
-    if (saving) {
+    if (savingRef.current) {
       return;
     }
     setmsg("");
@@ -299,6 +313,7 @@ export default function MovieModal({ movie, onClose }) {
       return;
     }
 
+    savingRef.current = true;
     setsaving(true);
 
     // Facets the user never touched are sent as undefined, not faked as a
@@ -346,6 +361,7 @@ export default function MovieModal({ movie, onClose }) {
         playConfirm();
       }
     } finally {
+      savingRef.current = false;
       setsaving(false);
     }
   }
