@@ -89,11 +89,11 @@ public class AchievementService {
                     Math.round(meanConfidence * 100.0), Math.round(tier.threshold() * 100.0)));
         }
 
-        out.add(new Achievement("first_follow", "social", "Making Connections",
+        out.add(new Achievement("first_follow", "social", "On Your Radar",
                 "Follow another taste profile.", followingCount >= 1, followingCount, 1));
-        out.add(new Achievement("first_follower", "social", "Found by Someone",
+        out.add(new Achievement("first_follower", "social", "Word's Out",
                 "Get your first follower.", followerCount >= 1, followerCount, 1));
-        out.add(new Achievement("watchlist_5", "collecting", "Building a List",
+        out.add(new Achievement("watchlist_5", "collecting", "Starter Pack",
                 "Add 5 titles to your watchlist.", watchlistCount >= 5, watchlistCount, 5));
         out.add(new Achievement("dealbreakers_set", "tastedna", "Know Thyself",
                 "Set at least one dealbreaker during onboarding.",
