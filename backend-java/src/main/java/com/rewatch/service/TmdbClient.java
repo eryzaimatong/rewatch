@@ -102,6 +102,24 @@ public class TmdbClient {
     }
 
     /**
+     * TMDB has no combined "search everything" endpoint that returns clean
+     * movie/TV-shaped results in one call — /search/multi exists but mixes in
+     * person (actor) results and uses a third JSON shape, which would need a
+     * separate parser for no real benefit here. Two calls through the
+     * existing movie/TV-shaped parsers instead, merged by the caller — see
+     * TmdbService.searchmovies, which used to call {@link #search} alone and
+     * could therefore never find a TV show no matter how exact the title
+     * match was (a search for "Breaking Bad" turned up an unrelated movie
+     * instead, since the actual show was never even in the candidate set).
+     */
+    public List<TmdbMovie> searchTv(String query) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+        return listTv("/search/tv", Map.of("query", query.trim()));
+    }
+
+    /**
      * Paginated, uncached discover — used for the one-time catalog-expansion
      * operation (AdminController#expandCatalog). Not @Cacheable: caching
      * would only ever serve page 1 back for every subsequent page requested,

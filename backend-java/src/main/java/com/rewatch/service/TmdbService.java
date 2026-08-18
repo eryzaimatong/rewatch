@@ -59,8 +59,56 @@ public class TmdbService {
         if (query == null || query.trim().isEmpty()) {
             return getpopular(userId);
         }
-        List<Title> titles = ingestLive(tmdb.search(query), "movie");
-        return scoreAndSort(titles, userId, 30);
+        // Movies and TV are separate TMDB endpoints with separate JSON shapes
+        // (see TmdbClient.searchTv's comment) — without both, a title search
+        // could never find a TV show, full stop, regardless of how exact the
+        // match was.
+        List<Title> titles = new ArrayList<>(ingestLive(tmdb.search(query), "movie"));
+        titles.addAll(ingestLive(tmdb.searchTv(query), "series"));
+
+        // Deliberately NOT scoreAndSort (rank by taste-match score) — for a
+        // literal title search, personal-taste fit is the wrong ranking
+        // signal entirely. Found live: searching "Breaking Bad" surfaced an
+        // obscure, unrelated movie ("Breaking in Badly") above the actual
+        // show, because that decoy happened to score better against the
+        // searching user's taste profile — text relevance to what was typed
+        // never factored in at all. Ranked by relevance to the query first
+        // (exact title match, then starts-with, then contains), then by
+        // voteCount — not voteAverage, which small-sample-biases toward a
+        // near-nobody title with a single 10/10 vote — as the tiebreaker
+        // within a relevance tier. Each title's real matchScore is still
+        // attached per-card for the match-ring badge, same as before; only
+        // the sort key changes.
+        String needle = query.trim().toLowerCase();
+        titles.sort(Comparator
+                .comparingInt((Title t) -> titleRelevanceRank(t.getTitle(), needle))
+                .thenComparing(Comparator.comparing(Title::getVoteCount,
+                        Comparator.nullsLast(Comparator.naturalOrder())).reversed()));
+
+        long effectiveUserId = userId == null ? GUEST_USER_ID : userId;
+        List<MovieDTO> scored = new ArrayList<>(titles.size());
+        for (Title t : titles.subList(0, Math.min(30, titles.size()))) {
+            scored.add(recommender.scoreForUser(t, effectiveUserId));
+        }
+        return scored;
+    }
+
+    /** Lower is more relevant. 0 = exact title match, 1 = title starts with the query, 2 = query appears anywhere, 3 = matched on something other than the title (a TMDB result whose overview/keywords matched, not its name). */
+    private int titleRelevanceRank(String title, String needle) {
+        if (title == null) {
+            return 3;
+        }
+        String t = title.trim().toLowerCase();
+        if (t.equals(needle)) {
+            return 0;
+        }
+        if (t.startsWith(needle)) {
+            return 1;
+        }
+        if (t.contains(needle)) {
+            return 2;
+        }
+        return 3;
     }
 
     /**
