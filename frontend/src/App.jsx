@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import Login from "./Login";
 import Footer from "./Footer";
 import BrandMark from "./BrandMark";
@@ -66,6 +66,18 @@ function NavLinks({ linkClassName }) {
 function AppShell({ onLogout }) {
   const navLinkClass = ({ isActive }) => `app-nav-link${isActive ? " active" : ""}`;
   const mobileNavLinkClass = ({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`;
+  // Keys the CSS entrance animation below (.route-transition, App.css) —
+  // every distinct pathname remounts the wrapper div fresh, so switching
+  // tabs reads as a real screen change instead of an abrupt content swap.
+  // Plain CSS @keyframes rather than framer-motion here on purpose: App.jsx
+  // is the one eager (non-lazy) entry point, and framer-motion is otherwise
+  // only ever pulled in by lazy-loaded page chunks — importing it here would
+  // put the whole library back on the critical path for every first paint
+  // (verified: +122KB to the eager bundle) just for a route fade. A CSS
+  // animation is also automatically covered by the app's existing global
+  // prefers-reduced-motion rule, unlike a framer-motion animation, which is
+  // JS/WAAPI-driven and that rule doesn't reach.
+  const location = useLocation();
   const userid = localStorage.getItem("userId");
   const username = localStorage.getItem("username") || "You";
   // localStorage writes elsewhere (Settings.jsx's upload/remove) don't trigger
@@ -108,21 +120,23 @@ function AppShell({ onLogout }) {
       </header>
 
       <div id="main-content" tabIndex={-1} style={{ paddingTop: "20px", outline: "none" }}>
-        <Routes>
-          <Route path="/" element={<MovieFeed />} />
-          <Route path="/watchlist" element={<Dashboard />} />
-          <Route path="/community" element={<Community />} />
-          <Route path="/social/:userId" element={<SocialProfile />} />
-          <Route path="/profile" element={<TasteProfile />} />
-          <Route path="/wrapped" element={<Wrapped />} />
-          <Route path="/achievements" element={<Achievements />} />
-          <Route path="/settings" element={<Settings />} />
-          {/* Client-side gate is UX only (hides the link, avoids a dead-end page for
-              a non-admin who guesses the URL) — the real check is the server's
-              hasRole("ADMIN") on every /api/admin/** request this page makes. */}
-          <Route path="/admin/reports" element={isAdmin() ? <AdminReports /> : <NotFound />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <div key={location.pathname} className="route-transition">
+          <Routes>
+            <Route path="/" element={<MovieFeed />} />
+            <Route path="/watchlist" element={<Dashboard />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/social/:userId" element={<SocialProfile />} />
+            <Route path="/profile" element={<TasteProfile />} />
+            <Route path="/wrapped" element={<Wrapped />} />
+            <Route path="/achievements" element={<Achievements />} />
+            <Route path="/settings" element={<Settings />} />
+            {/* Client-side gate is UX only (hides the link, avoids a dead-end page for
+                a non-admin who guesses the URL) — the real check is the server's
+                hasRole("ADMIN") on every /api/admin/** request this page makes. */}
+            <Route path="/admin/reports" element={isAdmin() ? <AdminReports /> : <NotFound />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
       </div>
 
       <Footer />

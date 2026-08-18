@@ -1491,6 +1491,26 @@ input[type="range"] {
   animation: rewatch-hero-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Every route swap remounts this (keyed by pathname in App.jsx) — a plain
+   fade+rise on entry so navigating between pages reads as a real screen
+   change instead of an abrupt content swap. No exit animation: the old
+   page unmounts immediately, which is a smaller, lower-risk change than
+   coordinating an overlapping exit+enter. */
+.route-transition {
+  animation: route-transition-in 220ms ease-out both;
+}
+
+@keyframes route-transition-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes rewatch-hero-in {
   from {
     opacity: 0;
