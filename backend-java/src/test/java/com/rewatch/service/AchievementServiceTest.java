@@ -45,7 +45,8 @@ class AchievementServiceTest {
     private AchievementService newService() {
         ProfileService profileService = new ProfileService(
                 ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
-        return new AchievementService(ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService);
+        return new AchievementService(
+                ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService, new StreakService(ratingRepo));
     }
 
     /** A materialised profile where every trait carries the given confidence. */

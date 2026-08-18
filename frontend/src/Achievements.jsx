@@ -3,13 +3,14 @@ import { getAchievements } from "./api";
 import "./App.css";
 
 const CATEGORY_LABELS = {
+  streak: "Watch Streak",
   evidence: "Rating Milestones",
   tastedna: "TasteDNA Confidence",
   social: "Social",
   collecting: "Collecting"
 };
 
-const CATEGORY_ORDER = ["evidence", "tastedna", "social", "collecting"];
+const CATEGORY_ORDER = ["streak", "evidence", "tastedna", "social", "collecting"];
 
 function groupByCategory(achievements) {
   const groups = new Map();

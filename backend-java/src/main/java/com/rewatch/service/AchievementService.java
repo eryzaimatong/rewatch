@@ -51,20 +51,33 @@ public class AchievementService {
             new ConfidenceTier("conf_80", "High Fidelity", "Reach 80% TasteDNA confidence.", 0.80),
             new ConfidenceTier("conf_90", "TasteDNA Mastery", "Reach 90% TasteDNA confidence.", 0.90));
 
+    /** Keyed off the all-time longest streak, not the current one — a streak
+     *  you hit once and then broke should stay unlocked, the same way rating
+     *  and confidence tiers below never re-lock if the underlying number
+     *  later dips. */
+    private record StreakTier(String key, String title, String description, int days) {}
+
+    private static final List<StreakTier> STREAK_TIERS = List.of(
+            new StreakTier("streak_3", "Warming Up", "Rate something 3 days in a row.", 3),
+            new StreakTier("streak_7", "On a Roll", "Rate something 7 days in a row.", 7),
+            new StreakTier("streak_30", "Certified Regular", "Rate something 30 days in a row.", 30));
+
     private final RatingRepository ratingRepo;
     private final FollowRepository followRepo;
     private final WatchlistItemRepository watchlistItemRepo;
     private final UserRepository userRepo;
     private final ProfileService profileService;
+    private final StreakService streakService;
 
     public AchievementService(RatingRepository ratingRepo, FollowRepository followRepo,
                               WatchlistItemRepository watchlistItemRepo, UserRepository userRepo,
-                              ProfileService profileService) {
+                              ProfileService profileService, StreakService streakService) {
         this.ratingRepo = ratingRepo;
         this.followRepo = followRepo;
         this.watchlistItemRepo = watchlistItemRepo;
         this.userRepo = userRepo;
         this.profileService = profileService;
+        this.streakService = streakService;
     }
 
     public Summary build(Long userId) {
@@ -87,6 +100,12 @@ public class AchievementService {
             out.add(new Achievement(tier.key(), "tastedna", tier.title(), tier.description(),
                     meanConfidence >= tier.threshold(),
                     Math.round(meanConfidence * 100.0), Math.round(tier.threshold() * 100.0)));
+        }
+
+        int longestStreak = streakService.compute(userId).longest();
+        for (StreakTier tier : STREAK_TIERS) {
+            out.add(new Achievement(tier.key(), "streak", tier.title(), tier.description(),
+                    longestStreak >= tier.days(), longestStreak, tier.days()));
         }
 
         out.add(new Achievement("first_follow", "social", "On Your Radar",

@@ -293,6 +293,7 @@ export default function MovieFeed() {
     localStorage.setItem("languageFilter", next);
   }
   const [moodline, setmoodline] = useState("");
+  const [streak, setstreak] = useState(null);
   const [trending, settrending] = useState([]);
   const [becauseyouloved, setbecauseyouloved] = useState([]);
   const [similardna, setsimilardna] = useState([]);
@@ -465,8 +466,18 @@ export default function MovieFeed() {
     loadWatchStatuses();
     loadDiscovery();
     loadDealbreakerHiddenCount();
+    loadStreak();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
+
+  async function loadStreak() {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    const res = await fetch(`${BASE}/api/streak/${userId}`, { headers: authHeaders() }).catch(() => null);
+    if (res && res.ok) {
+      setstreak(await res.json().catch(() => null));
+    }
+  }
 
   async function loadDealbreakerHiddenCount() {
     const userId = localStorage.getItem("userId");
@@ -929,6 +940,20 @@ export default function MovieFeed() {
         <p className="hero-eyebrow">
           TONIGHT'S STORY MATCH
         </p>
+
+        {streak && streak.current > 0 && (
+          <div
+            className={`streak-badge${streak.activeToday ? "" : " streak-badge--at-risk"}`}
+            title={
+              streak.activeToday
+                ? `Longest streak: ${streak.longest} day${streak.longest === 1 ? "" : "s"}`
+                : "Rate something today to keep it alive"
+            }
+          >
+            🔥 {streak.current}-day streak
+            {!streak.activeToday && <span className="streak-badge-nudge">rate something today</span>}
+          </div>
+        )}
         <h1 style={{
           fontSize: "clamp(2.2rem, 5.5vw, 3.4rem)",
           fontWeight: "var(--fw-hero)",

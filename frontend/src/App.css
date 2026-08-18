@@ -1557,6 +1557,46 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
+/* --gold is this app's rating/achievement hue elsewhere (see the palette
+   note near .achievement-badge) — reused here so a streak reads as "earned
+   status," the same register as a badge, not a fourth accent color. */
+.streak-badge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.1);
+  color: var(--gold);
+  font-size: 0.82rem;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.streak-badge--at-risk {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  animation: streak-pulse 2.4s ease-in-out infinite;
+}
+
+.streak-badge-nudge {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+@keyframes streak-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
 .feed-hero h1 {
   position: relative;
   z-index: 1;
