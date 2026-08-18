@@ -30,12 +30,15 @@ public class CatalogSeeder implements ApplicationRunner {
     /**
      * Below this, the catalog is thin enough that Mood Search / Discovery
      * would feel broken (empty or near-empty results) rather than merely
-     * limited — well under the 1500-title target bulkExpand aims for, so
-     * this only fires on a genuinely fresh/empty deploy, not a catalog that
-     * simply hasn't been expanded to full breadth yet.
+     * limited — well under the seed target below, so this only fires on a
+     * genuinely fresh/empty deploy, not a catalog that simply hasn't been
+     * expanded to full breadth yet.
      */
     private static final int MIN_CATALOG_SIZE = 200;
-    private static final int SEED_TARGET = 1500;
+    // Raised from 1,500 — at that size, a title search or a specific mood
+    // filter routinely came up thin or empty for anything not squarely in
+    // the most-popular-of-the-most-popular slice TMDB's top lists surface.
+    private static final int SEED_TARGET = 6000;
 
     private final TitleRepository titleRepo;
     private final EnrichmentService enrichmentService;

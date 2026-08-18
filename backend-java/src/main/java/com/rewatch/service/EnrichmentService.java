@@ -207,12 +207,18 @@ public class EnrichmentService {
     // TMDB's TV genre ids are a DIFFERENT id space than movie genres.
     private static final int[] TV_GENRES = {10759, 16, 35, 80, 99, 18, 10751, 9648, 10765, 10768, 37};
 
-    private static final int PAGES_PER_GENRE = 6;
+    // Raised from 6/400 — at the old values, bulkExpand physically could not
+    // reach much past ~1,500 titles regardless of what target was requested
+    // (roughly 29 genre/type combinations x 6 pages x 20 results, most of
+    // which overlap and dedup away — popular titles show up under several
+    // genres). TMDB's own /discover hard-caps at 500 pages per query, so
+    // 20 is still well inside that ceiling per genre, not a stretch.
+    private static final int PAGES_PER_GENRE = 20;
     private static final int PAGES_GENERAL = 8;
     // Hard safety cap on TMDB calls regardless of how close to target we are
     // — this is a live operation against a real API key, not something that
     // should be able to loop unbounded from a bad response shape.
-    private static final int MAX_PAGE_CALLS = 400;
+    private static final int MAX_PAGE_CALLS = 1500;
     private static final long RATE_LIMIT_DELAY_MS = 300;
 
     /**
