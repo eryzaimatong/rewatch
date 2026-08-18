@@ -1660,8 +1660,17 @@ input[type="range"] {
 .recommendation-grid {
   display: grid;
 
+  /* auto-fill, not auto-fit: auto-fit collapses empty tracks and lets the
+     1fr on existing tracks fill the freed space, which is exactly right
+     for a full row but stretches a THIN row (a mood filter that only
+     matched one or two titles, e.g.) to absurd width — one card alone in
+     a ~1180px row rendered at the full 1180px wide, with its aspect-ratio
+     poster ballooning to ~1770px tall along with it. auto-fill leaves
+     unfilled tracks in place instead of collapsing them, so existing cards
+     stay at their natural size and the row just doesn't fill, the same way
+     a short shelf/row reads on any real streaming grid. */
   grid-template-columns:
-    repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+    repeat(auto-fill, minmax(min(100%, 290px), 1fr));
 
   gap: 26px;
 
@@ -4187,8 +4196,9 @@ input[type="range"] {
   }
 
   .recommendation-grid {
+    /* auto-fill — see the base rule's comment for why. */
     grid-template-columns:
-      repeat(auto-fit, minmax(260px, 1fr));
+      repeat(auto-fill, minmax(260px, 1fr));
   }
 }
 
