@@ -389,7 +389,8 @@ public class Recommender {
      * match, just not necessarily the single highest-scoring one. A no-op once
      * enough ratings exist to trust the ranking as-is.
      */
-    private List<MovieDTO> coldStartSafeReorder(List<MovieDTO> ranked, double meanConf) {
+    /** Package-private for direct testing — see RecommenderTest. */
+    List<MovieDTO> coldStartSafeReorder(List<MovieDTO> ranked, double meanConf) {
         if (meanConf > COLD_START_CONFIDENCE_THRESHOLD || ranked.size() < 2) {
             return ranked;
         }
@@ -399,7 +400,16 @@ public class Recommender {
             MovieDTO cand = ranked.get(i);
             TraitVector v = TraitVector.fromMap(keyedToEnum(cand.getStoryVector()));
             Double voteAvg = cand.getVoteAverage();
-            boolean broadlyAppealing = v.get(Trait.INTENSITY) <= COLD_START_INTENSITY_CEILING
+            // Low INTENSITY/BITTER and a strong vote average describe a
+            // documentary (Planet Earth, etc.) just as well as they describe a
+            // genuinely comforting scripted pick — a nature doc reads as "safe"
+            // on every axis this check looks at, which is exactly how one ended
+            // up as a fresh account's featured Tonight's Pick on a mood-driven
+            // narrative app. Excluded outright rather than scored down: it isn't
+            // a worse *match*, it's the wrong *kind of thing* to lead with.
+            boolean isDocumentary = cand.getGenres() != null && cand.getGenres().contains("Documentary");
+            boolean broadlyAppealing = !isDocumentary
+                    && v.get(Trait.INTENSITY) <= COLD_START_INTENSITY_CEILING
                     && v.get(Trait.BITTER) <= COLD_START_BITTER_CEILING
                     && (voteAvg == null || voteAvg >= COLD_START_MIN_VOTE_AVERAGE);
             if (broadlyAppealing) {

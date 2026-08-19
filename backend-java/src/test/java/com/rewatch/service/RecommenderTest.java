@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.rewatch.dto.MovieDTO;
 import com.rewatch.model.Title;
 import com.rewatch.model.Trait;
 import com.rewatch.model.TraitVector;
@@ -263,5 +264,54 @@ class RecommenderTest {
         List<Title> result = newRecommender().applyBrowseFilters(List.of(a, b), "All", null, "All");
 
         assertEquals(2, result.size());
+    }
+
+    // --- coldStartSafeReorder: the fix for "with one rating, Tonight's Pick
+    // was Planet Earth" — low INTENSITY/BITTER and a strong vote average
+    // describe a calm nature documentary just as well as a genuinely
+    // comforting scripted pick, so the cold-start safety net was promoting
+    // (or leaving in place) exactly the wrong kind of first impression. ---
+
+    private MovieDTO safeCandidate(String title, List<String> genres) {
+        MovieDTO dto = new MovieDTO();
+        dto.setTitle(title);
+        dto.setGenres(genres);
+        dto.setVoteAverage(8.5);
+        dto.setStoryVector(TraitVector.neutral()
+                .with(Trait.INTENSITY, 0.1)
+                .with(Trait.BITTER, 0.1)
+                .toKeyedMap());
+        return dto;
+    }
+
+    @Test
+    void documentaryLeadingAColdProfileIsDemotedInFavorOfAScriptedSafePick() {
+        MovieDTO doc = safeCandidate("Planet Earth", List.of("Documentary"));
+        MovieDTO scripted = safeCandidate("A Cozy Comedy", List.of("Comedy"));
+
+        List<MovieDTO> result = newRecommender().coldStartSafeReorder(List.of(doc, scripted), 0.2);
+
+        assertEquals("A Cozy Comedy", result.get(0).getTitle());
+    }
+
+    @Test
+    void documentaryStaysPutWhenNothingElseInTheLookaheadQualifies() {
+        // Nothing better to promote to — same "leave it alone" fallback the
+        // existing safety net already uses when the lookahead is empty.
+        MovieDTO doc = safeCandidate("Planet Earth", List.of("Documentary"));
+
+        List<MovieDTO> result = newRecommender().coldStartSafeReorder(List.of(doc), 0.2);
+
+        assertEquals("Planet Earth", result.get(0).getTitle());
+    }
+
+    @Test
+    void reorderIsANoOpOnceProfileConfidenceIsNoLongerCold() {
+        MovieDTO doc = safeCandidate("Planet Earth", List.of("Documentary"));
+        MovieDTO scripted = safeCandidate("A Cozy Comedy", List.of("Comedy"));
+
+        List<MovieDTO> result = newRecommender().coldStartSafeReorder(List.of(doc, scripted), 0.9);
+
+        assertEquals("Planet Earth", result.get(0).getTitle());
     }
 }
