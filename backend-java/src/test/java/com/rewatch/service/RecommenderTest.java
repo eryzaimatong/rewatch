@@ -181,4 +181,87 @@ class RecommenderTest {
 
         assertEquals(3, pool.size());
     }
+
+    // --- applyBrowseFilters: the actual fix for "combining vibe/genre/
+    // language filters returns zero results" — genre/language/vibe used to
+    // only ever filter the ~30 already-ranked titles an unfiltered feed
+    // returned; this applies them to the full candidate pool instead. ---
+
+    private Title titleWithGenres(String title, String genreIds) {
+        Title t = renderableTitle(title, 500);
+        t.setGenreIds(genreIds);
+        return t;
+    }
+
+    private Title titleWithLanguage(String title, String language) {
+        Title t = renderableTitle(title, 500);
+        t.setOriginalLanguage(language);
+        return t;
+    }
+
+    @Test
+    void genreFilterKeepsOnlyTitlesResolvingToThatGenreName() {
+        Title horror = titleWithGenres("Horror Movie", "27");
+        Title comedy = titleWithGenres("Comedy Movie", "35");
+        List<Title> result = newRecommender().applyBrowseFilters(List.of(horror, comedy), "Horror", null, null);
+
+        assertEquals(1, result.size());
+        assertEquals("Horror Movie", result.get(0).getTitle());
+    }
+
+    @Test
+    void languageFilterKeepsOnlyMatchingOriginalLanguage() {
+        Title en = titleWithLanguage("English Movie", "en");
+        Title ko = titleWithLanguage("Korean Movie", "ko");
+        List<Title> result = newRecommender().applyBrowseFilters(List.of(en, ko), null, "ko", null);
+
+        assertEquals(1, result.size());
+        assertEquals("Korean Movie", result.get(0).getTitle());
+    }
+
+    @Test
+    void vibeFilterMapsToARealTraitThresholdNotTextMatching() {
+        // The old bug's exact shape: a title whose reasons/genres/title text
+        // never mentions the word "romance" at all must still match the
+        // Romance vibe if its actual romance trait value is high.
+        Title romantic = renderableTitle("Some Random Title", 500);
+        romantic.setTraitVector(TraitVector.neutral().with(Trait.ROMANCE, 0.9));
+        Title notRomantic = renderableTitle("Another Title", 500);
+        notRomantic.setTraitVector(TraitVector.neutral().with(Trait.ROMANCE, 0.2));
+
+        List<Title> result = newRecommender().applyBrowseFilters(List.of(romantic, notRomantic), null, null, "Romance");
+
+        assertEquals(1, result.size());
+        assertEquals("Some Random Title", result.get(0).getTitle());
+    }
+
+    @Test
+    void allThreeFiltersCanCombineWithoutTriviallyEmptyingASixThousandTitleCatalog() {
+        // The reported bug: Romance (vibe) + Western (genre) + English
+        // (language) selected together returned zero. Simulates the same
+        // shape at a small scale — one title that genuinely satisfies all
+        // three must still survive being filtered by all three at once.
+        Title matches = titleWithGenres("The One", "37"); // Western
+        matches.setOriginalLanguage("en");
+        matches.setTraitVector(TraitVector.neutral().with(Trait.ROMANCE, 0.9));
+
+        Title wrongGenre = titleWithGenres("Wrong Genre", "27"); // Horror
+        wrongGenre.setOriginalLanguage("en");
+        wrongGenre.setTraitVector(TraitVector.neutral().with(Trait.ROMANCE, 0.9));
+
+        List<Title> result = newRecommender()
+                .applyBrowseFilters(List.of(matches, wrongGenre), "Western", "en", "Romance");
+
+        assertEquals(1, result.size());
+        assertEquals("The One", result.get(0).getTitle());
+    }
+
+    @Test
+    void allOrNullFiltersAreANoOp() {
+        Title a = renderableTitle("A", 500);
+        Title b = renderableTitle("B", 500);
+        List<Title> result = newRecommender().applyBrowseFilters(List.of(a, b), "All", null, "All");
+
+        assertEquals(2, result.size());
+    }
 }

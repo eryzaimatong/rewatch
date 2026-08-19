@@ -89,7 +89,38 @@ public class Recommender {
     }
 
     public List<MovieDTO> recommend(Long userId, int limit, boolean excludeRated, boolean diversify) {
-        List<Title> candidates = candidatePool(limit);
+        return recommend(userId, limit, excludeRated, diversify, null, null, null);
+    }
+
+    /**
+     * Curated "vibe" pill -> the real Trait axis it actually means. Was
+     * matched by scanning each title's reasons/genres/title TEXT for the
+     * pill's own word ("romance" has to literally appear somewhere) — which
+     * is why combining a vibe pill with a genre pill routinely emptied the
+     * feed: both were narrowing the same already-ranked top ~30 titles the
+     * unfiltered feed happened to surface, not the real 6,000+ catalog.
+     */
+    private static final Map<String, Trait> VIBE_TRAIT = Map.of(
+            "Comfort", Trait.COMFORT,
+            "Slow Burn", Trait.PACING,
+            "Found Family", Trait.FAMILY,
+            "Bittersweet", Trait.BITTER,
+            "Romance", Trait.ROMANCE);
+    private static final double VIBE_TRAIT_THRESHOLD = 0.6;
+
+    /**
+     * genreFilter/languageFilter/vibeFilter (any or all may be null/"All")
+     * are applied to the FULL candidate pool — same pool {@link #candidatePool}
+     * already draws from the whole catalog for — before scoring and the
+     * final top-{@code limit} cut, not after. Filtering only the already-
+     * ranked top-30 titles the unfiltered feed returns (the old approach,
+     * still what languagefilter/genrefilter did client-side before this)
+     * meant combining even two filters could trivially zero out a feed
+     * backed by a 6,000+ title catalog.
+     */
+    public List<MovieDTO> recommend(Long userId, int limit, boolean excludeRated, boolean diversify,
+                                     String genreFilter, String languageFilter, String vibeFilter) {
+        List<Title> candidates = applyBrowseFilters(candidatePool(limit), genreFilter, languageFilter, vibeFilter);
         if (candidates.isEmpty()) {
             return List.of();
         }
@@ -144,6 +175,33 @@ public class Recommender {
                 .filter(t -> t.getVoteCount() != null && t.getVoteCount() >= MIN_VOTE_COUNT_FOR_RECOMMENDATION)
                 .toList();
         return wellKnown.size() >= limit * 3 ? wellKnown : renderable;
+    }
+
+    /**
+     * Any of genreFilter/languageFilter/vibeFilter may be null, blank, or
+     * "All", meaning "don't filter on this axis" — matches the frontend's
+     * own pill-row convention of an explicit "All" option. Package-private
+     * for direct testing, same as candidatePool.
+     */
+    List<Title> applyBrowseFilters(List<Title> candidates, String genreFilter, String languageFilter, String vibeFilter) {
+        List<Title> out = candidates;
+        if (genreFilter != null && !genreFilter.isBlank() && !"All".equalsIgnoreCase(genreFilter)) {
+            out = out.stream()
+                    .filter(t -> com.rewatch.features.GenreLexicon.namesFor(t.getGenreIds()).contains(genreFilter))
+                    .toList();
+        }
+        if (languageFilter != null && !languageFilter.isBlank() && !"All".equalsIgnoreCase(languageFilter)) {
+            out = out.stream()
+                    .filter(t -> languageFilter.equals(t.getOriginalLanguage()))
+                    .toList();
+        }
+        if (vibeFilter != null && VIBE_TRAIT.containsKey(vibeFilter)) {
+            Trait axis = VIBE_TRAIT.get(vibeFilter);
+            out = out.stream()
+                    .filter(t -> t.traitVector().get(axis) >= VIBE_TRAIT_THRESHOLD)
+                    .toList();
+        }
+        return out;
     }
 
     private boolean hasRenderableData(Title t) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus } from "./api";
 import { authHeaders } from "./auth";
@@ -88,6 +88,19 @@ function chipsFromUnderstood(understood) {
 
 const FILTER_PILLS = [
   "All", "Comfort", "Slow Burn", "Found Family", "Bittersweet", "Romance"
+];
+
+// Mirrors GenreLexicon.NAMES on the backend (the narrative genres worth a
+// browse pill for — TV-format categories like Kids/News/Reality/Talk are
+// excluded, same as there). Hardcoded rather than derived from whatever's
+// in the currently-loaded feed: that was the same "only ever reflects a
+// ~30-title slice, not the real catalog" problem the filters themselves
+// had — a genre pill would only appear once a title with that genre
+// happened to already be in the unfiltered top 30.
+const GENRE_OPTIONS = [
+  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
+  "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery",
+  "Romance", "Sci-Fi", "Thriller", "War", "Western"
 ];
 
 function getYear(date) {
@@ -267,6 +280,15 @@ export default function MovieFeed() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Captured from the first, unfiltered load only — never recomputed after a
+  // filtered fetch. availablelanguages used to be derived live from
+  // `movies`, which meant picking any one filter shrank the pill row down
+  // to only what survived that filter, making every other option look like
+  // it had vanished. Stays stable so the full set of choices is always
+  // visible regardless of which one is currently active. (Genre pills don't
+  // need this — see GENRE_OPTIONS above, a fixed list instead.)
+  const [alllanguagesSeen, setalllanguagesSeen] = useState([]);
+  const [relaxednotice, setrelaxednotice] = useState("");
   // Maps movie.id (tmdbId-preferring, see normalizeMovie) -> the persisted
   // watchlist row id, so a click can DELETE the right row. Replaces the old
   // local-only savedIds array, which never called the server at all and
@@ -476,6 +498,22 @@ export default function MovieFeed() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
+  // Re-fetches from the server whenever a filter pill changes, instead of
+  // only ever filtering whatever the mount-time load happened to return —
+  // see loadData's own comment for why that was the actual cause of
+  // "combining two filters returns zero results" on a 6,000+ title catalog.
+  // skippedFirstRun guards against double-fetching on mount: the effect
+  // above already calls loadData() once, unconditionally, on mount.
+  const skippedFirstRun = useRef(false);
+  useEffect(() => {
+    if (!skippedFirstRun.current) {
+      skippedFirstRun.current = true;
+      return;
+    }
+    loadData(vibe, genrefilter, languagefilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vibe, genrefilter, languagefilter]);
+
   async function loadStreak() {
     const userId = localStorage.getItem("userId");
     if (!userId) return;
@@ -507,9 +545,40 @@ export default function MovieFeed() {
     setdealbreakerhiddenloading(false);
   }
 
-  async function loadData() {
+  // vibe/genrefilter/languagefilter used to only filter the already-loaded
+  // `movies` array client-side — a small (~30-title), already-ranked slice
+  // of a 6,000+ title catalog. Combining even two filters routinely emptied
+  // it out, since the unfiltered feed had no reason to have surfaced a title
+  // matching both in its top 30 in the first place. Passed to the backend
+  // now instead, which applies them to the full quality-filtered candidate
+  // pool (see Recommender.recommend's filtered overload) before picking the
+  // top 30 — the filters narrow the same breadth the unfiltered feed draws
+  // from, not a slice already narrowed down to something else.
+  async function fetchPopular(activeVibe, activeGenre, activeLanguage) {
+    const params = new URLSearchParams();
+    if (activeVibe && activeVibe !== "All") params.set("vibe", activeVibe);
+    if (activeGenre && activeGenre !== "All") params.set("genre", activeGenre);
+    if (activeLanguage && activeLanguage !== "All") params.set("language", activeLanguage);
+    // The backend derives the personalizing id from the JWT (see TmdbController),
+    // not a query param — a permitAll route that trusted `?userId=` would let
+    // anyone read anyone's personalized feed without logging in.
+    const res = await fetch(`${BASE}/api/movies/popular?${params.toString()}`, { headers: authHeaders() }).catch(() => null);
+    if (!res || !res.ok) {
+      return null;
+    }
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data) ? data : null;
+  }
+
+  async function loadData(vibeArg, genreArg, languageArg) {
     setLoading(true);
     setError("");
+    setrelaxednotice("");
+
+    const activeVibe = vibeArg ?? vibe;
+    const activeGenre = genreArg ?? genrefilter;
+    const activeLanguage = languageArg ?? languagefilter;
+    const isFirstLoad = alllanguagesSeen.length === 0;
 
     // getrecs()/gettitles() only guard against a non-2xx response — a genuine
     // network failure (offline, DNS, an aborted request) makes fetch() itself
@@ -521,18 +590,34 @@ export default function MovieFeed() {
     // again) instead of a permanent spinner.
     try {
       const userId = localStorage.getItem("userId");
-      // The backend derives the personalizing id from the JWT (see TmdbController),
-      // not a query param — a permitAll route that trusted `?userId=` would let
-      // anyone read anyone's personalized feed without logging in.
-      const tmdbRes = await fetch(`${BASE}/api/movies/popular`, { headers: authHeaders() }).catch(() => null);
+      let liveData = await fetchPopular(activeVibe, activeGenre, activeLanguage);
 
-      if (tmdbRes && tmdbRes.ok) {
-        const liveData = await tmdbRes.json();
-        if (Array.isArray(liveData) && liveData.length > 0) {
-          const normalizedMovies = liveData.map((item, index) => normalizeMovie(item, index));
-          setMovies(normalizedMovies);
-          return;
+      // Genuine zero-match combos still happen (a real genre+language pair
+      // that just has nothing in the catalog) even with filters now applied
+      // to the full 6,000+ title pool instead of an already-narrow slice —
+      // vibe is the softest, most approximate constraint of the three, so
+      // it's the first one dropped, then genre, before falling all the way
+      // back to "show something, unfiltered" silently.
+      if ((!liveData || liveData.length === 0) && activeVibe !== "All") {
+        liveData = await fetchPopular("All", activeGenre, activeLanguage);
+        if (liveData && liveData.length > 0) {
+          setrelaxednotice(`No exact matches for "${activeVibe}" with these filters, so we loosened the vibe.`);
         }
+      }
+      if ((!liveData || liveData.length === 0) && activeGenre !== "All") {
+        liveData = await fetchPopular("All", "All", activeLanguage);
+        if (liveData && liveData.length > 0) {
+          setrelaxednotice(`No exact matches, so we loosened the genre and vibe filters.`);
+        }
+      }
+
+      if (liveData && liveData.length > 0) {
+        const normalizedMovies = liveData.map((item, index) => normalizeMovie(item, index));
+        setMovies(normalizedMovies);
+        if (isFirstLoad) {
+          setalllanguagesSeen([...new Set(normalizedMovies.map((m) => m.originalLanguage).filter(Boolean))].sort());
+        }
+        return;
       }
 
       let response = [];
@@ -548,6 +633,9 @@ export default function MovieFeed() {
 
       const normalizedMovies = response.map((item, index) => normalizeMovie(item, index));
       setMovies(normalizedMovies);
+      if (isFirstLoad) {
+        setalllanguagesSeen([...new Set(normalizedMovies.map((m) => m.originalLanguage).filter(Boolean))].sort());
+      }
     } catch {
       setError("Couldn't load your feed. Check your connection and try again.");
     } finally {
@@ -721,53 +809,22 @@ export default function MovieFeed() {
     setselectedmovie(movie);
   }
 
-  // Every language actually present in the loaded results — not a fixed
-  // list, so the filter never offers an option with zero matches.
-  const availablelanguages = [...new Set(
-    movies.map((m) => m.originalLanguage).filter(Boolean)
-  )].sort();
+  // Captured once from the first unfiltered load — see alllanguagesSeen's
+  // declaration for why this doesn't derive from the current (possibly
+  // filtered) `movies` array.
+  const availablelanguages = alllanguagesSeen;
+  const availablegenres = GENRE_OPTIONS;
 
-  // Real TMDB genre taxonomy (Horror, Documentary, ...) — distinct from the
-  // "vibe" pills above (Comfort, Bittersweet, ...), which are curated
-  // emotional categories, not genres. The backend used to never resolve
-  // genre ids to names at all (MovieDTO had no genres field), so this row
-  // had nothing real to filter by even though this exact parsing already
-  // existed in normalizeMovie waiting for data that never arrived.
-  const availablegenres = [...new Set(
-    movies.flatMap((m) => m.genres || [])
-  )].sort();
-
-  const visiblemovies = [];
-  for (let i = 0; i < movies.length; i++) {
-    const m = movies[i];
-    if (languagefilter !== "All" && m.originalLanguage !== languagefilter) {
-      continue;
-    }
-    if (genrefilter !== "All" && !(m.genres || []).includes(genrefilter)) {
-      continue;
-    }
-    if (vibe === "All") {
-      visiblemovies.push(m);
-    } else {
-      let match = false;
-      for (let j = 0; j < m.reasons.length; j++) {
-        if (m.reasons[j].toLowerCase().includes(vibe.toLowerCase())) {
-          match = true;
-        }
-      }
-      for (let k = 0; k < m.genres.length; k++) {
-        if (m.genres[k].toLowerCase().includes(vibe.toLowerCase())) {
-          match = true;
-        }
-      }
-      if (m.title.toLowerCase().includes(vibe.toLowerCase())) {
-        match = true;
-      }
-      if (match) {
-        visiblemovies.push(m);
-      }
-    }
-  }
+  // vibe/genre/language are now applied server-side (Recommender.recommend's
+  // filtered overload, called from loadData) against the full candidate
+  // pool, not just the ~30 titles an unfiltered feed happens to return — so
+  // `movies` already reflects whatever's currently selected by the time it
+  // gets here. This used to re-filter AGAIN client-side on top of that
+  // (keyword-matching reasons/genres/title text for the vibe pill, plus a
+  // second genre/language pass), which both duplicated the server's work
+  // and was the literal mechanism behind "every filter combo returns zero":
+  // two filters compounding on an already-narrow, already-ranked slice.
+  const visiblemovies = movies;
 
   const shortlist = visiblemovies.slice(0, 4);
 
@@ -1180,6 +1237,12 @@ export default function MovieFeed() {
               </button>
             ))}
           </div>
+        )}
+
+        {!loading && relaxednotice && (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", marginBottom: "var(--sp-2)" }}>
+            {relaxednotice}
+          </p>
         )}
 
         {!loading && dealbreakerhiddencount > 0 && !dealbreakerhidden && (

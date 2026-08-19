@@ -86,9 +86,12 @@ public class TmdbController {
      * Reads only the local catalog — see TmdbService for why.
      */
     @GetMapping("/popular")
-    public List<MovieDTO> getpopular(Authentication authentication, HttpServletRequest request) {
+    public List<MovieDTO> getpopular(@RequestParam(required = false) String genre,
+                                     @RequestParam(required = false) String language,
+                                     @RequestParam(required = false) String vibe,
+                                     Authentication authentication, HttpServletRequest request) {
         checkPublicRateLimit(request);
-        return tmdbservice.getpopular(SecurityUtil.currentUserId(authentication));
+        return tmdbservice.getpopular(SecurityUtil.currentUserId(authentication), genre, language, vibe);
     }
 
     @GetMapping("/search")

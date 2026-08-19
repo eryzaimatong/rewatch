@@ -50,8 +50,20 @@ public class TmdbService {
      * comes from {@link EnrichmentService}'s background ingestion instead.
      */
     public List<MovieDTO> getpopular(Long userId) {
+        return getpopular(userId, null, null, null);
+    }
+
+    /**
+     * genre/language/vibe filter the FULL candidate pool server-side (see
+     * Recommender.recommend's filtered overload) rather than the frontend
+     * filtering only the already-ranked top-30 titles this returns when
+     * unfiltered — that was the actual cause of "every filter combo returns
+     * zero," not a catalog-size problem (the catalog has 6,000+ titles;
+     * the unfiltered feed only ever surfaced 30 of them to filter further).
+     */
+    public List<MovieDTO> getpopular(Long userId, String genre, String language, String vibe) {
         long effectiveUserId = userId == null ? GUEST_USER_ID : userId;
-        return recommender.recommend(effectiveUserId, 30, false, true);
+        return recommender.recommend(effectiveUserId, 30, false, true, genre, language, vibe);
     }
 
     @Transactional
