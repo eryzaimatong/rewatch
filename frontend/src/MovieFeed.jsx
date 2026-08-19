@@ -321,6 +321,9 @@ export default function MovieFeed() {
     localStorage.setItem("genreFilter", next);
   }
   const [moodline, setmoodline] = useState("");
+  // Drives which flavor of hero subtitle is honest to show — see the `hook`
+  // block below for why this can't just be "has a vibe pill been clicked."
+  const [personalized, setpersonalized] = useState(false);
   const [streak, setstreak] = useState(null);
   const [trending, settrending] = useState([]);
   const [becauseyouloved, setbecauseyouloved] = useState([]);
@@ -338,7 +341,18 @@ export default function MovieFeed() {
 
   const username = localStorage.getItem("username") || "friend";
 
-  let hook = "It feels like you're looking for warmth and comfort after a long week.";
+  // Confident, "we know your mood" phrasing must not outrun what the profile
+  // actually knows — moodline (the h1 right above this) already says outright
+  // when there isn't enough data yet ("Rate a few titles and this will start
+  // reading your mood"), so this line can't simultaneously claim to have read
+  // a specific mood or the two contradict each other in the same breath.
+  // Selecting a vibe pill is the user's own explicit choice, not an inferred
+  // read, so it's exempt — echoing back "Romance" after they clicked Romance
+  // isn't a claim about them, it's a restatement of what they picked.
+  let hook = "Pick a vibe below, or rate a few titles and we'll start reading your mood automatically.";
+  if (personalized) {
+    hook = "It feels like you're looking for warmth and comfort after a long week.";
+  }
   if (vibe === "Bittersweet") {
     hook = "Tonight feels like you want a story that lingers and leaves something unresolved.";
   }
@@ -370,10 +384,12 @@ export default function MovieFeed() {
     const data = res && res.ok ? await res.json() : null;
 
     if (!data || !data.personalized || !data.traits) {
+      setpersonalized(false);
       setmoodline(`${greeting}, ${username}. Rate a few titles and this will start reading your mood.`);
       return;
     }
 
+    setpersonalized(true);
     const entries = Object.values(data.traits);
     const top = entries.reduce((best, t) => (t.val > (best?.val ?? -1) ? t : best), null);
     setmoodline(
