@@ -1159,7 +1159,7 @@ export default function MovieFeed() {
                   </button>
                   <button
                     type="button"
-                    className={`save-icon-button ${saveditemsbymovieid[String(movies[0].id)] ? "is-saved" : ""}`}
+                    className={`tonight-pick-save-button ${saveditemsbymovieid[String(movies[0].id)] ? "is-saved" : ""}`}
                     onClick={() => handleSave(movies[0])}
                   >
                     {saveditemsbymovieid[String(movies[0].id)] ? "✓ Saved" : "+ Save"}
@@ -1433,6 +1433,14 @@ export default function MovieFeed() {
         <MovieModal
           movie={selectedmovie}
           onClose={() => setselectedmovie(null)}
+          // Rating (or unrating) a title shifts the whole taste profile, so
+          // every other match number already rendered in the feed — the hero
+          // ring above all — is stale the instant this fires. Re-runs behind
+          // the still-open modal, so by the time it's closed the feed is
+          // already showing numbers consistent with what the modal itself
+          // just displayed, instead of the pre-rating snapshot from the last
+          // full load.
+          onRatingChange={() => loadData(vibe, genrefilter, languagefilter)}
         />
       )}
     </main>

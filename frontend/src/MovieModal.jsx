@@ -137,7 +137,7 @@ function ContributionRow({ item, positive }) {
   );
 }
 
-export default function MovieModal({ movie, onClose }) {
+export default function MovieModal({ movie, onClose, onRatingChange }) {
   const [tab, settab] = useState("fingerprint");
   const [overall, setoverall] = useState(0);
   const [chars, setchars] = useState(0);
@@ -345,6 +345,14 @@ export default function MovieModal({ movie, onClose }) {
         return;
       }
 
+      // A rating shifts the whole taste profile, not just this title's own
+      // score — every match number already on screen elsewhere (the hero
+      // ring, other feed cards) is now stale until the parent re-scores
+      // them. Without this, the same title could show one number here
+      // (freshly recomputed on this modal's own next load) and a leftover
+      // pre-rating number wherever else it's still displayed.
+      onRatingChange?.();
+
       if (result?.isRewatch) {
         setrewatchInfo({ watchNumber: result.watchNumber, previousOverall: result.previousOverall });
       } else {
@@ -399,6 +407,7 @@ export default function MovieModal({ movie, onClose }) {
         // matchScore/explanation reflect the recomputed (now one rating
         // lighter) taste profile.
         loadMatch(movie?.titleId, userid);
+        onRatingChange?.();
       } else {
         seterr("Could not delete this rating.");
         setconfirmingDeleteRating(false);

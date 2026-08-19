@@ -2138,6 +2138,38 @@ input[type="range"] {
   box-shadow: none;
 }
 
+/* The hero's "+ Save"/"✓ Saved" button was reusing .save-icon-button — a
+   fixed 34x34px square meant for a single glyph on a poster card, not text.
+   Crammed with a two-word label, it had nowhere to put the text but wrap
+   and spill outside the box. Sized like .details-button instead: an actual
+   text button, not a tiny icon square stretched past its own contract. */
+.tonight-pick-save-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 43px;
+  padding: 0 18px;
+  border-radius: 11px;
+  white-space: nowrap;
+  color: #ededed;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: none;
+}
+
+.tonight-pick-save-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  box-shadow: none;
+}
+
+.tonight-pick-save-button.is-saved {
+  color: var(--primary-light);
+  border-color: rgba(var(--primary-rgb), 0.4);
+  background: rgba(var(--primary-rgb), 0.12);
+}
+
 /* ==========================================
    LOADING / ERROR / EMPTY STATES
    ========================================== */
