@@ -185,4 +185,34 @@ class RatingServiceTest {
         assertEquals(3, result.previousOverall());
         verify(watchStatusRepo, times(1)).deleteByUserIdAndTitleId(USER_ID, 1L);
     }
+
+    @Test
+    void deleteRatingRemovesItAndReplaysTheProfile() {
+        when(ratingRepo.deleteByIdAndUserId(42L, USER_ID)).thenReturn(1L);
+        when(userRepo.findById(USER_ID)).thenReturn(Optional.empty());
+        when(userTraitRepo.findByUserId(USER_ID)).thenReturn(List.of());
+        org.mockito.Mockito.doNothing().when(traitEventRepo).deleteByUserId(USER_ID);
+        stubRatingLog(0);
+
+        boolean removed = newService().deleteRating(USER_ID, 42L);
+
+        assertTrue(removed);
+        // The whole point of deleting a rating is that it stops counting
+        // toward TasteDNA — that only happens if the profile actually gets
+        // recomputed afterward, not just the row deleted.
+        verify(traitEventRepo, times(1)).deleteByUserId(USER_ID);
+    }
+
+    @Test
+    void deleteRatingDoesNothingForAnUnownedOrUnknownRating() {
+        // Same row-count-based signal for "not found" and "not yours" — the
+        // repository's ownership-scoped delete can't distinguish the two,
+        // same as WatchlistService.removeItem.
+        when(ratingRepo.deleteByIdAndUserId(99L, USER_ID)).thenReturn(0L);
+
+        boolean removed = newService().deleteRating(USER_ID, 99L);
+
+        assertFalse(removed);
+        verify(traitEventRepo, org.mockito.Mockito.never()).deleteByUserId(any());
+    }
 }

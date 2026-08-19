@@ -32,6 +32,13 @@ public class MovieDTO {
     private String featuresSource;
     private Double voteAverage;
     private boolean rated;
+    /** Set only by TitleController.match (the single-title detail lookup) —
+     *  the id of the caller's own most recent rating of this title, so the
+     *  frontend has something to call DELETE /api/movies/ratings/{id} with.
+     *  Left null everywhere else (list-scoring paths never look this up —
+     *  it would mean one extra query per title in every recommendation
+     *  list, for a value only the single-title detail view needs). */
+    private Long ratingId;
     private String originalLanguage;
 
     /** Real TMDB genre names (Horror, Documentary, ...), resolved from the
@@ -103,6 +110,9 @@ public class MovieDTO {
 
     public boolean isRated() { return rated; }
     public void setRated(boolean rated) { this.rated = rated; }
+
+    public Long getRatingId() { return ratingId; }
+    public void setRatingId(Long v) { this.ratingId = v; }
 
     public String getOriginalLanguage() { return originalLanguage; }
     public void setOriginalLanguage(String v) { this.originalLanguage = v; }

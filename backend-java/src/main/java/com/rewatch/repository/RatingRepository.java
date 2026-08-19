@@ -41,4 +41,7 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     List<Long> findDistinctTitleIdsByUserId(Long userId);
 
     void deleteByUserId(Long userId);
+
+    /** Ownership-scoped single-rating delete — returns the number of rows removed (0 or 1), never touches a rating that isn't the caller's own. */
+    long deleteByIdAndUserId(Long id, Long userId);
 }

@@ -28,6 +28,14 @@ export async function rateMovie(payload) {
   return { ok: res.ok, data: await res.json().catch(() => null) };
 }
 
+export async function deleteRating(ratingId, userId) {
+  const res = await fetch(`${BASE}/api/movies/ratings/${ratingId}?userId=${userId}`, {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  return { ok: res.ok, data: await res.json().catch(() => null) };
+}
+
 export async function getWatchStatuses(userId) {
   const res = await fetch(`${BASE}/api/watch-status/${userId}`, { headers: authHeaders() });
   if (!res.ok) {

@@ -11,7 +11,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -218,5 +220,24 @@ public class TmdbController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("status", "error", "message", e.getMessage()));
         }
+    }
+
+    /**
+     * There was previously no way to remove a rating at all — see
+     * RatingService.deleteRating's comment. userId comes from a query param
+     * (DELETE requests don't carry a body here, same pattern as
+     * WatchlistController.removeItem/deleteFolder) but is only ever trusted
+     * once requireSelf confirms it matches the authenticated caller.
+     */
+    @DeleteMapping("/ratings/{ratingId}")
+    public ResponseEntity<?> deleteRating(@PathVariable Long ratingId, @RequestParam Long userId,
+                                          Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        boolean removed = ratingService.deleteRating(userId, ratingId);
+        if (!removed) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", "error", "message", "Rating not found"));
+        }
+        return ResponseEntity.ok(Map.of("status", "success"));
     }
 }

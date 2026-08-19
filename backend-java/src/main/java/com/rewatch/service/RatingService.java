@@ -113,6 +113,27 @@ public class RatingService {
     }
 
     /**
+     * There was previously no way to remove a rating at all, anywhere — not
+     * from the UI, not from the API. Ownership-scoped delete (a userId
+     * mismatch or unknown id both just report "nothing removed" rather than
+     * distinguishing 404 from 403, same as WatchlistService.removeItem),
+     * followed by a full profile replay: the whole point of deleting a
+     * rating is that it stops counting toward this user's TasteDNA, and that
+     * only actually happens once the profile is recomputed from what's left.
+     *
+     * @return true if a rating was actually removed
+     */
+    @Transactional
+    public boolean deleteRating(Long userId, Long ratingId) {
+        long removed = ratingRepo.deleteByIdAndUserId(ratingId, userId);
+        if (removed == 0) {
+            return false;
+        }
+        profileService.replay(userId);
+        return true;
+    }
+
+    /**
      * Resolves the title being rated, enriching it on the spot if it has never
      * been seen before. This is the one place a rating-time TMDB call is worth
      * paying for: we need this movie's vector regardless, and it happens once ever

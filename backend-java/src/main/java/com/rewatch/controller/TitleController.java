@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.rewatch.dto.MovieDTO;
 import com.rewatch.model.Title;
+import com.rewatch.repository.RatingRepository;
 import com.rewatch.repository.TitleRepository;
 import com.rewatch.security.RateLimiterService;
 import com.rewatch.security.SecurityUtil;
@@ -48,13 +49,15 @@ public class TitleController {
     private final Recommender recommender;
     private final TmdbClient tmdbClient;
     private final RateLimiterService rateLimiter;
+    private final RatingRepository ratingRepository;
 
     public TitleController(TitleRepository titleRepository, Recommender recommender, TmdbClient tmdbClient,
-                           RateLimiterService rateLimiter) {
+                           RateLimiterService rateLimiter, RatingRepository ratingRepository) {
         this.titleRepository = titleRepository;
         this.recommender = recommender;
         this.tmdbClient = tmdbClient;
         this.rateLimiter = rateLimiter;
+        this.ratingRepository = ratingRepository;
     }
 
     /**
@@ -105,6 +108,14 @@ public class TitleController {
                     .body(Map.of("status", "error", "message", "Unknown title id " + id));
         }
         MovieDTO dto = recommender.scoreForUser(title, userId);
+        // Only looked up here, the single-title detail path — see
+        // MovieDTO.ratingId's comment for why this isn't in the shared
+        // scorer that every list-of-titles endpoint also goes through.
+        ratingRepository.findFirstByUserIdAndTitleIdOrderByCreatedAtDescIdDesc(userId, id)
+                .ifPresent(r -> {
+                    dto.setRated(true);
+                    dto.setRatingId(r.getId());
+                });
         return ResponseEntity.ok(dto);
     }
 

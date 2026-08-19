@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import TraitRadar from "./TraitRadar";
 import useModalA11y from "./useModalA11y";
 import MatchShareCard from "./MatchShareCard";
+import ConfirmDialog from "./ConfirmDialog";
 import { authHeaders } from "./auth";
-import { BASE, rateMovie } from "./api";
+import { BASE, rateMovie, deleteRating } from "./api";
 import { playConfirm, playChime, playSoftError } from "./sound";
 import { IconTrophy } from "./Icons";
 import "./App.css";
@@ -162,6 +163,8 @@ export default function MovieModal({ movie, onClose }) {
   // regardless of whether a render has happened yet.
   const savingRef = useRef(false);
   const [showsharecard, setshowsharecard] = useState(false);
+  const [confirmingDeleteRating, setconfirmingDeleteRating] = useState(false);
+  const [deletingRating, setdeletingRating] = useState(false);
   // The modal previously had no watchlist action at all — the only way to
   // save a title was the poster's quick-action icon back in the feed grid,
   // which meant "Discover Something New" (Dashboard.jsx's MiniCard, opened
@@ -364,6 +367,44 @@ export default function MovieModal({ movie, onClose }) {
     } finally {
       savingRef.current = false;
       setsaving(false);
+    }
+  }
+
+  async function handleDeleteRating() {
+    if (deletingRating || !matchData?.ratingId) {
+      return;
+    }
+    setdeletingRating(true);
+    try {
+      const { ok } = await deleteRating(matchData.ratingId, userid);
+      if (ok) {
+        // Resets the whole rating form back to "never rated" rather than
+        // just clearing matchData.ratingId — the star rows, moment picker,
+        // and any leftover shift/achievement toasts from a prior submit all
+        // need to go with it, or the UI would show stale stars for a rating
+        // that no longer exists.
+        setoverall(0);
+        setchars(0);
+        setending(0);
+        setvisuals(0);
+        setstory(0);
+        setrewatch(0);
+        setmsg("");
+        seterr("");
+        settopshift(null);
+        setrewatchInfo(null);
+        setunlockedAchievement(null);
+        setconfirmingDeleteRating(false);
+        // Re-fetches so matchData.rated/ratingId reflect the deletion, and
+        // matchScore/explanation reflect the recomputed (now one rating
+        // lighter) taste profile.
+        loadMatch(movie?.titleId, userid);
+      } else {
+        seterr("Could not delete this rating.");
+        setconfirmingDeleteRating(false);
+      }
+    } finally {
+      setdeletingRating(false);
     }
   }
 
@@ -630,6 +671,21 @@ export default function MovieModal({ movie, onClose }) {
             <button type="button" onClick={dorate} disabled={saving} className="btn-primary btn-block">
               {saving ? "Saving…" : "Save Rating & Evolve Profile"}
             </button>
+
+            {/* Only once matchData has actually loaded a ratingId — there
+                was previously no way to remove a rating anywhere in the
+                app, not from the UI, not from the API. */}
+            {matchData?.ratingId && (
+              <button
+                type="button"
+                onClick={() => setconfirmingDeleteRating(true)}
+                disabled={deletingRating}
+                className="btn-danger-outline btn-block"
+                style={{ marginTop: "var(--sp-2)" }}
+              >
+                Delete My Rating
+              </button>
+            )}
           </div>
         )}
 
@@ -713,6 +769,15 @@ export default function MovieModal({ movie, onClose }) {
         drivers={shareDrivers}
         username={localStorage.getItem("username") || "friend"}
         onClose={() => setshowsharecard(false)}
+      />
+    )}
+    {confirmingDeleteRating && (
+      <ConfirmDialog
+        title="Delete your rating?"
+        message="This removes your rating and any written reflection for this title, and recalculates your TasteDNA without it."
+        confirmLabel={deletingRating ? "Deleting…" : "Delete Rating"}
+        onConfirm={handleDeleteRating}
+        onCancel={() => setconfirmingDeleteRating(false)}
       />
     )}
     </>
