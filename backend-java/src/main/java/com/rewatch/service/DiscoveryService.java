@@ -43,6 +43,28 @@ public class DiscoveryService {
     }
 
     /**
+     * Below this, normalisedQuality() (a bare voteAverage/10, see Title) is
+     * nearly meaningless — a 1928 Soviet film with 3 votes averaging 9/10
+     * clears any quality bar this row could set, and "hidden gem" reads as
+     * "we found a real audience nobody talks about," not "we found three
+     * people." Deliberately below the main feed's MIN_VOTE_COUNT_FOR_RECOMMENDATION
+     * (150) — this row's whole premise is lower popularity than the main feed,
+     * just not zero-signal popularity.
+     */
+    private static final int HIDDEN_GEM_MIN_VOTE_COUNT = 40;
+
+    /**
+     * A cold-start user (few/no ratings, low profile confidence) has given the
+     * system nothing to weigh a genuine deep cut against, so an untethered
+     * "hidden gem" reads as random obscurity rather than a considered pick —
+     * restrict to a recent window until there's enough taste signal to earn
+     * the older, riskier picks. Matches the 15-rating threshold the "recording"
+     * review itself proposed for when deep cuts become trustworthy.
+     */
+    private static final int HIDDEN_GEM_DEEP_CUT_RATING_THRESHOLD = 15;
+    private static final int HIDDEN_GEM_RECENT_YEARS = 20;
+
+    /**
      * High audience quality, low popularity — the titles a popularity-sorted
      * feed would bury. Scored for the user like everything else; this row
      * only changes which candidates are considered, not how they're scored.
@@ -53,19 +75,34 @@ public class DiscoveryService {
             return List.of();
         }
 
-        double medianPopularity = medianOf(all.stream().map(Title::getPopularity).toList());
         Set<Long> rated = ratedTitleIds(userId);
+        boolean deepCutsEarned = ratingRepo.findByUserIdOrderByCreatedAtAscIdAsc(userId).size()
+                >= HIDDEN_GEM_DEEP_CUT_RATING_THRESHOLD;
 
-        List<Title> candidates = all.stream()
+        List<Title> candidates = hiddenGemCandidates(all, rated, deepCutsEarned, limit);
+        return scoreAndSort(candidates, userId, limit);
+    }
+
+    /**
+     * Package-private for direct testing — see DiscoveryServiceTest. Pure
+     * filtering/ranking over an already-fetched title list, no repository or
+     * scorer collaborators needed, the same split RecommenderTest already
+     * uses for applyBrowseFilters().
+     */
+    List<Title> hiddenGemCandidates(List<Title> all, Set<Long> rated, boolean deepCutsEarned, int limit) {
+        double medianPopularity = medianOf(all.stream().map(Title::getPopularity).toList());
+        int minYear = java.time.Year.now().getValue() - HIDDEN_GEM_RECENT_YEARS;
+
+        return all.stream()
                 .filter(this::hasRenderableData)
                 .filter(t -> !rated.contains(t.getId()))
                 .filter(t -> t.getPopularity() <= medianPopularity)
                 .filter(t -> t.normalisedQuality() >= 0.55)
+                .filter(t -> t.getVoteCount() != null && t.getVoteCount() >= HIDDEN_GEM_MIN_VOTE_COUNT)
+                .filter(t -> deepCutsEarned || t.getYear() >= minYear)
                 .sorted(Comparator.comparingDouble(Title::normalisedQuality).reversed())
                 .limit(Math.max(limit * 3, 20))
                 .toList();
-
-        return scoreAndSort(candidates, userId, limit);
     }
 
     /**
