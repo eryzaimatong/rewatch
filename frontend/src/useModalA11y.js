@@ -3,6 +3,17 @@ import { useEffect, useRef } from "react";
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Module-level, shared across every useModalA11y instance currently mounted
+// — a plain array works as a stack because React mounts the child before
+// the parent's effects have a chance to run again, so nesting order and
+// mount order agree. Without this, a ConfirmDialog opened from inside
+// MovieModal (both call useModalA11y, each with its own document-level
+// Escape listener) closed BOTH on a single Escape press: neither listener
+// knows the other exists, so both just fire. Verified live before this fix
+// — Escape while "Delete your rating?" was open closed the confirm dialog
+// AND the movie detail view behind it in one keypress.
+const openModals = [];
+
 /**
  * Everything a modal needs to not be a keyboard/screen-reader trap: Escape
  * closes it, Tab cycles only within it, the background can't scroll behind
@@ -27,6 +38,8 @@ export default function useModalA11y(onClose) {
     document.body.style.overflow = "hidden";
 
     const container = containerRef.current;
+    openModals.push(container);
+
     const focusable = container?.querySelectorAll(FOCUSABLE_SELECTOR);
     if (focusable && focusable.length > 0) {
       focusable[0].focus();
@@ -35,6 +48,14 @@ export default function useModalA11y(onClose) {
     }
 
     function handleKeydown(e) {
+      // Only the most-recently-opened modal reacts — an outer modal's
+      // listener is still attached and still fires (there's no
+      // stopPropagation, and it wouldn't help anyway since both listeners
+      // are on the same `document` target regardless of DOM nesting), it
+      // just no-ops while it isn't the top of the stack.
+      if (openModals[openModals.length - 1] !== container) {
+        return;
+      }
       if (e.key === "Escape") {
         onClose();
         return;
@@ -64,6 +85,10 @@ export default function useModalA11y(onClose) {
     document.addEventListener("keydown", handleKeydown);
 
     return () => {
+      const idx = openModals.indexOf(container);
+      if (idx !== -1) {
+        openModals.splice(idx, 1);
+      }
       document.removeEventListener("keydown", handleKeydown);
       document.body.style.overflow = previousOverflow;
       // Restore focus to whatever opened the modal — a sighted mouse user
