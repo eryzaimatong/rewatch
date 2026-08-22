@@ -187,7 +187,7 @@ export default function Community() {
         </form>
 
         {searched && !searchloading && searchresults.length === 0 && (
-          <EmptyState message="No one found with that username." />
+          <EmptyState message="No one found with that username. Not sure of the exact spelling? Similar TasteDNA and Collections below can surface people without needing one." />
         )}
 
         {searchresults.length > 0 && (
