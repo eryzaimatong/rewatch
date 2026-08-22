@@ -1,0 +1,55 @@
+databases:
+  - name: rewatch-db
+    plan: free
+    databaseName: rewatch_db
+    user: rewatch
+
+services:
+  - type: web
+    name: rewatch-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend-java/Dockerfile
+    dockerContext: ./backend-java
+    healthCheckPath: /api/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: DB_HOST
+        fromDatabase:
+          name: rewatch-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: rewatch-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: rewatch-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: rewatch-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: rewatch-db
+          property: password
+      # Secrets below are intentionally NOT stored in this file (sync: false
+      # means "set by hand in the Render dashboard, never committed to git").
+      - key: TMDB_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      # Both filled in for real once the Vercel frontend URL is known —
+      # placeholder here since Render needs a value to deploy at all.
+      - key: CORS_ALLOWED_ORIGINS
+        value: http://localhost:5173
+      - key: FRONTEND_BASE_URL
+        value: http://localhost:5173
+      - key: ADMIN_EMAILS
+        value: ""
