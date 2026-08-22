@@ -3540,7 +3540,11 @@ input[type="range"] {
 }
 
 .radar-axis-label {
-  fill: var(--text-faint);
+  /* --text-faint (#71717a) against --surface only clears ~3.5:1 at this
+     size — below WCAG AA's 4.5:1 floor for normal-size text, flagged as a
+     legibility problem. --text-muted (already what .radar-legend uses for
+     the same secondary-label role) clears ~7:1. */
+  fill: var(--text-muted);
   font-size: 0.62rem;
   font-weight: 600;
 }
