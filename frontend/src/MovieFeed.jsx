@@ -296,6 +296,10 @@ export default function MovieFeed() {
   const [saveditemsbymovieid, setsaveditemsbymovieid] = useState({});
   const [watchstatusbymovieid, setwatchstatusbymovieid] = useState({});
   const [selectedmovie, setselectedmovie] = useState(null);
+  // Whether the open modal came from Surprise Me — gates the modal's Reroll
+  // action, which only makes sense in that flow (a normal card click already
+  // was the user's own deliberate choice, nothing to "reroll" away from).
+  const [viaSurprise, setviaSurprise] = useState(false);
   const [query, setquery] = useState("");
   const [suggestions, setsuggestions] = useState([]);
   const [showsuggestions, setshowsuggestions] = useState(false);
@@ -745,13 +749,20 @@ export default function MovieFeed() {
   // a separate lower-bar pool. The randomness is which of your best matches
   // you see, not a lowered bar for what counts as a match.
   const SURPRISE_POOL_SIZE = 10;
-  async function surpriseMe() {
+  async function surpriseMe(excludeId) {
     let pool = movies.slice(0, SURPRISE_POOL_SIZE);
     if (pool.length === 0) {
       await loadData();
       return;
     }
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    // A reroll landing on the exact title already on screen reads as
+    // broken (the user clicked reroll and nothing happened) — excluded
+    // when there's something to exclude, but a 1-title pool still needs to
+    // return that same title rather than nothing at all.
+    const rerollPool = excludeId != null ? pool.filter((m) => m.id !== excludeId) : pool;
+    const finalPool = rerollPool.length > 0 ? rerollPool : pool;
+    const pick = finalPool[Math.floor(Math.random() * finalPool.length)];
+    setviaSurprise(true);
     setselectedmovie(pick);
   }
 
@@ -822,6 +833,7 @@ export default function MovieFeed() {
   }
 
   function handleDetails(movie) {
+    setviaSurprise(false);
     setselectedmovie(movie);
   }
 
@@ -1448,7 +1460,8 @@ export default function MovieFeed() {
       {selectedmovie && (
         <MovieModal
           movie={selectedmovie}
-          onClose={() => setselectedmovie(null)}
+          onClose={() => { setselectedmovie(null); setviaSurprise(false); }}
+          onReroll={viaSurprise ? () => surpriseMe(selectedmovie.id) : undefined}
           // Rating (or unrating) a title shifts the whole taste profile, so
           // every other match number already rendered in the feed — the hero
           // ring above all — is stale the instant this fires. Re-runs behind

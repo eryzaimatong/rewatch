@@ -7,7 +7,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import { authHeaders } from "./auth";
 import { BASE, rateMovie, deleteRating } from "./api";
 import { playConfirm, playChime, playSoftError } from "./sound";
-import { IconTrophy } from "./Icons";
+import { IconTrophy, IconShuffle } from "./Icons";
 import "./App.css";
 
 // Matches the validated pair in TraitRadar.jsx: purple (user) vs --cyan
@@ -151,7 +151,7 @@ function ContributionRow({ item, positive }) {
   );
 }
 
-export default function MovieModal({ movie, onClose, onRatingChange }) {
+export default function MovieModal({ movie, onClose, onRatingChange, onReroll }) {
   const [tab, settab] = useState("fingerprint");
   const [overall, setoverall] = useState(0);
   const [chars, setchars] = useState(0);
@@ -469,6 +469,17 @@ export default function MovieModal({ movie, onClose, onRatingChange }) {
           </div>
 
           <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+            {onReroll && (
+              <button
+                type="button"
+                onClick={onReroll}
+                className="modal-share-trigger"
+                aria-label="Show a different surprise pick"
+                title="Not feeling this one? Reroll"
+              >
+                <IconShuffle />
+              </button>
+            )}
             <button
               type="button"
               onClick={toggleWatchlist}
