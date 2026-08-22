@@ -16,6 +16,20 @@ import "./App.css";
 // the dark-mode lightness band — swapped for the validated step.
 const MOVIE_COLOR = "var(--cyan)";
 
+// value/label deliberately differ for one entry — "Cinematic Score" is the
+// value already stored against existing ratings; "Music & Atmosphere" is
+// just the friendlier label shown here. Kept a fixed set of presets (plus a
+// free-text "Something else...") rather than dropping presets entirely —
+// most people's answer really does fit one of these, and typing it out
+// every time is more friction, not less rigidity.
+const MOMENT_PRESETS = [
+  { value: "Ending Payoff", label: "Ending Payoff" },
+  { value: "Character Dialogue", label: "Character Dialogue" },
+  { value: "Plot Twist", label: "Plot Twist" },
+  { value: "Quiet Intimate Scene", label: "Quiet Intimate Scene" },
+  { value: "Cinematic Score", label: "Music & Atmosphere" },
+];
+
 function ordinal(n) {
   const rem100 = n % 100;
   if (rem100 >= 11 && rem100 <= 13) return `${n}th`;
@@ -145,7 +159,12 @@ export default function MovieModal({ movie, onClose, onRatingChange }) {
   const [visuals, setvisuals] = useState(0);
   const [story, setstory] = useState(0);
   const [rewatch, setrewatch] = useState(0);
-  const [moment, setmoment] = useState("Ending Payoff");
+  // No fallback default here on purpose (matches matchScore's own "no fake
+  // default" rule elsewhere in this file) — a pre-picked "Ending Payoff"
+  // silently reported a moment the user never actually chose for anyone who
+  // never touched this field at all.
+  const [moment, setmoment] = useState("");
+  const [momentCustomMode, setmomentCustomMode] = useState(false);
   const [deeperOpen, setdeeperOpen] = useState(false);
   const [msg, setmsg] = useState("");
   const [err, seterr] = useState("");
@@ -333,7 +352,7 @@ export default function MovieModal({ movie, onClose, onRatingChange }) {
       visuals: visuals || undefined,
       story: story || undefined,
       rewatch: rewatch || undefined,
-      moment: moment
+      moment: moment || undefined
     };
 
     try {
@@ -402,6 +421,8 @@ export default function MovieModal({ movie, onClose, onRatingChange }) {
         settopshift(null);
         setrewatchInfo(null);
         setunlockedAchievement(null);
+        setmoment("");
+        setmomentCustomMode(false);
         setconfirmingDeleteRating(false);
         // Re-fetches so matchData.rated/ratingId reflect the deletion, and
         // matchScore/explanation reflect the recomputed (now one rating
@@ -606,14 +627,48 @@ export default function MovieModal({ movie, onClose, onRatingChange }) {
             </button>
 
             <div className="auth-field">
-              <label htmlFor="moment-select">Which moment stayed with you the most?</label>
-              <select id="moment-select" value={moment} onChange={(e) => setmoment(e.target.value)}>
-                <option value="Ending Payoff">Ending Payoff</option>
-                <option value="Character Dialogue">Character Dialogue</option>
-                <option value="Plot Twist">Plot Twist</option>
-                <option value="Quiet Intimate Scene">Quiet Intimate Scene</option>
-                <option value="Cinematic Score">Music & Atmosphere</option>
-              </select>
+              <span id="moment-label" className="auth-field-label">Which moment stayed with you the most?</span>
+              {momentCustomMode ? (
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    aria-labelledby="moment-label"
+                    placeholder="Tell us in your own words..."
+                    value={moment}
+                    onChange={(e) => setmoment(e.target.value)}
+                    maxLength={120}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setmomentCustomMode(false); setmoment(""); }}
+                    className="auth-toggle-link"
+                    style={{ fontSize: "0.8rem", background: "none", border: "none", padding: 0, whiteSpace: "nowrap" }}
+                  >
+                    Pick instead
+                  </button>
+                </div>
+              ) : (
+                <div role="group" aria-labelledby="moment-label" style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {MOMENT_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setmoment(p.value)}
+                      className={`pill${moment === p.value ? " active" : ""}`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => { setmomentCustomMode(true); setmoment(""); }}
+                    className="pill"
+                  >
+                    Something else...
+                  </button>
+                </div>
+              )}
             </div>
 
             {err && <p className="status-message status-message--error">{err}</p>}

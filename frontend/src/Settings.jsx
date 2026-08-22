@@ -818,7 +818,7 @@ export default function Settings() {
             Redo the 5-step onboarding to reset your starting point. Your rating history isn't touched —
             it's replayed on top of your new answers, not lost.
           </p>
-          <button type="button" className="btn-block" onClick={() => setshowconfirmretake(true)} style={{ maxWidth: "220px" }}>
+          <button type="button" className="btn-block" onClick={() => setshowconfirmretake(true)}>
             Retake TasteDNA Onboarding
           </button>
         </section>

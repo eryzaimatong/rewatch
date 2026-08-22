@@ -927,7 +927,8 @@ input[type="range"] {
   margin-bottom: var(--sp-3);
 }
 
-.auth-field label {
+.auth-field label,
+.auth-field-label {
   display: block;
   margin-bottom: 6px;
   color: var(--neutral-text);
@@ -3717,6 +3718,13 @@ input[type="range"] {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* This card is itself a grid item (.dna-match-grid) and a flex container
+     both — grid/flex items default to min-width:auto, which refuses to
+     shrink below the archetype/username text's natural width. Without this,
+     the ellipsis truncation on .dna-match-name/.dna-match-archetype never
+     actually engages: the whole card just grows past its column instead,
+     which read as a clipped/cut-off subtitle rather than a clean ellipsis. */
+  min-width: 0;
 
   padding: 14px 16px;
   border: 1px solid var(--border);
