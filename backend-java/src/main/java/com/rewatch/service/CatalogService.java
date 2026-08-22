@@ -139,13 +139,27 @@ public class CatalogService implements ApplicationRunner {
                 created, updated, titleRepo.count());
     }
 
+    /**
+     * Checks information_schema before attempting each ALTER, rather than just
+     * catching the exception if the column doesn't exist — Postgres aborts the
+     * whole surrounding transaction the instant any statement fails, and a caught
+     * Java exception doesn't undo that. run() is @Transactional across this call
+     * AND the catalog upsert loop after it, so on a genuinely fresh database
+     * (these columns never existed at all, not even a "already dropped" case)
+     * the first failed ALTER poisoned the transaction and cascaded into every
+     * later query in this same boot failing with "current transaction is
+     * aborted" — confirmed live on a first-time Render deploy against a brand
+     * new Postgres instance, something the long-lived local dev database
+     * (which predates this column set entirely) never exercised.
+     */
     private void relaxOrphanedNotNullColumns() {
         for (String column : ORPHANED_NOT_NULL_COLUMNS) {
-            try {
+            Boolean exists = jdbc.queryForObject(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                            + "WHERE table_name = 'titles' AND column_name = ?)",
+                    Boolean.class, column);
+            if (Boolean.TRUE.equals(exists)) {
                 jdbc.execute("ALTER TABLE titles ALTER COLUMN " + column + " DROP NOT NULL");
-            } catch (Exception e) {
-                log.debug("Could not relax NOT NULL on titles.{} (likely already dropped): {}",
-                        column, e.getMessage());
             }
         }
     }
