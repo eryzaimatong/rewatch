@@ -36,3 +36,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      # Reports known-vulnerable dependencies without failing the build on
+      # them — a transitive dev-only advisory with no fix available yet
+      # shouldn't block every PR, but it should be visible in the run log.
+      - run: npm audit --omit=dev || true

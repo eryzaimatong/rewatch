@@ -101,6 +101,13 @@ minutes at the default target (verified live: a real run against production
 TMDB took ~7 minutes and added 4,382 titles in 454 page calls, well under
 the 1,500-call safety cap).
 
+`DemoCommunitySeeder` also runs automatically on every boot, once the
+catalog has at least 500 titles: it seeds 8 demo accounts with real rating
+history and one public collection apiece, so Community (Similar TasteDNA,
+Discover Collections) isn't empty on a fresh deploy before any real users
+have found each other. Idempotent — checks whether it already ran and
+no-ops if so.
+
 ## Health check
 
 `GET /api/health` (no auth required) checks the database connection and
@@ -113,6 +120,18 @@ healthcheck and is a reasonable target for a load balancer or uptime monitor.
 the backend, `npm run lint && npm run build` for the frontend. It doesn't
 build or push Docker images yet — that's a reasonable next step once there's
 somewhere to push them to.
+
+## HTTPS
+
+Neither service terminates TLS itself — that's expected to happen at the
+hosting platform/load balancer (Render, Railway, Vercel, and similar all
+terminate HTTPS and redirect HTTP automatically at their edge). Forcing a
+redirect inside the app itself risks a redirect loop behind exactly that
+kind of proxy, where the app only ever sees the decrypted-HTTP side of the
+connection. If the platform sits in front as a reverse proxy, also set
+`TRUST_PROXY_HEADERS=true` (see `SecurityUtil.clientIp` and the CORS/rate-
+limiting sections above) — it's usually the same proxy hop that terminates
+TLS and forwards `X-Forwarded-For`.
 
 ## Known gaps
 
