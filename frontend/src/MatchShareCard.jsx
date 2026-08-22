@@ -6,6 +6,15 @@ import {
 } from "./shareCard";
 import "./App.css";
 
+// No per-title deep link exists yet (the modal opens from client-side feed
+// state, not a URL), so this is a link to the app itself rather than a
+// broken/misleading link straight to this exact match — still a real,
+// working "primary action" alternative to the native share sheet, not a
+// placeholder.
+function shareLinkFor() {
+  return window.location.origin;
+}
+
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 const FALLBACK_POSTER = "https://placehold.co/500x750/191a21/a855f7?text=Re:Watch";
 
@@ -34,6 +43,17 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
   const modalRef = useModalA11y(onClose);
   const [exporting, setexporting] = useState(false);
   const [shareErr, setshareErr] = useState("");
+  const [linkCopied, setlinkCopied] = useState(false);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareLinkFor());
+      setlinkCopied(true);
+      setTimeout(() => setlinkCopied(false), 2000);
+    } catch {
+      setshareErr("Could not copy the link.");
+    }
+  }
 
   const topDrivers = (drivers || []).slice(0, 3);
   const roundedScore = Math.round(matchScore ?? 0);
@@ -196,13 +216,16 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
         {shareErr && <p className="status-message status-message--error">{shareErr}</p>}
 
         <div style={{ display: "flex", gap: "10px", marginTop: "var(--sp-2)" }}>
-          <button type="button" onClick={onClose} className="btn-block">
-            Close
+          <button type="button" onClick={copyLink} className="btn-block">
+            {linkCopied ? "Link copied" : "Copy link"}
           </button>
           <button type="button" onClick={exportCard} className="btn-primary btn-block" disabled={exporting}>
-            {exporting ? "Preparing..." : "Share Match"}
+            {exporting ? "Preparing..." : "Download image"}
           </button>
         </div>
+        <button type="button" onClick={onClose} className="btn-block" style={{ marginTop: "8px" }}>
+          Close
+        </button>
       </div>
     </div>
   );

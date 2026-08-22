@@ -7,17 +7,37 @@
 import { drawBrandMark } from "./canvasBrandMark";
 
 /**
- * Native share sheet when the platform supports sharing files (every modern
- * mobile browser; most desktop browsers don't) — this is the difference
- * between "download a PNG, then open Instagram, then manually attach it"
- * and one tap straight into Stories/Messages/TikTok. Falls back to the
- * previous download-link behavior everywhere else, so nothing regresses on
- * desktop.
+ * `navigator.canShare({files})` reports true on several desktop Chromium/Edge
+ * builds on Windows too, not just mobile — it hands off to the OS share
+ * flyout, which for a freshly-created blob File (no thumbnail metadata) can
+ * render with a blank preview and no working target, a dead end on desktop
+ * web (confirmed live). Mobile OS share sheets handle the same file just
+ * fine, so this gates the native path to where it actually works instead of
+ * wherever the API merely claims to.
+ */
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+}
+
+export function downloadBlob(blob, filename) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+/**
+ * Native share sheet when the platform supports sharing files (mobile —
+ * see isMobileDevice for why desktop is excluded even where the API claims
+ * support) — this is the difference between "download a PNG, then open
+ * Instagram, then manually attach it" and one tap straight into Stories/
+ * Messages/TikTok. Falls back to a direct download everywhere else.
  */
 export async function shareOrDownloadBlob(blob, filename, { title, text } = {}) {
   const file = new File([blob], filename, { type: blob.type });
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title, text });
       return "shared";
@@ -32,11 +52,7 @@ export async function shareOrDownloadBlob(blob, filename, { title, text } = {}) 
     }
   }
 
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
+  downloadBlob(blob, filename);
   return "downloaded";
 }
 
