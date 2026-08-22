@@ -371,6 +371,20 @@ public class Recommender {
      * confidence itself should have been a signal to avoid.
      */
     private static final double COLD_START_CONFIDENCE_THRESHOLD = ProfileService.ONBOARDING_CONFIDENCE;
+    /**
+     * ProfileService.meanConfidence sums ten 0.35 TraitNode values and divides
+     * by 10 — IEEE 754 double arithmetic doesn't represent 0.35 exactly, so
+     * that sum/10 lands at 0.35000000000000003, not 0.35 (confirmed live: a
+     * freshly-onboarded, zero-rating account). A bare `meanConf >
+     * COLD_START_CONFIDENCE_THRESHOLD` therefore reads as "already past cold
+     * start" for literally the exact account this whole method exists to
+     * protect — the previous >= -> > fix above addressed the *semantic*
+     * boundary but not this *representational* one, so the swap still never
+     * fired for a brand-new user. Tiny enough that a real, meaningfully
+     * higher confidence (anything a rating could actually produce) still
+     * clears it.
+     */
+    private static final double COLD_START_EPSILON = 1e-9;
     private static final double COLD_START_INTENSITY_CEILING = 0.6;
     private static final double COLD_START_MIN_VOTE_AVERAGE = 6.5;
     // INTENSITY alone tracks action/violence-style intensity (Trait.java), which
@@ -380,6 +394,8 @@ public class Recommender {
     // both are gated.
     private static final double COLD_START_BITTER_CEILING = 0.6;
     private static final int COLD_START_LOOKAHEAD = 6;
+    private static final Set<String> NON_NARRATIVE_GENRES =
+            Set.of("Documentary", "Music", "News", "Reality", "Talk");
 
     /**
      * Promotes the first broadly-appealing title within the top {@link
@@ -391,7 +407,7 @@ public class Recommender {
      */
     /** Package-private for direct testing — see RecommenderTest. */
     List<MovieDTO> coldStartSafeReorder(List<MovieDTO> ranked, double meanConf) {
-        if (meanConf > COLD_START_CONFIDENCE_THRESHOLD || ranked.size() < 2) {
+        if (meanConf > COLD_START_CONFIDENCE_THRESHOLD + COLD_START_EPSILON || ranked.size() < 2) {
             return ranked;
         }
         int lookahead = Math.min(COLD_START_LOOKAHEAD, ranked.size());
@@ -400,15 +416,21 @@ public class Recommender {
             MovieDTO cand = ranked.get(i);
             TraitVector v = TraitVector.fromMap(keyedToEnum(cand.getStoryVector()));
             Double voteAvg = cand.getVoteAverage();
-            // Low INTENSITY/BITTER and a strong vote average describe a
-            // documentary (Planet Earth, etc.) just as well as they describe a
-            // genuinely comforting scripted pick — a nature doc reads as "safe"
-            // on every axis this check looks at, which is exactly how one ended
-            // up as a fresh account's featured Tonight's Pick on a mood-driven
-            // narrative app. Excluded outright rather than scored down: it isn't
-            // a worse *match*, it's the wrong *kind of thing* to lead with.
-            boolean isDocumentary = cand.getGenres() != null && cand.getGenres().contains("Documentary");
-            boolean broadlyAppealing = !isDocumentary
+            // Low INTENSITY/BITTER and a strong vote average describe a nature
+            // documentary or a concert film just as well as they describe a
+            // genuinely comforting scripted pick — non-narrative content tends
+            // to carry a flat/neutral trait vector (nothing dramatic to extract
+            // a story-emotion signal from), which reads as maximally "safe" on
+            // every axis this check looks at. That's exactly how a documentary
+            // ended up as a fresh account's featured Tonight's Pick on a
+            // mood-driven narrative app (confirmed live — verified a concert
+            // film was the very next thing to fill that same gap once the
+            // documentary alone was excluded). Excluded outright rather than
+            // scored down: it isn't a worse *match*, it's the wrong *kind of
+            // thing* to lead with.
+            boolean isNonNarrative = cand.getGenres() != null
+                    && cand.getGenres().stream().anyMatch(NON_NARRATIVE_GENRES::contains);
+            boolean broadlyAppealing = !isNonNarrative
                     && v.get(Trait.INTENSITY) <= COLD_START_INTENSITY_CEILING
                     && v.get(Trait.BITTER) <= COLD_START_BITTER_CEILING
                     && (voteAvg == null || voteAvg >= COLD_START_MIN_VOTE_AVERAGE);

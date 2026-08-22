@@ -295,6 +295,20 @@ class RecommenderTest {
     }
 
     @Test
+    void concertFilmIsDemotedTheSameWayADocumentaryIs() {
+        // The exact next thing that filled the gap once Planet Earth alone
+        // was excluded, confirmed live — a concert film's trait vector is
+        // just as flat/neutral as a nature doc's, for the same reason (no
+        // scripted story to extract a real signal from).
+        MovieDTO concert = safeCandidate("TAYLOR SWIFT | THE ERAS TOUR", List.of("Music"));
+        MovieDTO scripted = safeCandidate("A Cozy Comedy", List.of("Comedy"));
+
+        List<MovieDTO> result = newRecommender().coldStartSafeReorder(List.of(concert, scripted), 0.2);
+
+        assertEquals("A Cozy Comedy", result.get(0).getTitle());
+    }
+
+    @Test
     void documentaryStaysPutWhenNothingElseInTheLookaheadQualifies() {
         // Nothing better to promote to — same "leave it alone" fallback the
         // existing safety net already uses when the lookahead is empty.
@@ -313,5 +327,29 @@ class RecommenderTest {
         List<MovieDTO> result = newRecommender().coldStartSafeReorder(List.of(doc, scripted), 0.9);
 
         assertEquals("Planet Earth", result.get(0).getTitle());
+    }
+
+    @Test
+    void reorderStillFiresAtTheExactFloatingPointOnboardingBaseline() {
+        // The actual bug, reproduced exactly: ProfileService.meanConfidence
+        // sums ten 0.35 TraitNode values and divides by 10, which in IEEE 754
+        // double arithmetic does not land back on exactly 0.35 — confirmed
+        // live against a freshly-onboarded, zero-rating account. A brand-new
+        // account is the single most common caller of this method, so a bare
+        // `>` against the literal 0.35 constant silently no-opped the entire
+        // safety net for it.
+        double sum = 0;
+        for (int i = 0; i < 10; i++) {
+            sum += 0.35;
+        }
+        double driftedMeanConf = sum / 10;
+        assertTrue(driftedMeanConf > 0.35, "test assumption: this is the float drift the fix must tolerate");
+
+        MovieDTO doc = safeCandidate("Planet Earth", List.of("Documentary"));
+        MovieDTO scripted = safeCandidate("A Cozy Comedy", List.of("Comedy"));
+
+        List<MovieDTO> result = newRecommender().coldStartSafeReorder(List.of(doc, scripted), driftedMeanConf);
+
+        assertEquals("A Cozy Comedy", result.get(0).getTitle());
     }
 }
