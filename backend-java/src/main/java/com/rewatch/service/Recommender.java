@@ -152,10 +152,23 @@ public class Recommender {
 
         scored.sort(Comparator.comparingDouble(MovieDTO::getMatchScore).reversed());
 
-        List<MovieDTO> ranked = (diversify && scored.size() > limit)
-                ? mmrRerank(scored, limit)
-                : scored.subList(0, Math.min(limit, scored.size()));
-        return coldStartSafeReorder(ranked, meanConf);
+        // coldStartSafeReorder needs a real lookahead window (COLD_START_LOOKAHEAD
+        // candidates) to have anything to promote from — ranking straight down to
+        // a small caller-requested limit first (the old order here) could leave it
+        // a 1-item list with its own size<2 guard making it a guaranteed no-op.
+        // Confirmed live: Dashboard's "Today's Pick" widget requests limit=1 for
+        // its single displayed card and, before this, could surface the exact
+        // same tonally-off first-impression the hero's own version of this fix
+        // was built to prevent — the safety net simply never got a chance to run.
+        // Reordering against a wider pool first and trimming to the caller's
+        // actual limit afterward makes this correct regardless of what limit any
+        // current or future caller passes.
+        int rerankPoolSize = Math.max(limit, COLD_START_LOOKAHEAD);
+        List<MovieDTO> ranked = (diversify && scored.size() > rerankPoolSize)
+                ? mmrRerank(scored, rerankPoolSize)
+                : scored.subList(0, Math.min(rerankPoolSize, scored.size()));
+        List<MovieDTO> reordered = coldStartSafeReorder(ranked, meanConf);
+        return reordered.subList(0, Math.min(limit, reordered.size()));
     }
 
     /**

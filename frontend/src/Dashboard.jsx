@@ -116,6 +116,12 @@ export default function Dashboard() {
     const [watchlistRes, foldersRes, recsRes, gemsRes] = await Promise.all([
       fetch(`${BASE}/api/watchlist/${userid}`, { headers: authHeaders() }).catch(() => null),
       fetch(`${BASE}/api/watchlist/${userid}/folders`, { headers: authHeaders() }).catch(() => null),
+      // limit=1 is safe here — Recommender.recommend() now runs its cold-start
+      // safety-net reorder against its own internal lookahead window before
+      // trimming to whatever limit the caller actually asked for, rather than
+      // trimming first and leaving the reorder nothing to work with (see the
+      // comment there; that used to make this exact request a guaranteed no-op
+      // for a fresh account's Today's Pick).
       fetch(`${BASE}/api/recommendations/${userid}?limit=1`, { headers: authHeaders() }).catch(() => null),
       fetch(`${BASE}/api/discovery/hidden-gems/${userid}?limit=4`, { headers: authHeaders() }).catch(() => null)
     ]);
