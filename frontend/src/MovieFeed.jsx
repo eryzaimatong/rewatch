@@ -904,6 +904,11 @@ export default function MovieFeed() {
                 variants={cardVariants}
                 whileHover={{ y: -6 }}
                 transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  e.currentTarget.style.setProperty("--glow-x", `${e.clientX - rect.left}px`);
+                  e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
+                }}
               >
                 <div className="recommendation-poster">
                   <img
@@ -1055,7 +1060,12 @@ export default function MovieFeed() {
                 : "Rate something today to keep it alive"
             }
           >
-            <IconFlame /> {streak.current}-day streak
+            {/* One text run, not three — .streak-badge is a flex container with
+                a `gap`, which applies between EVERY direct child box including
+                anonymous ones a bare text node forms. Splitting "2-day streak"
+                into separate nodes inserted a visible gap inside the number
+                itself; nesting the mono span one level deeper avoids it. */}
+            <IconFlame /> <span><span className="mono">{streak.current}</span>-day streak</span>
             {!streak.activeToday && <span className="streak-badge-nudge">rate something today</span>}
           </div>
         )}
@@ -1281,7 +1291,7 @@ export default function MovieFeed() {
             {/* --danger is this app's warnings/hard-exclusion hue (see palette
                 discipline notes) — tinting just the count, not the sentence,
                 keeps it a rare accent rather than a wall of red text. */}
-            <strong style={{ color: "var(--danger)" }}>{dealbreakerhiddencount}</strong>{" "}
+            <strong className="mono" style={{ color: "var(--danger)" }}>{dealbreakerhiddencount}</strong>{" "}
             title{dealbreakerhiddencount === 1 ? "" : "s"} hidden by your dealbreakers —{" "}
             <button
               type="button"

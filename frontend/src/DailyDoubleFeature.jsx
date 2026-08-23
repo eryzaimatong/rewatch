@@ -139,7 +139,7 @@ export default function DailyDoubleFeature() {
               />
               <span style={{ fontSize: "0.82rem", fontWeight: 600, textAlign: "center" }}>{t.title}</span>
               {score !== null && (
-                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{Math.round(score)}% match</span>
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}><span className="mono">{Math.round(score)}%</span> match</span>
               )}
             </button>
           );
@@ -149,7 +149,7 @@ export default function DailyDoubleFeature() {
       {played && outcome && (
         <p style={{ margin: "var(--sp-2) 0 0", fontWeight: 600 }}>
           {outcome.correct ? "✅ Nailed it." : "❌ Not quite."}{" "}
-          {outcome.currentStreak > 1 && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>🔥 {outcome.currentStreak}-day streak</span>}
+          {outcome.currentStreak > 1 && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>🔥 <span className="mono">{outcome.currentStreak}</span>-day streak</span>}
         </p>
       )}
 

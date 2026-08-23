@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
 
 :root {
   font-family:
@@ -7,6 +7,20 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+
+  /* Every match score, percentage, streak count, and stat in this app is a
+     real, computed number — the whole product's pitch is "the math is
+     real." A monospace face on numerals specifically (never prose) is the
+     fastest, cheapest signal of that: it's the same instinct that puts
+     tabular figures on Linear/Vercel/GitHub's stats and nowhere else on
+     the page. Two weights only — this is an accent face, not a second
+     voice. */
+  --font-mono:
+    "JetBrains Mono",
+    ui-monospace,
+    "SF Mono",
+    "Cascadia Code",
+    monospace;
 
   color: #ededed;
   background: #090a0e;
@@ -99,6 +113,14 @@
    variable fonts without explicit support; Plus Jakarta Sans only ships defined
    weights down to 400, so --fw-description intentionally clamps at use-site. */
 
+/* Applied to every real computed number this app displays — match/
+   compatibility percentages, streak counts, TasteDNA confidence, rating
+   averages — never to prose. See --font-mono's own comment for why. */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -158,6 +180,26 @@ body {
     ),
     var(--background);
   color: var(--text);
+}
+
+/* Film-grain overlay — the deliberate texture every flat dark-mode surface
+   has been missing, and the specific antidote to "generic SaaS dark mode"
+   this app's polish was otherwise landing on. A single tiled SVG
+   feTurbulence noise pattern, blended at low opacity so it reads as
+   material, not decoration. Fixed + pointer-events:none so it never
+   intercepts a click and never scrolls with content; z-index above every
+   other layer in this file (max elsewhere is 1100) but visually inert.
+   Static, not animated — grain has no motion to gate behind
+   prefers-reduced-motion in the first place. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 body,
@@ -534,6 +576,10 @@ input[type="range"] {
    within it — sits at the true center regardless of how wide the outer
    content is. */
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -542,7 +588,12 @@ input[type="range"] {
   padding: var(--sp-2) var(--sp-5);
   margin-bottom: var(--sp-1);
 
-  background: var(--surface);
+  /* Glass, not a flat panel — sticky means this sits over scrolling content
+     for as long as the page is open, so a solid fill would read as a bar
+     bolted on top rather than part of the same surface. */
+  background: rgba(20, 21, 26, 0.72);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-bottom: 1px solid var(--border);
 }
 
@@ -700,6 +751,46 @@ input[type="range"] {
    NOTIFICATION BELL
    ========================================== */
 
+/* The header's visible, discoverable entry point into CommandPalette.jsx —
+   the keyboard shortcut alone (however standard) is invisible to anyone
+   who hasn't been told it exists. Hidden below the tablet breakpoint
+   (App.jsx's mobile bottom nav covers navigation there, and there's no
+   hardware keyboard to shortcut with on a phone anyway). */
+.command-palette-trigger {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--neutral-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.command-palette-trigger:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--neutral-surface);
+}
+
+.command-palette-trigger kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--neutral-border);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+@media (min-width: 860px) {
+  .command-palette-trigger {
+    display: flex;
+  }
+}
+
 .notification-bell-wrap {
   position: relative;
 }
@@ -732,6 +823,8 @@ input[type="range"] {
   border-radius: 999px;
   background: var(--primary);
   color: #fff;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 0.62rem;
   font-weight: 800;
   line-height: 16px;
@@ -1135,20 +1228,46 @@ input[type="range"] {
    STAT GRID (dashboard, profile summaries)
    ========================================== */
 
+/* Bento layout: the one qualitative stat (Active Archetype — a name, not a
+   number) gets a wider, taller featured cell; the three numeric stats sit
+   as a tighter row underneath. An equal-width grid of four identical boxes
+   was treating "Undecided Cinephile" and "12" as the same kind of fact,
+   when one is the actual headline of this page. Falls back to a single
+   column below the same breakpoint every other grid in this file uses. */
 .stat-grid {
   display: grid;
-  /* auto-fill, not auto-fit — see .recommendation-grid's comment. No
-     aspect-ratio child here to balloon in height the way a poster does, but
-     a lone stat card stretched to the full row width still looks wrong. */
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--sp-2);
 }
 
 .stat-card {
-  padding: 18px;
+  padding: 20px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: rgba(11, 12, 16, 0.6);
+  transition: border-color 200ms ease;
+  grid-column: span 1;
+}
+
+.stat-card--featured {
+  grid-column: span 2;
+  padding: 20px 26px;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(var(--primary-rgb), 0.16), transparent 55%),
+    rgba(11, 12, 16, 0.6);
+}
+
+.stat-card--featured .stat-value {
+  font-size: 1.4rem;
+}
+
+@media (max-width: 720px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .stat-card--featured {
+    grid-column: span 2;
+  }
 }
 
 .stat-label {
@@ -1161,12 +1280,16 @@ input[type="range"] {
 }
 
 .stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 1.1rem;
-  font-weight: var(--fw-section);
+  font-weight: 700;
   color: var(--text);
 }
 
 .stat-value--accent {
+  font-family: inherit;
+  font-variant-numeric: normal;
   color: var(--primary-light);
 }
 
@@ -1294,6 +1417,149 @@ input[type="range"] {
 }
 
 /* ==========================================
+   COMMAND PALETTE
+   CommandPalette.jsx — Cmd/Ctrl+K anywhere.
+   Sits above every other modal (max elsewhere
+   is 1100) and above the grain overlay (1200).
+   ========================================== */
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+
+  padding: 12vh var(--sp-2) var(--sp-2);
+
+  background: rgba(5, 5, 8, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+
+  animation: command-palette-overlay-in 140ms ease-out both;
+}
+
+@keyframes command-palette-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.command-palette {
+  width: 100%;
+  max-width: 560px;
+  max-height: 70vh;
+
+  display: flex;
+  flex-direction: column;
+
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  overflow: hidden;
+
+  background: rgba(20, 21, 26, 0.78);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+
+  animation: command-palette-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes command-palette-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.command-palette-input {
+  margin: 0;
+  padding: 18px 20px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+
+  background: transparent;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.command-palette-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.command-palette-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.command-palette-empty {
+  padding: 20px;
+  margin: 0;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.command-palette-item {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 11px 12px;
+  border: none;
+  border-radius: 10px;
+
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.command-palette-item.is-active {
+  background: rgba(var(--primary-rgb), 0.16);
+}
+
+.command-palette-item-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.command-palette-item-hint {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.command-palette-footer {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 0.74rem;
+}
+
+.command-palette-footer kbd {
+  display: inline-block;
+  min-width: 1.3em;
+  padding: 1px 5px;
+  margin-right: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+/* ==========================================
    MODAL SHELL (movie detail, share card, rate)
    ========================================== */
 
@@ -1308,7 +1574,12 @@ input[type="range"] {
 
   padding: var(--sp-2);
 
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(9, 9, 11, 0.72);
+  /* Same frosted treatment as the header/command-palette rather than a flat
+     scrim — the page behind stays legible-but-blurred instead of vanishing
+     completely, which is what actually reads as "glass" rather than just a
+     dimmer. Guarded for reduced-transparency users below. */
+  backdrop-filter: blur(7px);
 }
 
 .modal-card {
@@ -1322,10 +1593,22 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 20px;
 
-  background: var(--surface-soft);
+  background: rgba(25, 26, 33, 0.82);
+  backdrop-filter: blur(20px) saturate(160%);
   color: var(--text);
 
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .modal-overlay {
+    background: rgba(9, 9, 11, 0.9);
+    backdrop-filter: none;
+  }
+  .modal-card {
+    background: var(--surface-soft);
+    backdrop-filter: none;
+  }
 }
 
 .modal-card--narrow {
@@ -1523,6 +1806,12 @@ input[type="range"] {
   }
 }
 
+/* Two slow-drifting blurred blobs (this one + ::before below) instead of a
+   static gradient — the "no real motion moment" gap in the hero, the single
+   most-seen surface in the app. Deliberately glacial (18-22s) so it reads
+   as ambient atmosphere, not an attention-grabbing animation; the global
+   prefers-reduced-motion rule already collapses both to a single static
+   frame, so no separate guard is needed here. */
 .feed-hero::after {
   content: "";
 
@@ -1540,6 +1829,38 @@ input[type="range"] {
   filter: blur(60px);
 
   pointer-events: none;
+  animation: rewatch-aurora-drift-a 20s ease-in-out infinite;
+}
+
+.feed-hero::before {
+  content: "";
+
+  position: absolute;
+  left: -70px;
+  top: -110px;
+
+  width: 220px;
+  height: 220px;
+
+  border-radius: 50%;
+
+  background: rgba(var(--cyan-rgb), 0.16);
+
+  filter: blur(70px);
+
+  pointer-events: none;
+  z-index: 0;
+  animation: rewatch-aurora-drift-b 26s ease-in-out infinite;
+}
+
+@keyframes rewatch-aurora-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-24px, -32px) scale(1.15); }
+}
+
+@keyframes rewatch-aurora-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, 20px) scale(1.1); }
 }
 
 .tonight-pick-card {
@@ -1727,6 +2048,7 @@ input[type="range"] {
 }
 
 .recommendation-card {
+  position: relative;
   min-width: 0;
   overflow: hidden;
 
@@ -1741,6 +2063,42 @@ input[type="range"] {
     transform 180ms ease,
     border-color 180ms ease,
     box-shadow 180ms ease;
+}
+
+/* Cursor-following glow, not a flat hover state — the card's onMouseMove
+   handler (MovieFeed.jsx) sets --glow-x/--glow-y from the real pointer
+   position on every move; this just paints a soft light there. A static
+   box-shadow says "this is a button"; light that tracks the cursor says
+   someone built the hover state on purpose. mix-blend-mode: plus-lighter
+   makes it read as light actually landing on the poster art underneath
+   instead of a flat color wash that gets lost against busy imagery.
+   Skipped entirely for touch/no-hover input (a finger has no "position
+   before the tap") and under reduced-motion, both via the same media
+   queries below rather than a JS capability check. */
+.recommendation-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  background: radial-gradient(
+    320px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(var(--primary-rgb), 0.55),
+    transparent 68%
+  );
+  mix-blend-mode: plus-lighter;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.recommendation-card:hover::before {
+  opacity: 1;
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .recommendation-card::before {
+    display: none;
+  }
 }
 
 .recommendation-card:hover {
@@ -1855,8 +2213,10 @@ input[type="range"] {
 .match-ring-label {
   position: absolute;
   color: #ffffff;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
-  font-weight: 800;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 
   opacity: 0;
   transform: scale(0.6);
@@ -2430,6 +2790,18 @@ input[type="range"] {
   z-index: 1100;
   max-width: 360px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  /* This variant floats directly over live page content (unlike the inline,
+     in-modal .shift-toast it shares a base class with), so it's the one
+     that actually benefits from the glass treatment — the page visibly
+     blurs behind it instead of the toast just looking like a flat sticker. */
+  backdrop-filter: blur(14px) saturate(160%);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .undo-toast {
+    background: var(--surface-soft);
+    backdrop-filter: none;
+  }
 }
 
 .undo-toast-action {
@@ -2974,7 +3346,9 @@ input[type="range"] {
 }
 
 .trait-percent {
-  font-weight: var(--fw-section);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   font-size: 1rem;
   color: var(--primary-light);
 }
@@ -3077,6 +3451,8 @@ input[type="range"] {
   background: var(--surface);
   border: 3px solid var(--primary);
   color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-weight: 800;
   font-size: 0.95rem;
 }
@@ -3454,6 +3830,11 @@ input[type="range"] {
   color: var(--neutral-text);
 }
 
+.contribution-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .contribution-row.is-driver .contribution-value {
   color: var(--success);
   font-weight: 700;
@@ -3719,6 +4100,9 @@ input[type="range"] {
 }
 
 .dna-match-card {
+  position: relative;
+  overflow: hidden;
+
   display: flex;
   align-items: center;
   gap: 12px;
@@ -3739,6 +4123,36 @@ input[type="range"] {
   color: inherit;
 
   transition: border-color 160ms ease, transform 160ms ease;
+}
+
+/* Same cursor-following light as .recommendation-card (App.css, "cursor
+   glow" section) — the person cards in Community/social search are just as
+   repeated and just as clickable, so the same signature hover deserves to
+   show up here rather than being a one-off on the feed. */
+.dna-match-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  background: radial-gradient(
+    240px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(var(--primary-rgb), 0.5),
+    transparent 68%
+  );
+  mix-blend-mode: plus-lighter;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+
+.dna-match-card:hover::before {
+  opacity: 1;
+}
+
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .dna-match-card::before {
+    display: none;
+  }
 }
 
 .dna-match-card:hover {

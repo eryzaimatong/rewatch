@@ -191,7 +191,7 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
             />
           ))}
           {[0, 0.5, 1].map((level) => (
-            <text key={level} x={PAD.left - 8} y={yFor(level)} dy="0.32em" textAnchor="end" className="timeline-axis-label">
+            <text key={level} x={PAD.left - 8} y={yFor(level)} dy="0.32em" textAnchor="end" className="timeline-axis-label mono">
               {Math.round(level * 100)}%
             </text>
           ))}
@@ -292,7 +292,7 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
               return (
                 <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
                   <span style={{ color: LINE_COLORS[assignment[key]] }}>{series.label}</span>
-                  <strong>{Math.round(p.val * 100)}%</strong>
+                  <strong className="mono">{Math.round(p.val * 100)}%</strong>
                 </div>
               );
             })}
@@ -312,7 +312,7 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
                 </span>
                 {topTrait && (
                   <span>
-                    {topTrait.label} {topTrait.delta >= 0 ? "+" : ""}{Math.round(topTrait.delta * 100)}%
+                    {topTrait.label} <span className="mono">{topTrait.delta >= 0 ? "+" : ""}{Math.round(topTrait.delta * 100)}%</span>
                   </span>
                 )}
               </div>

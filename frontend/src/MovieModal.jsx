@@ -463,8 +463,9 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               {movie.year || "2024"}
               {/* No fallback default here on purpose — see MovieFeed.jsx's normalizeMovie */}
-              {(matchData?.matchScore ?? movie.matchScore) != null &&
-                ` • ${Math.round(matchData?.matchScore ?? movie.matchScore)}% match`}
+              {(matchData?.matchScore ?? movie.matchScore) != null && (
+                <> • <span className="mono">{Math.round(matchData?.matchScore ?? movie.matchScore)}%</span> match</>
+              )}
             </p>
           </div>
 
@@ -717,8 +718,10 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
                   <span className="shift-toast-icon">✦</span>
                   <span className="shift-toast-text">
                     Your TasteDNA just moved — <strong>{topshift.label}</strong>{" "}
-                    {topshift.delta >= 0 ? "+" : ""}
-                    {Math.round(topshift.delta * 100)}%
+                    <span className="mono">
+                      {topshift.delta >= 0 ? "+" : ""}
+                      {Math.round(topshift.delta * 100)}%
+                    </span>
                   </span>
                 </motion.div>
               )}
@@ -793,7 +796,7 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
             {!detailsLoading && (details?.runtimeMinutes || details?.certification) && (
               <p style={{ fontSize: "0.86rem", color: "var(--text-muted)", marginBottom: "var(--sp-3)" }}>
                 {details.runtimeMinutes && (
-                  <>{Math.floor(details.runtimeMinutes / 60)}h {details.runtimeMinutes % 60}m</>
+                  <span className="mono">{Math.floor(details.runtimeMinutes / 60)}h {details.runtimeMinutes % 60}m</span>
                 )}
                 {details.runtimeMinutes && details.certification && " · "}
                 {details.certification && <span className="chip" style={{ padding: "3px 9px" }}>{details.certification}</span>}

@@ -33,7 +33,14 @@ function formatWhen(iso) {
 
 function PersonCard({ user, onToggleFollow, busy, showMatch }) {
   return (
-    <div className="dna-match-card">
+    <div
+      className="dna-match-card"
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty("--glow-x", `${e.clientX - rect.left}px`);
+        e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
+      }}
+    >
       <Link to={`/social/${user.userId}`} style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
         <Avatar username={user.username} avatarUrl={user.avatarUrl} />
         <div style={{ minWidth: 0 }}>
@@ -248,7 +255,7 @@ export default function Community() {
                     </button>
                   </div>
                   <div className="trait-meta-row">
-                    <span>{c.itemCount} title{c.itemCount === 1 ? "" : "s"} · {c.followerCount} follower{c.followerCount === 1 ? "" : "s"}</span>
+                    <span><span className="mono">{c.itemCount}</span> title{c.itemCount === 1 ? "" : "s"} · <span className="mono">{c.followerCount}</span> follower{c.followerCount === 1 ? "" : "s"}</span>
                   </div>
                 </div>
               </div>

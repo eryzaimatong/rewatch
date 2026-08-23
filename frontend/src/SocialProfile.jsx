@@ -290,9 +290,9 @@ export default function SocialProfile() {
             )}
             <span className="share-card-badge">{profile.archetype}</span>
             <div className="social-profile-counts">
-              <span>{profile.ratingCount} rated</span>
-              <span>{profile.followerCount} followers</span>
-              <span>{profile.followingCount} following</span>
+              <span><span className="mono">{profile.ratingCount}</span> rated</span>
+              <span><span className="mono">{profile.followerCount}</span> followers</span>
+              <span><span className="mono">{profile.followingCount}</span> following</span>
             </div>
           </div>
           {!profile.isSelf && profile.compatibilityScore != null && (
@@ -300,7 +300,7 @@ export default function SocialProfile() {
               <MatchRing score={toMatchPercent(profile.compatibilityScore)} size={40} />
               <div>
                 <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "block" }}>
-                  {toMatchPercent(profile.compatibilityScore)}% compatible
+                  <span className="mono">{toMatchPercent(profile.compatibilityScore)}%</span> compatible
                 </span>
                 {(profile.compatibilityBreakdown?.sharedTrait || profile.compatibilityBreakdown?.divergentTrait) && (
                   <span style={{ fontSize: "0.74rem", color: "var(--text-faint)" }}>
@@ -409,7 +409,7 @@ export default function SocialProfile() {
                 <div>
                   <span className="trait-name">{profile.pinnedCollection.name}</span>
                   <div className="trait-meta-row">
-                    <span>{profile.pinnedCollection.itemCount} title{profile.pinnedCollection.itemCount === 1 ? "" : "s"}</span>
+                    <span><span className="mono">{profile.pinnedCollection.itemCount}</span> title{profile.pinnedCollection.itemCount === 1 ? "" : "s"}</span>
                   </div>
                 </div>
               </div>
@@ -425,7 +425,7 @@ export default function SocialProfile() {
           {lists.map((list) => (
             <div key={list.folderId} style={{ marginBottom: "var(--sp-4)" }}>
               <h3 style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px" }}>
-                <span>{list.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>({list.itemCount})</span></span>
+                <span>{list.name} <span className="mono" style={{ color: "var(--text-faint)", fontWeight: 400 }}>({list.itemCount})</span></span>
                 {list.collaborative && <span className="chip" style={{ fontSize: "0.68rem" }}>Collaborative</span>}
                 {list.itemCount > 0 && (
                   <button

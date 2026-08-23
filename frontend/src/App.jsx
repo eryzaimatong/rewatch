@@ -7,6 +7,8 @@ import NotificationBell from "./NotificationBell";
 import AccountMenu from "./AccountMenu";
 import ErrorBoundary from "./ErrorBoundary";
 import RouteLoading from "./RouteLoading";
+import CommandPalette from "./CommandPalette";
+import { IconSearch } from "./Icons";
 import { getToken, clearSession, applyAccentColor, isAdmin } from "./auth";
 import { applyAccessibilityPrefs } from "./accessibility";
 import "./App.css";
@@ -115,6 +117,16 @@ function AppShell({ onLogout }) {
         </nav>
 
         <div className="app-header-actions" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+          <button
+            type="button"
+            className="command-palette-trigger"
+            onClick={() => window.dispatchEvent(new CustomEvent("rewatch:open-command-palette"))}
+            aria-label="Open command palette"
+            title="Jump to..."
+          >
+            <IconSearch />
+            <kbd>{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K</kbd>
+          </button>
           <NotificationBell userId={userid} />
           <AccountMenu userId={userid} username={username} avatarUrl={avatarUrl} onLogout={onLogout} />
         </div>
@@ -148,6 +160,8 @@ function AppShell({ onLogout }) {
       <nav className="mobile-bottom-nav" aria-label="Primary">
         <NavLinks linkClassName={mobileNavLinkClass} />
       </nav>
+
+      <CommandPalette />
     </div>
   );
 }

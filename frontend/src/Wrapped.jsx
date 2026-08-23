@@ -232,7 +232,7 @@ export default function Wrapped() {
             <div className="archetype-banner">
               <div className="archetype-banner-row">
                 <span className="archetype-label">Archetype this month: {summary.archetype}</span>
-                <span className="archetype-confidence">{summary.ratingCount} title{summary.ratingCount === 1 ? "" : "s"} rated</span>
+                <span className="archetype-confidence"><span className="mono">{summary.ratingCount}</span> title{summary.ratingCount === 1 ? "" : "s"} rated</span>
               </div>
               <p className="archetype-blurb">{summary.archetypeBlurb}</p>
             </div>
@@ -242,7 +242,7 @@ export default function Wrapped() {
                 <p className="moment-eyebrow">Biggest Shift This Month</p>
                 <h3 className="moment-title">{summary.topShifts[0].label}</h3>
                 <p className="moment-sub">
-                  {pct(summary.topShifts[0].startVal)}% → {pct(summary.topShifts[0].endVal)}%
+                  <span className="mono">{pct(summary.topShifts[0].startVal)}% → {pct(summary.topShifts[0].endVal)}%</span>
                   {" "}({shiftLabel(summary.topShifts[0])})
                 </p>
               </div>
@@ -262,7 +262,7 @@ export default function Wrapped() {
                     </span>
                   </div>
                   <div className="trait-meta-row">
-                    <span>{pct(s.startVal)}% → {pct(s.endVal)}%</span>
+                    <span className="mono">{pct(s.startVal)}% → {pct(s.endVal)}%</span>
                   </div>
                 </div>
               ))}

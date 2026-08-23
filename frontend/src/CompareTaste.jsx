@@ -240,7 +240,7 @@ export default function CompareTaste() {
             <div style={{ display: "flex", justifyContent: "center", margin: "var(--sp-3) 0" }}>
               <MatchRing score={result.compatibilityPercent} size={120} />
             </div>
-            <h1 style={{ margin: "0 0 6px" }}>{result.compatibilityPercent}% compatible with @{result.targetUsername}</h1>
+            <h1 style={{ margin: "0 0 6px" }}><span className="mono">{result.compatibilityPercent}%</span> compatible with @{result.targetUsername}</h1>
             <p style={{ fontSize: "1.1rem", fontWeight: 600, margin: "0 0 var(--sp-2)" }}>{result.headline}</p>
 
             {result.sharedTraits.length > 0 && (

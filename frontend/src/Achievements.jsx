@@ -39,7 +39,7 @@ function AchievementCard({ achievement }) {
           <div className="achievement-progress-track">
             <div className="achievement-progress-fill" style={{ width: `${pct}%` }} />
           </div>
-          <span className="achievement-progress-label">{current} / {target}</span>
+          <span className="achievement-progress-label mono">{current} / {target}</span>
         </div>
       )}
     </div>
@@ -73,7 +73,13 @@ export default function Achievements() {
         <div className="taste-panel-head">
           <div>
             <span className="eyebrow">Achievements</span>
-            <h1>{summary ? `${summary.unlockedCount} of ${summary.totalCount} unlocked` : "Your Milestones"}</h1>
+            <h1>
+              {summary
+                ? <>
+                    <span className="mono">{summary.unlockedCount}</span> of <span className="mono">{summary.totalCount}</span> unlocked
+                  </>
+                : "Your Milestones"}
+            </h1>
           </div>
         </div>
 

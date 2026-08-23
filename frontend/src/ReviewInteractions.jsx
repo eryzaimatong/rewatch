@@ -122,10 +122,10 @@ export default function ReviewInteractions({ review }) {
           disabled={likeBusy}
           aria-label={liked ? "Unlike this review" : "Like this review"}
         >
-          {liked ? "♥" : "♡"} {likeCount > 0 ? likeCount : "Like"}
+          {liked ? "♥" : "♡"} {likeCount > 0 ? <span className="mono">{likeCount}</span> : "Like"}
         </button>
         <button type="button" className="review-action-btn" onClick={handletogglecomments}>
-          {commentCount > 0 ? `${commentCount} comment${commentCount === 1 ? "" : "s"}` : "Comment"}
+          {commentCount > 0 ? <><span className="mono">{commentCount}</span> comment{commentCount === 1 ? "" : "s"}</> : "Comment"}
         </button>
         {review.userId !== currentUserId && (
           <button

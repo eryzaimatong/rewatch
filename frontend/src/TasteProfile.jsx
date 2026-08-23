@@ -69,7 +69,7 @@ function ShareCardModal({
           {topthree.map((item, i) => (
             <div key={item.key} className="share-card-trait-row">
               <span>#{i + 1} {item.name}</span>
-              <span style={{ color: "var(--primary-light)", fontWeight: "700" }}>{getpercent(item.node)}%</span>
+              <span className="mono" style={{ color: "var(--primary-light)", fontWeight: "700" }}>{getpercent(item.node)}%</span>
             </div>
           ))}
         </div>
@@ -337,10 +337,10 @@ export default function TasteProfile() {
                 without needing the reader to know what "confidence" measures. */}
             {meanConfidence < 0.4 ? (
               <span className="archetype-confidence">
-                Still forming — {ratingCount} rated so far
+                Still forming — <span className="mono">{ratingCount}</span> rated so far
               </span>
             ) : (
-              <span className="archetype-confidence">{Math.round(meanConfidence * 100)}% TasteDNA confidence</span>
+              <span className="archetype-confidence"><span className="mono">{Math.round(meanConfidence * 100)}%</span> TasteDNA confidence</span>
             )}
           </div>
           <p className="archetype-blurb">{archetypeBlurb}</p>
@@ -398,8 +398,8 @@ export default function TasteProfile() {
                     </div>
 
                     <div className="trait-meta-row">
-                      <span>Confidence: {conf}%</span>
-                      <span>{evid === 0 ? "No ratings yet" : `From ${evid} rating${evid === 1 ? "" : "s"}`}</span>
+                      <span>Confidence: <span className="mono">{conf}%</span></span>
+                      <span>{evid === 0 ? "No ratings yet" : <>From <span className="mono">{evid}</span> rating{evid === 1 ? "" : "s"}</>}</span>
                     </div>
                   </div>
                 );

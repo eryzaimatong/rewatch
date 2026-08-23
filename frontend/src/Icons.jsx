@@ -106,3 +106,12 @@ export function IconFilmCheck(props) {
     </svg>
   );
 }
+
+export function IconSearch(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="10.5" cy="10.5" r="7" />
+      <path d="M20.5 20.5 15.8 15.8" />
+    </svg>
+  );
+}

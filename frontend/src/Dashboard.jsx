@@ -351,7 +351,7 @@ export default function Dashboard() {
         </h1>
 
         <div className="stat-grid">
-          <div className="stat-card">
+          <div className="stat-card stat-card--featured">
             <span className="stat-label">Active Archetype</span>
             <strong className="stat-value stat-value--accent">{archetype}</strong>
           </div>
@@ -673,7 +673,7 @@ export default function Dashboard() {
                     </button>
                   </div>
                   <div className="trait-meta-row">
-                    <span>{c.itemCount} title{c.itemCount === 1 ? "" : "s"} · {c.followerCount} follower{c.followerCount === 1 ? "" : "s"}</span>
+                    <span><span className="mono">{c.itemCount}</span> title{c.itemCount === 1 ? "" : "s"} · <span className="mono">{c.followerCount}</span> follower{c.followerCount === 1 ? "" : "s"}</span>
                   </div>
                 </div>
               </div>
