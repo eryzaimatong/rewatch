@@ -133,11 +133,41 @@ connection. If the platform sits in front as a reverse proxy, also set
 limiting sections above) — it's usually the same proxy hop that terminates
 TLS and forwards `X-Forwarded-For`.
 
+## Live deployment
+
+Backend + Postgres run on Render (`render.yaml`, blueprint-managed), frontend
+on Vercel — two separate services, not the docker-compose monolith above.
+Render builds `backend-java/Dockerfile` directly on every push to `main`
+(`autoDeploy: yes`); Vercel is deployed manually via `vercel --prod` from
+`frontend/` (see `frontend/vercel.json` for the SPA-fallback rewrite every
+client-side route needs). Secrets marked `sync: false` in `render.yaml`
+(`TMDB_API_KEY`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`) are set by
+hand in the Render dashboard, never committed. `CORS_ALLOWED_ORIGINS` and
+`FRONTEND_BASE_URL` are set to the real Vercel URL post-deploy, once it's
+known.
+
+Two GitHub Actions workflows exist purely to cover gaps the free-tier
+platforms themselves don't: `keepalive.yml` pings both services every 10
+minutes so Render's 15-minute idle-sleep never triggers on a real visitor
+(and doubles as uptime monitoring — a failed ping fails the workflow), and
+`db-guardian.yml` watches the free Postgres instance's 30-day expiry and
+opens a GitHub issue with an exact runbook once it's within 5 days of
+deletion. The latter needs `RENDER_API_KEY` as a repo secret to do anything;
+see the comment at the top of that file for why it can't be fully automated
+(Render refuses to run two free-tier databases at once, so an unattended
+rotation risks data loss instead of preventing it).
+
 ## Known gaps
 
 - No schema migration tool (Flyway/Liquibase). `spring.jpa.hibernate.ddl-auto`
   is `update` even in the `prod` profile, so Hibernate auto-alters the schema
   on boot. Fine for a single-instance early-stage deploy; revisit before
   scaling past one backend instance or wanting real migration history.
-- No Docker image publishing / CD — CI only verifies the build, it doesn't
-  deploy anywhere.
+- Render's free Postgres tier hard-deletes the database 30 days after
+  creation, with no free way to extend it — see `db-guardian.yml` above.
+  The durable fix is migrating off it to a provider without that limit
+  (e.g. Neon), not building around it forever.
+- No automated backups of the production database.
+- Frontend test coverage is thin — one utility module covered by Vitest,
+  everything else verified only by ad hoc manual passes, not a committed
+  suite.
