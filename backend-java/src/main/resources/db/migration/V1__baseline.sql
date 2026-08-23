@@ -1,0 +1,27 @@
+-- This project had no migration tool before this file — every table so far
+-- exists purely because spring.jpa.hibernate.ddl-auto=update reconciled the
+-- schema to match the JPA entities on every boot. That's genuinely risky for
+-- a database that matters (Hibernate silently altering a live production
+-- schema with no history of what changed or why), but hand-authoring an
+-- exact DDL replica of 17 entities from memory, with no local Postgres, no
+-- Docker, and no way to test it against the real production schema in this
+-- environment, would be trading one risk (no migration history) for a worse
+-- one (a baseline that's subtly wrong and breaks boot outright under strict
+-- validation).
+--
+-- So this intentionally is NOT a full schema replica. spring.flyway.
+-- baseline-on-migrate=true + baseline-version=0 means Flyway stamps the
+-- *existing* database as already being at this version without executing
+-- this file's SQL against it at all — so its content is inert for every
+-- database that already exists today. ddl-auto stays on `update` as the
+-- active schema authority for both existing and fresh databases; nothing
+-- about how the schema is actually managed changes today.
+--
+-- What this actually buys: every schema change from this point forward gets
+-- its own V2__, V3__, ... file with a real name and a real reason, instead
+-- of vanishing into "whatever Hibernate happened to infer from the entity
+-- that boot." That's the actual problem worth solving first — a verified,
+-- tested full DDL baseline (and the harder question of whether to ever flip
+-- ddl-auto off) is real follow-up work, not something to rush through
+-- unverified in the same pass that introduces the tool.
+select 1;

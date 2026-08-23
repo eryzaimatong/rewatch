@@ -75,7 +75,7 @@ jobs:
                 "",
                 "Render will not let a second free database exist alongside it, so this cannot be rotated unattended. Runbook:",
                 "",
-                "1. `render psql dpg-da4rlkc9v7es7392t1rg-a --command \"\\copy (select * from users) to 'users.csv' csv header\"` — repeat per table, or use `pg_dump` via the external connection string from the Render dashboard for a full dump.",
+                "1. Back up first: `GET /api/admin/backup` (admin JWT required) returns every user-generated table as JSON — users, ratings, watchlist, follows, reviews, blocks, daily guesses, trait history. Save the response. (Passwords are deliberately excluded — see BackupController's doc comment — so restored accounts will need a password reset, which the app already supports.)",
                 "2. Delete the expiring database: `render postgres delete dpg-da4rlkc9v7es7392t1rg-a --confirm`",
                 "3. Create the replacement: `render postgres create --confirm --name rewatch-db --plan free --version 18 --database-name rewatch_db --database-user rewatch --region oregon`",
                 "4. Restore the dump into it, then update `rewatch-backend`'s DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD env vars to the new instance's values and redeploy.",

@@ -55,6 +55,17 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Schema migration history — see db/migration/V1__baseline.sql for why
+             this coexists with ddl-auto=update rather than replacing it outright.
+             Spring Boot 3.2.5 manages a Flyway 9.x generation, which still has
+             Postgres support built into flyway-core directly rather than as the
+             separate flyway-database-postgresql module later Flyway versions
+             split out — no extra artifact needed for this Spring Boot version. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- Bean Validation (@Valid on request bodies) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

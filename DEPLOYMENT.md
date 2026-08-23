@@ -167,7 +167,15 @@ rotation risks data loss instead of preventing it).
   creation, with no free way to extend it — see `db-guardian.yml` above.
   The durable fix is migrating off it to a provider without that limit
   (e.g. Neon), not building around it forever.
-- No automated backups of the production database.
+- No *automated* backups — `GET /api/admin/backup` (BackupController, admin
+  JWT required) exports every user-generated table as JSON on demand, which
+  covers the actual disaster-recovery need, but nothing calls it on a
+  schedule yet.
+- No schema migration baseline verified against the live production schema
+  — Flyway is wired up (`db/migration/V1__baseline.sql`) and tracks every
+  schema change from here forward, but `ddl-auto=update` deliberately stays
+  on as the active schema authority until a full DDL baseline can be tested
+  against a real Postgres instance rather than shipped blind.
 - Frontend test coverage is thin — one utility module covered by Vitest,
   everything else verified only by ad hoc manual passes, not a committed
   suite.
