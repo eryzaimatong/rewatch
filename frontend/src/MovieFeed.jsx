@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
+import DailyDoubleFeature from "./DailyDoubleFeature";
 import MatchRing from "./MatchRing";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -1201,6 +1202,8 @@ export default function MovieFeed() {
           </div>
         )}
       </section>
+
+      <DailyDoubleFeature />
 
       <section className="feed-section">
         <div className="feed-heading-row" style={{ alignItems: "center", flexWrap: "wrap", gap: "16px", marginBottom: "var(--sp-3)" }}>

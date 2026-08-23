@@ -11,6 +11,7 @@ import com.rewatch.model.User;
 import com.rewatch.model.WatchlistFolder;
 import com.rewatch.repository.BlockRepository;
 import com.rewatch.repository.CollectionFollowRepository;
+import com.rewatch.repository.DailyGuessRepository;
 import com.rewatch.repository.FollowRepository;
 import com.rewatch.repository.NotificationRepository;
 import com.rewatch.repository.PasswordResetTokenRepository;
@@ -53,6 +54,7 @@ public class AccountService {
     private final ReviewCommentRepository reviewCommentRepo;
     private final WatchStatusRepository watchStatusRepo;
     private final AchievementService achievementService;
+    private final DailyGuessRepository dailyGuessRepo;
 
     public AccountService(UserRepository userRepo, PasswordEncoder passwordEncoder, JwtService jwtService,
                           RatingRepository ratingRepo, WatchlistItemRepository watchlistItemRepo,
@@ -65,7 +67,8 @@ public class AccountService {
                           ReviewLikeRepository reviewLikeRepo,
                           ReviewCommentRepository reviewCommentRepo,
                           WatchStatusRepository watchStatusRepo,
-                          AchievementService achievementService) {
+                          AchievementService achievementService,
+                          DailyGuessRepository dailyGuessRepo) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -84,6 +87,7 @@ public class AccountService {
         this.collectionFollowRepo = collectionFollowRepo;
         this.watchStatusRepo = watchStatusRepo;
         this.achievementService = achievementService;
+        this.dailyGuessRepo = dailyGuessRepo;
     }
 
     /**
@@ -396,6 +400,7 @@ public class AccountService {
         reportRepo.deleteByReportedUserId(userId);
         passwordResetTokenRepo.deleteByUserId(userId);
         notificationRepo.deleteByUserId(userId);
+        dailyGuessRepo.deleteByUserId(userId);
         userRepo.delete(user);
     }
 }
