@@ -2,6 +2,10 @@ package com.rewatch.security;
 
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +36,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class SecurityExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityExceptionHandler.class);
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<?> handle(ResponseStatusException ex) {
         return ResponseEntity.status(ex.getStatusCode())
@@ -56,8 +62,18 @@ public class SecurityExceptionHandler {
                 .body(Map.of("status", "error", "message", message));
     }
 
+    /**
+     * The one gap that actually matters most in production: without this log
+     * line, an unexpected exception here was returned to the client as a
+     * clean, generic 500 and then vanished — nothing written anywhere, so a
+     * real failure in prod was invisible even to someone actively checking
+     * `render logs`. Logging the full exception plus the method+URI that
+     * triggered it turns those logs into the only error-monitoring this app
+     * has, which is meaningfully better than none.
+     */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleUnexpected(Exception ex) {
+    public ResponseEntity<?> handleUnexpected(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("status", "error", "message", "Unexpected server error"));
     }

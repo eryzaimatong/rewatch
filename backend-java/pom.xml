@@ -19,6 +19,20 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- 5.7.0 (Spring Boot 3.2.5's managed default) bundles a Byte Buddy build
+             that only recognizes class file versions up to JDK 23 — mocking a
+             concrete class like JdbcTemplate fails outright on a JDK 25 machine
+             ("Unknown Java version: 0") even though the same tests run fine on
+             CI's pinned JDK 17. 5.16+ bundles Byte Buddy 1.17+, which added real
+             (non-experimental) JDK 25 class file support. Overriding here keeps
+             local test runs consistent with CI regardless of which JDK happens
+             to be on a given machine. -->
+        <mockito.version>5.18.0</mockito.version>
+        <!-- Spring Boot's own dependencyManagement pins byte-buddy independently
+             of mockito.version above and was still winning at 1.14.13 even after
+             the mockito bump — that's the actual JDK-25-incompatible artifact.
+             1.17+ is the version that added non-experimental JDK 25 support. -->
+        <byte-buddy.version>1.17.5</byte-buddy.version>
     </properties>
 
     <dependencies>

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { authHeaders } from "./auth";
 import { BASE, gettitles, gettastedna } from "./api";
 import { playChime } from "./sound";
+import { FAV_PAGE_SIZE, computeVisibleFavTitles } from "./onboardingUtils";
 import "./App.css";
 
 // A staggered reveal for the one moment this whole wizard has been building
@@ -170,25 +171,12 @@ export default function Onboarding({ onFinish }) {
     return b;
   }, [catalog]);
 
-  // Rendering every title in a bucket at once (a type can run into the
-  // thousands) meant an unfiltered onboarding step was quietly putting
-  // thousands of poster <img> nodes on the page simultaneously — confirmed
-  // live: a fresh account's Step 1 rendered a ~95,000px-tall page. Capped to
-  // a page of well-known titles instead; search still reaches the rest of
-  // the bucket, and a title already picked stays visible even if it would
-  // otherwise fall outside the cap, so choosing it never makes it disappear.
-  const FAV_PAGE_SIZE = 60;
-  const visibleFavTitles = useMemo(() => {
-    const list = favBuckets[favTab] || [];
-    const q = favQuery.trim().toLowerCase();
-    const matches = q ? list.filter((t) => t.title.toLowerCase().includes(q)) : list;
-    const sorted = [...matches].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
-    const page = sorted.slice(0, FAV_PAGE_SIZE);
-    const pickedButCutOff = sorted
-      .slice(FAV_PAGE_SIZE)
-      .filter((t) => favs.includes(t.title));
-    return [...page, ...pickedButCutOff];
-  }, [favBuckets, favTab, favQuery, favs]);
+  // See onboardingUtils.js — capped to a page of well-known titles instead
+  // of rendering a bucket that can run into the thousands at once.
+  const visibleFavTitles = useMemo(
+    () => computeVisibleFavTitles(favBuckets[favTab] || [], favQuery, favs),
+    [favBuckets, favTab, favQuery, favs]
+  );
 
   function togglefav(title) {
     setfavs((current) =>
