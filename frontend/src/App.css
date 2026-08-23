@@ -1077,6 +1077,22 @@ input[type="range"] {
   color: var(--success);
 }
 
+/* Reserves the same line-box as the error/success text without showing
+   anything — the hint used to only exist in the DOM once a condition was
+   met, so the submit button below it visibly jumped on every keystroke
+   while filling in a password (a real, measurable layout shift, not just a
+   cosmetic nit — flagged by a Playwright stability check failing on this
+   exact button during a routine mobile pass). Always rendering the same
+   element and only toggling which class/text it shows keeps the button's
+   position fixed regardless of validation state. */
+.auth-field-hint--placeholder {
+  /* visibility:hidden (not color:transparent) so it reserves the line-box
+     but is also correctly pulled out of the accessibility tree — a
+     screen reader has no business announcing "Passwords don't match"
+     before the field has any content. */
+  visibility: hidden;
+}
+
 .auth-toggle {
   margin-top: var(--sp-3);
   font-size: 0.82rem;
@@ -1977,9 +1993,15 @@ input[type="range"] {
 
   color: var(--text);
 
-  font-size: clamp(2rem, 5vw, 3.6rem);
-  line-height: 1.04;
-  letter-spacing: -0.045em;
+  /* The greeting is a full sentence with a username spliced in ("Good
+     evening, {username}. Rate a few titles..."), so its length varies with
+     account age/username length — on a narrow phone the old 2rem floor
+     never actually shrunk, so a longer sentence just wrapped across as many
+     as 6 lines. A lower floor with a steeper vw term lets it actually
+     shrink on small viewports instead of only ever wrapping. */
+  font-size: clamp(1.7rem, 6.5vw, 3.6rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
 }
 
 .hero-description {

@@ -1,0 +1,41 @@
+name: Keep-alive + uptime check
+
+# Render's free web-service tier sleeps after 15 minutes of no traffic — the
+# exact moment that hurts most is a stranger clicking a freshly-shared
+# compatibility/roast link and landing on a 30-50s cold start instead of the
+# app. Pinging on an interval well under 15 minutes keeps the instance warm
+# for real visitors. Doubles as uptime monitoring: a failed ping fails this
+# workflow, which surfaces as a red run in the Actions tab and (if repo
+# notifications are on) an email — the only failure alerting this app has
+# without a third-party account.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          code=$(curl -s -o /tmp/health.json -w "%{http_code}" https://rewatch-backend-edis.onrender.com/api/health)
+          echo "HTTP $code"
+          cat /tmp/health.json
+          if [ "$code" != "200" ]; then
+            echo "::error::Health check returned $code instead of 200"
+            exit 1
+          fi
+          if ! grep -q '"status":"ok"' /tmp/health.json; then
+            echo "::error::Health body did not report status ok"
+            exit 1
+          fi
+
+      - name: Ping frontend
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://frontend-teal-eight-ij12n87mrc.vercel.app/)
+          echo "HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Frontend returned $code instead of 200"
+            exit 1
+          fi

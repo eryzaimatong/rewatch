@@ -126,8 +126,8 @@ export default function Login({ onLogin }) {
                 {showpassword ? <IconEyeOff /> : <IconEye />}
               </button>
             </div>
-            {passwordTooShort && (
-              <p className="auth-field-hint auth-field-hint--error">
+            {isreg && (
+              <p className={`auth-field-hint${passwordTooShort ? " auth-field-hint--error" : " auth-field-hint--placeholder"}`}>
                 At least {MIN_PASSWORD_LENGTH} characters.
               </p>
             )}
@@ -147,12 +147,21 @@ export default function Login({ onLogin }) {
                   autoComplete="new-password"
                 />
               </div>
-              {passwordsMismatch && (
-                <p className="auth-field-hint auth-field-hint--error">Passwords don't match.</p>
-              )}
-              {isreg && confirmpassword.length > 0 && !passwordsMismatch && (
-                <p className="auth-field-hint auth-field-hint--success">Passwords match.</p>
-              )}
+              <p
+                className={`auth-field-hint${
+                  passwordsMismatch
+                    ? " auth-field-hint--error"
+                    : confirmpassword.length > 0
+                      ? " auth-field-hint--success"
+                      : " auth-field-hint--placeholder"
+                }`}
+              >
+                {passwordsMismatch
+                  ? "Passwords don't match."
+                  : confirmpassword.length > 0
+                    ? "Passwords match."
+                    : "Passwords don't match."}
+              </p>
             </div>
           )}
 

@@ -1,0 +1,90 @@
+name: Database expiry guardian
+
+# Render's free Postgres tier hard-deletes the instance 30 days after
+# creation — confirmed live (GET /v1/postgres returns an `expiresAt` field
+# on the free plan) and confirmed structural: Render also rejects creating a
+# second free-tier database while one already exists ("cannot have more than
+# one active free tier database"), so there is no way to stand up a
+# replacement ahead of time and cut over without a gap. That combination is
+# exactly why this can't be fully unattended — deleting the only copy of the
+# database before confirming a new one works would risk causing the very
+# data loss this exists to prevent.
+#
+# What this DOES do without any risk of data loss: watches the expiry date
+# and opens a loud, impossible-to-miss GitHub issue with an exact runbook
+# once the deadline is close, so "silently forgot and lost the database"
+# becomes "got a GitHub issue and ran four commands." Needs RENDER_API_KEY
+# as a repo secret (Render dashboard -> Account Settings -> API Keys ->
+# Create, then paste into this repo's Settings -> Secrets and variables ->
+# Actions) — nothing here runs until that secret exists.
+on:
+  schedule:
+    - cron: "17 9 * * *" # once a day
+  workflow_dispatch: {}
+
+jobs:
+  check-expiry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether RENDER_API_KEY is configured
+        id: has_key
+        run: |
+          if [ -z "${{ secrets.RENDER_API_KEY }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch database expiry
+        if: steps.has_key.outputs.configured == 'true'
+        id: expiry
+        run: |
+          response=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            "https://api.render.com/v1/postgres/dpg-da4rlkc9v7es7392t1rg-a")
+          expires_at=$(echo "$response" | jq -r '.expiresAt // empty')
+          if [ -z "$expires_at" ]; then
+            echo "::error::Could not read expiresAt from Render API response"
+            exit 1
+          fi
+          echo "expires_at=$expires_at" >> "$GITHUB_OUTPUT"
+          expires_epoch=$(date -d "$expires_at" +%s)
+          now_epoch=$(date +%s)
+          days_left=$(( (expires_epoch - now_epoch) / 86400 ))
+          echo "days_left=$days_left" >> "$GITHUB_OUTPUT"
+          echo "Database expires $expires_at ($days_left days left)"
+
+      - name: Open an urgent issue once the deadline is close
+        if: steps.has_key.outputs.configured == 'true' && fromJSON(steps.expiry.outputs.days_left) <= 5
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const daysLeft = ${{ steps.expiry.outputs.days_left }};
+            const expiresAt = "${{ steps.expiry.outputs.expires_at }}";
+            const title = `URGENT: rewatch-db expires in ${daysLeft} day(s) (${expiresAt})`;
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: "open", labels: "db-expiry"
+            });
+            if (existing.data.some(i => i.title === title)) return;
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title,
+              labels: ["db-expiry"],
+              body: [
+                `Render's free Postgres instance (dpg-da4rlkc9v7es7392t1rg-a) expires **${expiresAt}** — ${daysLeft} day(s) from now.`,
+                "",
+                "Render will not let a second free database exist alongside it, so this cannot be rotated unattended. Runbook:",
+                "",
+                "1. `render psql dpg-da4rlkc9v7es7392t1rg-a --command \"\\copy (select * from users) to 'users.csv' csv header\"` — repeat per table, or use `pg_dump` via the external connection string from the Render dashboard for a full dump.",
+                "2. Delete the expiring database: `render postgres delete dpg-da4rlkc9v7es7392t1rg-a --confirm`",
+                "3. Create the replacement: `render postgres create --confirm --name rewatch-db --plan free --version 18 --database-name rewatch_db --database-user rewatch --region oregon`",
+                "4. Restore the dump into it, then update `rewatch-backend`'s DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD env vars to the new instance's values and redeploy.",
+                "",
+                "Or: migrate off Render Postgres entirely to a provider without a 30-day free-tier expiry (e.g. Neon) so this issue never has to fire again."
+              ].join("\n")
+            });
+
+      - name: Remind that the guardian isn't active yet
+        if: steps.has_key.outputs.configured == 'false'
+        run: |
+          echo "::warning::RENDER_API_KEY is not set as a repo secret — this workflow is a no-op until it is. See the comment at the top of .github/workflows/db-guardian.yml."

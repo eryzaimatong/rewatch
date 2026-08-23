@@ -11,22 +11,25 @@
     <title>Re:Watch — Stories chosen for how you feel</title>
 
     <!-- Open Graph / Twitter Card — controls how a shared link previews on
-         social platforms, group chats, and Discord. og:url and og:image use
-         a root-relative path: replace with the full production URL (e.g.
-         https://rewatch.app/og-image.png) once a domain is live — some
-         crawlers (notably Facebook's) don't reliably resolve relative
-         og:image URLs against the page origin. -->
+         social platforms, group chats, and Discord. Absolute URLs on
+         og:url/og:image, not root-relative: some crawlers (notably
+         Facebook's) don't reliably resolve a relative og:image against the
+         page origin, which silently kills the preview image on exactly the
+         links this app's viral mechanics depend on (a shared compatibility
+         test, a Roast card, a profile link). The production domain is now
+         live, so this is a real fix, not a placeholder note anymore. -->
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://frontend-teal-eight-ij12n87mrc.vercel.app/" />
     <meta property="og:site_name" content="Re:Watch" />
     <meta property="og:title" content="Re:Watch — Stories chosen for how you feel" />
     <meta property="og:description" content="A recommendation engine built on a real taste model, not popularity." />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="https://frontend-teal-eight-ij12n87mrc.vercel.app/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Re:Watch — Stories chosen for how you feel" />
     <meta name="twitter:description" content="A recommendation engine built on a real taste model, not popularity." />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:image" content="https://frontend-teal-eight-ij12n87mrc.vercel.app/og-image.png" />
   </head>
   <body>
     <div id="root"></div>
