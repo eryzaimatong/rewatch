@@ -23,8 +23,11 @@ import com.rewatch.service.AchievementService;
 import com.rewatch.service.ArchetypeService;
 import com.rewatch.service.HistoryService;
 import com.rewatch.service.ProfileService;
+import com.rewatch.service.RoastService;
 import com.rewatch.service.TasteJourneyService;
 import com.rewatch.service.WrappedService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 /**
  * Every value returned here traces to a real, persisted rating. The old version
@@ -43,11 +46,12 @@ public class TasteDNAController {
     private final WrappedService wrappedService;
     private final AchievementService achievementService;
     private final TasteJourneyService tasteJourneyService;
+    private final RoastService roastService;
 
     public TasteDNAController(ProfileService profileService, ArchetypeService archetypeService,
                               HistoryService historyService, RatingRepository ratingRepo,
                               WrappedService wrappedService, AchievementService achievementService,
-                              TasteJourneyService tasteJourneyService) {
+                              TasteJourneyService tasteJourneyService, RoastService roastService) {
         this.profileService = profileService;
         this.archetypeService = archetypeService;
         this.historyService = historyService;
@@ -55,6 +59,7 @@ public class TasteDNAController {
         this.wrappedService = wrappedService;
         this.achievementService = achievementService;
         this.tasteJourneyService = tasteJourneyService;
+        this.roastService = roastService;
     }
 
     @GetMapping("/profile/{id}")
@@ -162,6 +167,26 @@ public class TasteDNAController {
     public List<TasteJourneyService.JourneyEntry> journey(@PathVariable("id") Long id, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, id);
         return tasteJourneyService.build(id);
+    }
+
+    /**
+     * "Roast My Taste" — a sharp, specific read of the user's own rating
+     * history, built for a share card. See RoastService for why every line is
+     * grounded in a real computed number rather than generic horoscope text.
+     * 404 (not an empty roast) below the ratings floor — the frontend already
+     * knows to show "rate a few more titles" rather than render nothing.
+     */
+    @GetMapping("/roast/{id}")
+    public ResponseEntity<?> roast(@PathVariable("id") Long id, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, id);
+        RoastService.Roast roast = roastService.generate(id);
+        if (roast == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "status", "error",
+                    "message", "Rate at least " + RoastService.MIN_RATINGS_FOR_ROAST
+                            + " titles before we can roast your taste properly."));
+        }
+        return ResponseEntity.ok(roast);
     }
 
     /** Forces a full replay from the rating log. Useful after a lexicon change. */

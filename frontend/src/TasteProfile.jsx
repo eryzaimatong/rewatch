@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import TraitRadar from "./TraitRadar";
 import EvolutionTimeline from "./EvolutionTimeline";
 import BrandMark from "./BrandMark";
+import RoastShareCard from "./RoastShareCard";
 import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
@@ -125,6 +126,7 @@ export default function TasteProfile() {
   const [msg, setmsg] = useState("");
   const [err, seterr] = useState("");
   const [showcard, setshowcard] = useState(false);
+  const [showroast, setshowroast] = useState(false);
   const [recalculating, setrecalculating] = useState(false);
   const [exporting, setexporting] = useState(false);
   const [advancedRadar, setadvancedRadar] = useState(false);
@@ -292,9 +294,14 @@ export default function TasteProfile() {
             <h1>{username}'s Storytelling Vector</h1>
           </div>
 
-          <button type="button" onClick={() => setshowcard(true)} className="btn-primary">
-            Export Taste Card
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button type="button" onClick={() => setshowroast(true)} className="btn-block">
+              Roast My Taste
+            </button>
+            <button type="button" onClick={() => setshowcard(true)} className="btn-primary">
+              Export Taste Card
+            </button>
+          </div>
         </div>
 
         <p className="taste-panel-intro">
@@ -406,6 +413,14 @@ export default function TasteProfile() {
           exporting={exporting}
           onExport={exportTasteCardPNG}
           onClose={() => setshowcard(false)}
+        />
+      )}
+
+      {showroast && (
+        <RoastShareCard
+          userId={userid}
+          username={username}
+          onClose={() => setshowroast(false)}
         />
       )}
     </div>
