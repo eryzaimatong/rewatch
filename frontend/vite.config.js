@@ -6,17 +6,14 @@ export default defineConfig({
   plugins: [react()],
   test: {
     // Most units under test (onboardingUtils, api helpers) are plain JS with
-    // no DOM. auth.js needs localStorage/document, which is why this is
-    // jsdom rather than the faster default 'node' environment across the
-    // board — one environment for the whole suite is simpler than per-file
-    // overrides for a test suite this size.
-    environment: 'jsdom',
-    // Vitest's default 'forks' pool hung indefinitely on this Windows/Git
-    // Bash setup ("Timeout waiting for worker to respond") — not a test
-    // problem, a subprocess-spawning issue specific to this environment.
-    // 'threads' works reliably here; CI (Ubuntu) would likely be fine
-    // either way, but there's no reason to run something different locally
-    // than what's actually verified to work.
-    pool: 'threads',
+    // no DOM. auth.js needs localStorage/document, which is why this isn't
+    // the faster default 'node' environment across the board — one
+    // environment for the whole suite is simpler than per-file overrides
+    // for a test suite this size. happy-dom, not jsdom: jsdom's environment
+    // setup alone measured 40-55s locally for a two-file suite, suspicious
+    // enough on its own to be the actual cause of a CI failure rather than
+    // just "CI is slower" — happy-dom is the standard, much lighter
+    // alternative Vitest itself recommends for exactly this.
+    environment: 'happy-dom',
   },
 })
