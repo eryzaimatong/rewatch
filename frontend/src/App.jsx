@@ -25,6 +25,7 @@ const Dashboard = lazy(() => import("./Dashboard"));
 const Community = lazy(() => import("./Community"));
 const SocialProfile = lazy(() => import("./SocialProfile"));
 const ForgotPassword = lazy(() => import("./ForgotPassword"));
+const CompareTaste = lazy(() => import("./CompareTaste"));
 const ResetPassword = lazy(() => import("./ResetPassword"));
 const Settings = lazy(() => import("./Settings"));
 const NotFound = lazy(() => import("./NotFound"));
@@ -191,6 +192,10 @@ function Root() {
               an old reset-password email link should also land here, not get
               shunted back into the app. */}
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          {/* Public on purpose — the whole point of the compatibility check is a
+              visitor with no account can open a shared link and use it cold. See
+              CompatibilityController's own doc comment for the backend half. */}
+          <Route path="/compare/:username" element={<CompareTaste />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />

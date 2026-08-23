@@ -130,6 +130,7 @@ export default function TasteProfile() {
   const [recalculating, setrecalculating] = useState(false);
   const [exporting, setexporting] = useState(false);
   const [advancedRadar, setadvancedRadar] = useState(false);
+  const [compareLinkCopied, setcompareLinkCopied] = useState(false);
 
   const username = localStorage.getItem("username") || "friend";
   const userid = localStorage.getItem("userId") || 1;
@@ -294,7 +295,23 @@ export default function TasteProfile() {
             <h1>{username}'s Storytelling Vector</h1>
           </div>
 
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(`${window.location.origin}/compare/${username}`);
+                  setcompareLinkCopied(true);
+                  setTimeout(() => setcompareLinkCopied(false), 2000);
+                } catch {
+                  setmsg("");
+                  seterr("Could not copy the link.");
+                }
+              }}
+              className="btn-block"
+            >
+              {compareLinkCopied ? "Link copied" : "Compare With a Friend"}
+            </button>
             <button type="button" onClick={() => setshowroast(true)} className="btn-block">
               Roast My Taste
             </button>

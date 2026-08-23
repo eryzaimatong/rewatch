@@ -79,6 +79,14 @@ public class SecurityConfig {
                         "/api/movies/nlp-search", "/api/movies/search-suggestions",
                         "/api/movies/trending", "/api/movies/top-rated")
                     .permitAll()
+                // The no-signup taste-compatibility check — see
+                // CompatibilityController's own doc comment for why this has to
+                // be public: the whole point is a visitor with no account can
+                // take it from a shared link. Neither route reads or writes a
+                // specific user's private data; /check only ever reads a
+                // target's already-public profile.
+                .requestMatchers(HttpMethod.GET, "/api/compatibility/quiz").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/compatibility/check").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
