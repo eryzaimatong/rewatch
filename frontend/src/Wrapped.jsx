@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, loadImage, shareOrDownloadBlob
+  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
+  loadImage, shareOrDownloadBlob
 } from "./shareCard";
 import EmptyState from "./EmptyState";
 import "./App.css";
@@ -95,26 +96,27 @@ export default function Wrapped() {
 
     drawCardFrame(ctx, "RE:WATCH WRAPPED");
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 32px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(summary.period, CARD_W / 2, 146);
+    drawVerticallyCentered(ctx, 146, CARD_H - 100, (c, startY) => {
+    c.textAlign = "center";
+    c.fillStyle = "#ffffff";
+    c.font = "bold 32px 'Plus Jakarta Sans', sans-serif";
+    c.fillText(summary.period, CARD_W / 2, startY);
 
-    ctx.fillStyle = "#a1a1aa";
-    ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, CARD_W / 2, 172);
+    c.fillStyle = "#a1a1aa";
+    c.font = "14px 'Plus Jakarta Sans', sans-serif";
+    c.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, CARD_W / 2, startY + 26);
 
-    ctx.fillStyle = "#d8b4fe";
-    ctx.font = "bold 19px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(summary.archetype, CARD_W / 2, 214);
+    c.fillStyle = "#d8b4fe";
+    c.font = "bold 19px 'Plus Jakarta Sans', sans-serif";
+    c.fillText(summary.archetype, CARD_W / 2, startY + 68);
 
     // Poster collage — the visual hook. Real cover art, not just numbers.
-    let y = 250;
+    let y = startY + 104;
     if (posterImages.some(Boolean)) {
-      ctx.textAlign = "left";
-      ctx.fillStyle = "#71717a";
-      ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("TOP RATED", 36, y);
+      c.textAlign = "left";
+      c.fillStyle = "#71717a";
+      c.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+      c.fillText("TOP RATED", 36, y);
       y += 18;
 
       // Sized for a fixed 5-slot row (this section's max, per TOP_RATING_COUNT
@@ -132,49 +134,52 @@ export default function Wrapped() {
       topPosters.forEach((r, i) => {
         const x = rowStart + i * (posterW + gap);
         const img = posterImages[i];
-        ctx.save();
-        ctx.beginPath();
+        c.save();
+        c.beginPath();
         const radius = 8;
-        ctx.moveTo(x + radius, y);
-        ctx.arcTo(x + posterW, y, x + posterW, y + posterH, radius);
-        ctx.arcTo(x + posterW, y + posterH, x, y + posterH, radius);
-        ctx.arcTo(x, y + posterH, x, y, radius);
-        ctx.arcTo(x, y, x + posterW, y, radius);
-        ctx.closePath();
-        ctx.clip();
+        c.moveTo(x + radius, y);
+        c.arcTo(x + posterW, y, x + posterW, y + posterH, radius);
+        c.arcTo(x + posterW, y + posterH, x, y + posterH, radius);
+        c.arcTo(x, y + posterH, x, y, radius);
+        c.arcTo(x, y, x + posterW, y, radius);
+        c.closePath();
+        c.clip();
         if (img) {
-          ctx.drawImage(img, x, y, posterW, posterH);
+          c.drawImage(img, x, y, posterW, posterH);
         } else {
-          ctx.fillStyle = "#20212a";
-          ctx.fillRect(x, y, posterW, posterH);
+          c.fillStyle = "#20212a";
+          c.fillRect(x, y, posterW, posterH);
         }
-        ctx.restore();
+        c.restore();
 
-        ctx.textAlign = "center";
-        ctx.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
-        ctx.font = "11px 'Plus Jakarta Sans', sans-serif";
-        ctx.fillText("★".repeat(r.overall || 0), x + posterW / 2, y + posterH + 16);
+        c.textAlign = "center";
+        c.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
+        c.font = "11px 'Plus Jakarta Sans', sans-serif";
+        c.fillText("★".repeat(r.overall || 0), x + posterW / 2, y + posterH + 16);
       });
       y += posterH + 40;
     }
 
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#71717a";
-    ctx.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("BIGGEST MOVERS THIS MONTH", 36, y);
+    c.textAlign = "left";
+    c.fillStyle = "#71717a";
+    c.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+    c.fillText("BIGGEST MOVERS THIS MONTH", 36, y);
     y += 34;
 
     summary.topShifts.forEach((s) => {
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(s.label, 36, y);
+      c.fillStyle = "#ffffff";
+      c.font = "16px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(s.label, 36, y);
 
-      ctx.textAlign = "right";
-      ctx.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171"; // mirrors --success/--danger — Canvas can't resolve CSS vars
-      ctx.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText(shiftLabel(s), CARD_W - 36, y);
-      ctx.textAlign = "left";
+      c.textAlign = "right";
+      c.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171"; // mirrors --success/--danger — Canvas can't resolve CSS vars
+      c.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(shiftLabel(s), CARD_W - 36, y);
+      c.textAlign = "left";
       y += 40;
+    });
+
+    return y;
     });
 
     drawCardFooter(ctx);

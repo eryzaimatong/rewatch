@@ -7,7 +7,8 @@ import useModalA11y from "./useModalA11y";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, svgElementToImage, shareOrDownloadBlob, wrapText
+  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
+  svgElementToImage, shareOrDownloadBlob, wrapText
 } from "./shareCard";
 import "./App.css";
 
@@ -258,22 +259,24 @@ export default function TasteProfile() {
 
     drawCardFrame(ctx, "RE:WATCH TASTEDNA");
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`${username}'s Card`, CARD_W / 2, 144);
+    drawVerticallyCentered(ctx, 144, CARD_H - 100, (c, startY) => {
+      c.textAlign = "center";
+      c.fillStyle = "#ffffff";
+      c.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(`${username}'s Card`, CARD_W / 2, startY);
 
-    ctx.fillStyle = "#d8b4fe";
-    ctx.font = "bold 18px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(archetype, CARD_W / 2, 174);
+      c.fillStyle = "#d8b4fe";
+      c.font = "bold 18px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(archetype, CARD_W / 2, startY + 30);
 
-    const imgTop = 200;
-    ctx.drawImage(img, (CARD_W - imgSize) / 2, imgTop, imgSize, imgSize);
+      const imgTop = startY + 56;
+      c.drawImage(img, (CARD_W - imgSize) / 2, imgTop, imgSize, imgSize);
 
-    ctx.fillStyle = "#a1a1aa";
-    ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
-    ctx.textAlign = "left";
-    wrapText(ctx, archetypeBlurb, 36, imgTop + imgSize + 36, CARD_W - 72, 19);
+      c.fillStyle = "#a1a1aa";
+      c.font = "13px 'Plus Jakarta Sans', sans-serif";
+      c.textAlign = "left";
+      return wrapText(c, archetypeBlurb, 36, imgTop + imgSize + 36, CARD_W - 72, 19);
+    });
 
     drawCardFooter(ctx);
 

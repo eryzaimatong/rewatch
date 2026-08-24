@@ -146,6 +146,36 @@ export function drawCardFooter(ctx) {
   ctx.fillText("RE:WATCH", CARD_W / 2, CARD_H - 36);
 }
 
+/**
+ * Runs `drawContent` twice — once invisibly to measure how tall the
+ * content block actually turns out, then for real with a vertical offset
+ * that centers it in the space between the header and footer. Every card
+ * that uses this draws a variable amount of content (2 roast receipts vs
+ * 4, a radar chart plus movers vs a thin still-forming profile) into a
+ * fixed 9:16 canvas — that fixed size is correct, not the bug (Stories/
+ * Reels/TikTok expect exactly that ratio and crop anything else) — but
+ * drawing top-down from a constant start Y left a dead, empty void at the
+ * bottom of the exported image for any user with less than the maximum
+ * amount of content. Confirmed live: real exported cards for Roast,
+ * TasteDNA, and Wrapped all had 30-45% of the image as flat blank canvas.
+ *
+ * `drawContent(ctx, startY)` must return the final y it drew to, exactly
+ * like wrapText already does — every existing card's draw function
+ * already returns this, so wrapping them costs nothing structural.
+ */
+export function drawVerticallyCentered(ctx, startY, footerTop, drawContent) {
+  ctx.save();
+  ctx.globalAlpha = 0;
+  const measuredEndY = drawContent(ctx, startY);
+  ctx.restore();
+
+  const available = footerTop - startY;
+  const contentHeight = measuredEndY - startY;
+  const offset = Math.max(0, (available - contentHeight) / 2);
+
+  return drawContent(ctx, startY + offset);
+}
+
 export function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   const words = text.split(" ");
   let line = "";

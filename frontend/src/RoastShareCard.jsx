@@ -4,7 +4,8 @@ import BrandMark from "./BrandMark";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, shareOrDownloadBlob, wrapText
+  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
+  shareOrDownloadBlob, wrapText
 } from "./shareCard";
 import "./App.css";
 
@@ -71,34 +72,38 @@ export default function RoastShareCard({ userId, username, onClose }) {
 
     drawCardFrame(ctx, "TASTE ROAST");
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#71717a";
-    ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`@${username}`, CARD_W / 2, 140);
+    drawVerticallyCentered(ctx, 140, CARD_H - 100, (c, startY) => {
+      c.textAlign = "center";
+      c.fillStyle = "#71717a";
+      c.font = "13px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(`@${username}`, CARD_W / 2, startY);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
-    let y = wrapText(ctx, roast.headline, CARD_W / 2, 200, CARD_W - 100, 38);
+      c.fillStyle = "#ffffff";
+      c.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
+      let y = wrapText(c, roast.headline, CARD_W / 2, startY + 60, CARD_W - 100, 38);
 
-    y += 30;
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(60, y);
-    ctx.lineTo(CARD_W - 60, y);
-    ctx.stroke();
+      y += 30;
+      c.strokeStyle = "rgba(255,255,255,0.1)";
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(60, y);
+      c.lineTo(CARD_W - 60, y);
+      c.stroke();
 
-    y += 34;
-    ctx.fillStyle = "#a855f7";
-    ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText("THE RECEIPTS", CARD_W / 2, y);
+      y += 34;
+      c.fillStyle = "#a855f7";
+      c.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
+      c.fillText("THE RECEIPTS", CARD_W / 2, y);
 
-    y += 34;
-    ctx.fillStyle = "#e4e4e7";
-    ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
-    roast.receipts.forEach((line) => {
-      y = wrapText(ctx, line, CARD_W / 2, y, CARD_W - 120, 24);
-      y += 26;
+      y += 34;
+      c.fillStyle = "#e4e4e7";
+      c.font = "16px 'Plus Jakarta Sans', sans-serif";
+      roast.receipts.forEach((line) => {
+        y = wrapText(c, line, CARD_W / 2, y, CARD_W - 120, 24);
+        y += 26;
+      });
+
+      return y;
     });
 
     drawCardFooter(ctx);

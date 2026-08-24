@@ -4,7 +4,8 @@ import BrandMark from "./BrandMark";
 import MatchRing from "./MatchRing";
 import { BASE } from "./api";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, wrapText, shareOrDownloadBlob
+  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
+  wrapText, shareOrDownloadBlob
 } from "./shareCard";
 import "./App.css";
 
@@ -121,41 +122,45 @@ export default function CompareTaste() {
 
     drawCardFrame(ctx, "TASTE COMPATIBILITY");
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 64px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`${result.compatibilityPercent}%`, CARD_W / 2, 220);
+    drawVerticallyCentered(ctx, 220, CARD_H - 100, (c, startY) => {
+      c.textAlign = "center";
+      c.fillStyle = "#ffffff";
+      c.font = "bold 64px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(`${result.compatibilityPercent}%`, CARD_W / 2, startY);
 
-    ctx.fillStyle = "#71717a";
-    ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
-    ctx.fillText(`compatible with @${result.targetUsername}`, CARD_W / 2, 250);
+      c.fillStyle = "#71717a";
+      c.font = "14px 'Plus Jakarta Sans', sans-serif";
+      c.fillText(`compatible with @${result.targetUsername}`, CARD_W / 2, startY + 30);
 
-    ctx.fillStyle = "#e4e4e7";
-    ctx.font = "bold 22px 'Plus Jakarta Sans', sans-serif";
-    let y = wrapText(ctx, result.headline, CARD_W / 2, 310, CARD_W - 100, 30);
+      c.fillStyle = "#e4e4e7";
+      c.font = "bold 22px 'Plus Jakarta Sans', sans-serif";
+      let y = wrapText(c, result.headline, CARD_W / 2, startY + 90, CARD_W - 100, 30);
 
-    if (result.sharedTraits.length > 0) {
-      y += 30;
-      ctx.strokeStyle = "rgba(255,255,255,0.1)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(60, y);
-      ctx.lineTo(CARD_W - 60, y);
-      ctx.stroke();
+      if (result.sharedTraits.length > 0) {
+        y += 30;
+        c.strokeStyle = "rgba(255,255,255,0.1)";
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(60, y);
+        c.lineTo(CARD_W - 60, y);
+        c.stroke();
 
-      y += 34;
-      ctx.fillStyle = "#a855f7";
-      ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
-      ctx.fillText("WHAT YOU SHARE", CARD_W / 2, y);
+        y += 34;
+        c.fillStyle = "#a855f7";
+        c.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
+        c.fillText("WHAT YOU SHARE", CARD_W / 2, y);
 
-      y += 32;
-      ctx.fillStyle = "#e4e4e7";
-      ctx.font = "16px 'Plus Jakarta Sans', sans-serif";
-      result.sharedTraits.forEach((label) => {
-        ctx.fillText(label, CARD_W / 2, y);
-        y += 26;
-      });
-    }
+        y += 32;
+        c.fillStyle = "#e4e4e7";
+        c.font = "16px 'Plus Jakarta Sans', sans-serif";
+        result.sharedTraits.forEach((label) => {
+          c.fillText(label, CARD_W / 2, y);
+          y += 26;
+        });
+      }
+
+      return y;
+    });
 
     drawCardFooter(ctx);
 
