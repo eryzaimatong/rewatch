@@ -9,8 +9,15 @@ import "./App.css";
 
 const MIN_PASSWORD_LENGTH = 6;
 
+// Deliberately simple — not exhaustive RFC 5322 validation, just enough to
+// catch "forgot the @" / "forgot the domain" before it becomes an account
+// nobody can ever recover, which is the actual failure mode this exists to
+// prevent (see the email field below).
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function Login({ onLogin }) {
   const [username, setusername] = useState("");
+  const [email, setemail] = useState("");
   const [password, setpassword] = useState("");
   const [confirmpassword, setconfirmpassword] = useState("");
   const [showpassword, setshowpassword] = useState(false);
@@ -21,11 +28,21 @@ export default function Login({ onLogin }) {
 
   const passwordTooShort = isreg && password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
   const passwordsMismatch = isreg && confirmpassword.length > 0 && confirmpassword !== password;
+  const emailInvalid = isreg && email.length > 0 && !EMAIL_PATTERN.test(email);
 
   async function handlesubmit(e) {
     e.preventDefault();
     if (!username || !password) {
       seterrmsg("Enter both a username and a password.");
+      return;
+    }
+    if (isreg && !EMAIL_PATTERN.test(email)) {
+      // Without a real email on file, "Forgot password?" has nowhere to send
+      // a reset link — a synthetic placeholder used to be silently substituted
+      // here instead, which meant every account created through this form was
+      // permanently unrecoverable the moment a password was forgotten. This
+      // is now a hard requirement, not a nice-to-have.
+      seterrmsg("Enter a real email — it's the only way to recover your account if you forget your password.");
       return;
     }
     if (isreg && password.length < MIN_PASSWORD_LENGTH) {
@@ -42,7 +59,7 @@ export default function Login({ onLogin }) {
     setokmsg("");
 
     if (isreg) {
-      const res = await register(username, password);
+      const res = await register(username, password, email);
       if (res && res.token) {
         // Registration now returns a full session, same as login — no reason to
         // make the user re-enter their password immediately after choosing it.
@@ -103,6 +120,23 @@ export default function Login({ onLogin }) {
               autoComplete="username"
             />
           </div>
+
+          {isreg && (
+            <div className="auth-field">
+              <label htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setemail(e.target.value)}
+                autoComplete="email"
+              />
+              <p className={`auth-field-hint${emailInvalid ? " auth-field-hint--error" : " auth-field-hint--placeholder"}`}>
+                Enter a valid email.
+              </p>
+            </div>
+          )}
 
           <div className="auth-field">
             <label htmlFor="login-password">Password</label>

@@ -119,6 +119,20 @@ export async function changePassword(userId, currentPassword, newPassword) {
   return await res.json().catch(() => null);
 }
 
+export async function getEmail(userId) {
+  const res = await fetch(`${BASE}/api/account/email/${userId}`, { headers: authHeaders() });
+  return await res.json().catch(() => null);
+}
+
+export async function changeEmail(userId, currentPassword, newEmail) {
+  const res = await fetch(`${BASE}/api/account/email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ userId, currentPassword, newEmail })
+  });
+  return await res.json().catch(() => null);
+}
+
 export async function getProfileVisibility(userId) {
   const res = await fetch(`${BASE}/api/account/profile-visibility/${userId}`, { headers: authHeaders() });
   return await res.json().catch(() => null);

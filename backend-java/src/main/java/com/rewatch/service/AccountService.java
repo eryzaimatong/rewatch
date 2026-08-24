@@ -114,6 +114,53 @@ public class AccountService {
         return jwtService.issue(user.getId(), user.getUsername(), user.getTokenVersion());
     }
 
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+
+    /**
+     * The registration form used to silently substitute `username@rewatch.local`
+     * for any account created with no real email — meaning "Forgot password?"
+     * had nowhere to actually send a reset link for every account created that
+     * way, a permanent, self-service-proof lockout the moment someone forgot
+     * their password. Registration now requires a real email, but that does
+     * nothing for accounts that already exist with the placeholder — this is
+     * the only way those become recoverable. Same current-password re-proof as
+     * changePassword: email is the account-recovery mechanism, so changing it
+     * deserves the same protection against a stolen-but-valid token as changing
+     * the password itself.
+     */
+    public void changeEmail(Long userId, String currentPassword, String newEmail) {
+        User user = userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect.");
+        }
+        String trimmed = newEmail == null ? "" : newEmail.trim();
+        if (!EMAIL_PATTERN.matcher(trimmed).matches()) {
+            throw new IllegalArgumentException("Enter a valid email address.");
+        }
+        User existing = userRepo.findByEmail(trimmed);
+        if (existing != null && !existing.getId().equals(userId)) {
+            throw new IllegalArgumentException("That email is already registered to another account.");
+        }
+
+        user.setEmail(trimmed);
+        userRepo.save(user);
+    }
+
+    /**
+     * `.rewatch.local` is exactly the placeholder domain register()'s old
+     * no-email fallback used — a real user will never legitimately end up
+     * with that domain, so it doubles as a reliable "does this account
+     * actually have a recovery email" check for the Settings UI without
+     * needing a separate boolean column.
+     */
+    public String getEmail(Long userId) {
+        return userRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"))
+                .getEmail();
+    }
+
     public boolean getProfileVisibility(Long userId) {
         return userRepo.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"))

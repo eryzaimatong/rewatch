@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  changePassword, deleteAccount, getBlockedUsers, unblockUser,
+  changePassword, getEmail, changeEmail, deleteAccount, getBlockedUsers, unblockUser,
   getProfileVisibility, setProfileVisibility, getEmailNotifications, setEmailNotifications,
   setAccentColor, setAvatar,
   setAvatarFrame, getAchievements, setNickname, setBio, setProfileSong, setPinnedContent, setProfileTheme, BASE
@@ -83,6 +83,14 @@ export default function Settings() {
   const [pwloading, setpwloading] = useState(false);
   const [pwerr, setpwerr] = useState("");
   const [pwmsg, setpwmsg] = useState("");
+
+  const [currentemail, setcurrentemail] = useState("");
+  const [emailloading, setemailloading] = useState(true);
+  const [newemail, setnewemail] = useState("");
+  const [emailpassword, setemailpassword] = useState("");
+  const [emailsaving, setemailsaving] = useState(false);
+  const [emailerr, setemailerr] = useState("");
+  const [emailmsg, setemailmsg] = useState("");
 
   const [deletepassword, setdeletepassword] = useState("");
   const [showconfirmdelete, setshowconfirmdelete] = useState(false);
@@ -232,15 +240,54 @@ export default function Settings() {
     setemailnotifsloading(false);
   }
 
+  async function loademail() {
+    setemailloading(true);
+    const res = await getEmail(userid);
+    if (res && res.email) {
+      setcurrentemail(res.email);
+    }
+    setemailloading(false);
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadblocked();
     loadvisibility();
     loademailnotifs();
+    loademail();
     loadachievements();
     loadnickname();
     loadpinnedpickers();
   }, []);
+
+  // The exact placeholder register()'s old no-email fallback used to write —
+  // see AccountService.getEmail's own doc comment for why this pattern
+  // reliably means "no real recovery email on file" rather than a coincidence.
+  const hasNoRecoveryEmail = /^\d+@rewatch\.local$/.test(currentemail);
+
+  async function handlechangeemail(e) {
+    e.preventDefault();
+    setemailerr("");
+    setemailmsg("");
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newemail)) {
+      setemailerr("Enter a valid email address.");
+      return;
+    }
+
+    setemailsaving(true);
+    const res = await changeEmail(userid, emailpassword, newemail);
+    setemailsaving(false);
+
+    if (res?.status === "success") {
+      setcurrentemail(newemail);
+      setemailmsg("Email updated.");
+      setnewemail("");
+      setemailpassword("");
+    } else {
+      setemailerr(res?.message || "Could not update your email.");
+    }
+  }
 
   async function handlesavenickname() {
     setnicknamesaving(true);
@@ -657,6 +704,48 @@ export default function Settings() {
             </button>
             {pinnedmsg && <span style={{ marginLeft: "10px", fontSize: "0.8rem", color: "var(--text-faint)" }}>{pinnedmsg}</span>}
           </div>
+        </section>
+
+        <section className="feed-section">
+          <p className="section-eyebrow">Recovery email</p>
+          {!emailloading && hasNoRecoveryEmail && (
+            <p className="status-message status-message--error" style={{ marginBottom: "10px" }}>
+              No recovery email on file — if you forget your password, there's currently no way to get back in.
+              Add a real email below.
+            </p>
+          )}
+          {!emailloading && !hasNoRecoveryEmail && (
+            <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+              Current: {currentemail}
+            </p>
+          )}
+          {emailerr && <div className="status-message status-message--error">{emailerr}</div>}
+          {emailmsg && <div className="status-message status-message--success">{emailmsg}</div>}
+
+          <form onSubmit={handlechangeemail}>
+            <label htmlFor="settings-new-email">New email</label>
+            <input
+              id="settings-new-email"
+              type="email"
+              value={newemail}
+              onChange={(e) => setnewemail(e.target.value)}
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+
+            <label htmlFor="settings-email-password">Current password</label>
+            <input
+              id="settings-email-password"
+              type="password"
+              value={emailpassword}
+              onChange={(e) => setemailpassword(e.target.value)}
+              autoComplete="current-password"
+            />
+
+            <button type="submit" className="btn-primary" disabled={emailsaving}>
+              {emailsaving ? "Saving..." : "Update Email"}
+            </button>
+          </form>
         </section>
 
         <section className="feed-section">

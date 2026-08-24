@@ -21,6 +21,19 @@ public class AccountRequests {
         public void setNewPassword(String v) { this.newPassword = v; }
     }
 
+    public static class ChangeEmail {
+        @NotNull private Long userId;
+        @NotBlank private String currentPassword;
+        @NotBlank private String newEmail;
+
+        public Long getUserId() { return userId; }
+        public void setUserId(Long v) { this.userId = v; }
+        public String getCurrentPassword() { return currentPassword; }
+        public void setCurrentPassword(String v) { this.currentPassword = v; }
+        public String getNewEmail() { return newEmail; }
+        public void setNewEmail(String v) { this.newEmail = v; }
+    }
+
     public static class DeleteAccount {
         @NotNull private Long userId;
         @NotBlank private String password;

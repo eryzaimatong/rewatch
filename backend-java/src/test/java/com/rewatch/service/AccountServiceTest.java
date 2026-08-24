@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.rewatch.model.Rating;
 import com.rewatch.model.User;
@@ -36,6 +37,7 @@ import com.rewatch.repository.WatchlistItemRepository;
 class AccountServiceTest {
 
     @Mock private UserRepository userRepo;
+    @Mock private PasswordEncoder passwordEncoder;
     @Mock private RatingRepository ratingRepo;
     @Mock private FollowRepository followRepo;
     @Mock private WatchlistItemRepository watchlistItemRepo;
@@ -45,7 +47,7 @@ class AccountServiceTest {
     @Mock private TraitEventRepository traitEventRepo;
 
     private AccountService newService() {
-        return new AccountService(userRepo, null, null, ratingRepo, null, watchlistFolderRepo, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new AccountService(userRepo, passwordEncoder, null, ratingRepo, null, watchlistFolderRepo, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -269,5 +271,66 @@ class AccountServiceTest {
         assertNull(captor.getValue().getPinnedTitleIds());
         assertNull(captor.getValue().getPinnedRatingId());
         assertNull(captor.getValue().getPinnedFolderId());
+    }
+
+    /**
+     * changeEmail exists specifically to make an account recoverable again —
+     * every one of these guards matters for that one job: wrong password
+     * blocks a stolen token from hijacking recovery, an invalid format would
+     * silently recreate the exact unrecoverable state this fixes, and letting
+     * a duplicate email through would break the uniqueness the whole
+     * forgot-password lookup depends on.
+     */
+    @Test
+    void changeEmailRequiresTheCorrectCurrentPassword() {
+        User user = new User();
+        user.setPassword("hashed");
+        when(userRepo.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> newService().changeEmail(1L, "wrong", "real@example.com"));
+    }
+
+    @Test
+    void changeEmailRejectsAnInvalidFormat() {
+        User user = new User();
+        user.setPassword("hashed");
+        when(userRepo.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct", "hashed")).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> newService().changeEmail(1L, "correct", "not-an-email"));
+    }
+
+    @Test
+    void changeEmailRejectsOneAlreadyRegisteredToSomeoneElse() {
+        User user = new User();
+        user.setPassword("hashed");
+        when(userRepo.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct", "hashed")).thenReturn(true);
+        User otherAccount = new User();
+        otherAccount.setId(2L);
+        when(userRepo.findByEmail("taken@example.com")).thenReturn(otherAccount);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> newService().changeEmail(1L, "correct", "taken@example.com"));
+    }
+
+    @Test
+    void changeEmailSucceedsWithAValidNewAddress() {
+        User user = new User();
+        user.setId(1L);
+        user.setPassword("hashed");
+        user.setEmail("1@rewatch.local");
+        when(userRepo.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct", "hashed")).thenReturn(true);
+        when(userRepo.findByEmail("real@example.com")).thenReturn(null);
+
+        newService().changeEmail(1L, "correct", "real@example.com");
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        org.mockito.Mockito.verify(userRepo).save(captor.capture());
+        assertEquals("real@example.com", captor.getValue().getEmail());
     }
 }

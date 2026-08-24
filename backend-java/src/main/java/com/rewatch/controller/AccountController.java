@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.rewatch.dto.AccountRequests.ChangeEmail;
 import com.rewatch.dto.AccountRequests.ChangePassword;
 import com.rewatch.dto.AccountRequests.DeleteAccount;
 import com.rewatch.dto.AccountRequests.SetAccentColor;
@@ -45,6 +46,29 @@ public class AccountController {
         try {
             String token = accountService.changePassword(req.getUserId(), req.getCurrentPassword(), req.getNewPassword());
             return ResponseEntity.ok(Map.of("status", "success", "token", token));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/email/{userId}")
+    public ResponseEntity<?> getEmail(@PathVariable Long userId, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, userId);
+        try {
+            return ResponseEntity.ok(Map.of("email", accountService.getEmail(userId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/email")
+    public ResponseEntity<?> changeEmail(@Valid @RequestBody ChangeEmail req, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        try {
+            accountService.changeEmail(req.getUserId(), req.getCurrentPassword(), req.getNewEmail());
+            return ResponseEntity.ok(Map.of("status", "success"));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("status", "error", "message", e.getMessage()));
