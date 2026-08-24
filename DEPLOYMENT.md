@@ -117,9 +117,31 @@ healthcheck and is a reasonable target for a load balancer or uptime monitor.
 ## CI
 
 `.github/workflows/ci.yml` runs on every push/PR to `main`: `./mvnw test` for
-the backend, `npm run lint && npm run build` for the frontend. It doesn't
-build or push Docker images yet — that's a reasonable next step once there's
-somewhere to push them to.
+the backend, `npm ci && npm run lint && npm test && npm run build` for the
+frontend. It doesn't build or push Docker images yet — that's a reasonable
+next step once there's somewhere to push them to.
+
+CI passing is not the same thing as the deploy being safe — Render deploys
+on push independently of GitHub Actions' result, so a CI failure doesn't
+block or delay production. Confirmed the hard way: a same-day commit passed
+locally, broke CI on the next push (a race-condition-broken local install
+masquerading as a real fix), and Render had already deployed the *previous*
+commit successfully in the meantime purely by chance of timing. Watch the
+actual Render deploy (`render deploys list <serviceId> -o json`, or
+`render logs --resources <serviceId>` for real boot output) for anything
+that touches schema handling, auth, or startup — CI passing is necessary,
+not sufficient.
+
+## Rolling back a bad deploy
+
+`render deploys create rewatch-backend --commit <sha> --wait` redeploys any
+previous commit and waits for the result — this is the actual rollback
+mechanism, not a dedicated `rollback` subcommand. Find a known-good sha with
+`render deploys list srv-da4rltc9v7es7392tp8g -o json` (look for the last
+entry with `"status": "live"` before the bad one). Frontend rollback is the
+same idea via Vercel: `vercel rollback <deployment-url-or-id>` from
+`frontend/` (find candidates with `vercel ls`), or `vercel deploy --prod`
+after `git checkout` to the last good commit.
 
 ## HTTPS
 
