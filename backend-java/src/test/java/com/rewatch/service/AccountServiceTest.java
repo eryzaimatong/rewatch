@@ -38,6 +38,7 @@ class AccountServiceTest {
 
     @Mock private UserRepository userRepo;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private com.rewatch.security.JwtService jwtService;
     @Mock private RatingRepository ratingRepo;
     @Mock private FollowRepository followRepo;
     @Mock private WatchlistItemRepository watchlistItemRepo;
@@ -47,7 +48,7 @@ class AccountServiceTest {
     @Mock private TraitEventRepository traitEventRepo;
 
     private AccountService newService() {
-        return new AccountService(userRepo, passwordEncoder, null, ratingRepo, null, watchlistFolderRepo, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new AccountService(userRepo, passwordEncoder, jwtService, ratingRepo, null, watchlistFolderRepo, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -326,11 +327,43 @@ class AccountServiceTest {
         when(userRepo.findById(1L)).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("correct", "hashed")).thenReturn(true);
         when(userRepo.findByEmail("real@example.com")).thenReturn(null);
+        when(userRepo.save(org.mockito.ArgumentMatchers.any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         newService().changeEmail(1L, "correct", "real@example.com");
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         org.mockito.Mockito.verify(userRepo).save(captor.capture());
         assertEquals("real@example.com", captor.getValue().getEmail());
+    }
+
+    /**
+     * The confidence-6 finding reclassified as P1: changeEmail previously had
+     * no revocation effect at all, unlike changePassword. Email is the
+     * account-recovery channel, so a stolen-but-valid token repointing it to
+     * an attacker-controlled address must actually end every other live
+     * session, not just succeed silently for the request that made the change.
+     */
+    @Test
+    void changeEmailBumpsTokenVersionAndReturnsAFreshToken() {
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("someone");
+        user.setPassword("hashed");
+        user.setEmail("1@rewatch.local");
+        user.setTokenVersion(3);
+        when(userRepo.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct", "hashed")).thenReturn(true);
+        when(userRepo.findByEmail("real@example.com")).thenReturn(null);
+        when(userRepo.save(org.mockito.ArgumentMatchers.any(User.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtService.issue(1L, "someone", 4)).thenReturn("fresh-jwt");
+
+        String issuedToken = newService().changeEmail(1L, "correct", "real@example.com");
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        org.mockito.Mockito.verify(userRepo).save(captor.capture());
+        assertEquals(4, captor.getValue().getTokenVersion());
+        assertEquals("fresh-jwt", issuedToken);
     }
 }

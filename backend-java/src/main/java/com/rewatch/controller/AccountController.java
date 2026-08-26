@@ -67,8 +67,8 @@ public class AccountController {
     public ResponseEntity<?> changeEmail(@Valid @RequestBody ChangeEmail req, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, req.getUserId());
         try {
-            accountService.changeEmail(req.getUserId(), req.getCurrentPassword(), req.getNewEmail());
-            return ResponseEntity.ok(Map.of("status", "success"));
+            String token = accountService.changeEmail(req.getUserId(), req.getCurrentPassword(), req.getNewEmail());
+            return ResponseEntity.ok(Map.of("status", "success", "token", token));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("status", "error", "message", e.getMessage()));

@@ -280,6 +280,13 @@ export default function Settings() {
     setemailsaving(false);
 
     if (res?.status === "success") {
+      // Same reasoning as handlechangepassword below: changing email now
+      // bumps the server-side tokenVersion too (a stolen-but-valid token
+      // repointing account recovery to an attacker-controlled address
+      // needs to actually end other sessions, not just this request), so
+      // this session needs the freshly issued token or its own next
+      // request 401s.
+      saveSession({ token: res.token });
       setcurrentemail(newemail);
       setemailmsg("Email updated.");
       setnewemail("");

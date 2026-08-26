@@ -128,8 +128,22 @@ public class AccountService {
      * changePassword: email is the account-recovery mechanism, so changing it
      * deserves the same protection against a stolen-but-valid token as changing
      * the password itself.
+     *
+     * <p>Also bumps tokenVersion, same as changePassword: email is the
+     * account-recovery channel, so an attacker with a stolen-but-valid token
+     * who repoints it to an address they control must not leave every other
+     * legitimate session (the account owner's other devices) still valid
+     * afterward. Without this, changing email had no revocation effect at
+     * all — the one self-service action a user has to react to a hijacked
+     * session did nothing to actually end it anywhere except the request
+     * that made the change.
+     *
+     * @return a freshly issued token, same contract as changePassword — the
+     *         token that authenticated this request is now stale and would
+     *         401 on the next call.
      */
-    public void changeEmail(Long userId, String currentPassword, String newEmail) {
+    @Transactional
+    public String changeEmail(Long userId, String currentPassword, String newEmail) {
         User user = userRepo.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
@@ -145,7 +159,10 @@ public class AccountService {
         }
 
         user.setEmail(trimmed);
-        userRepo.save(user);
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        user = userRepo.save(user);
+
+        return jwtService.issue(user.getId(), user.getUsername(), user.getTokenVersion());
     }
 
     /**
