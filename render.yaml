@@ -45,12 +45,16 @@ services:
         sync: false
       - key: MAIL_PASSWORD
         sync: false
-      # Both filled in for real once the Vercel frontend URL is known —
-      # placeholder here since Render needs a value to deploy at all.
+      # sync: false, same as the secrets above — NOT because these are
+      # secret, but because the live values (the real Vercel origin) were
+      # set by hand in the Render dashboard and do not match what's
+      # committed here. A `value:` here previously meant the next blueprint
+      # sync (deliberate or accidental) would silently revert production
+      # CORS to localhost-only and break the live site outright.
       - key: CORS_ALLOWED_ORIGINS
-        value: http://localhost:5173
+        sync: false
       - key: FRONTEND_BASE_URL
-        value: http://localhost:5173
+        sync: false
       - key: ADMIN_EMAILS
         value: ""
       # Render's edge proxy appends its own observed peer address to

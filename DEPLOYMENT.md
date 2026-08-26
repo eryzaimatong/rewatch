@@ -153,7 +153,11 @@ kind of proxy, where the app only ever sees the decrypted-HTTP side of the
 connection. If the platform sits in front as a reverse proxy, also set
 `TRUST_PROXY_HEADERS=true` (see `SecurityUtil.clientIp` and the CORS/rate-
 limiting sections above) — it's usually the same proxy hop that terminates
-TLS and forwards `X-Forwarded-For`.
+TLS and forwards `X-Forwarded-For`. Render's own edge proxy is exactly this
+case — it appends rather than overwrites, so `TRUST_PROXY_HEADERS=true` is
+set in `render.yaml` and `SecurityUtil.clientIp()` reads the rightmost
+entry specifically because of that; the leftmost entry is whatever the
+client claimed.
 
 ## Live deployment
 
@@ -162,11 +166,13 @@ on Vercel — two separate services, not the docker-compose monolith above.
 Render builds `backend-java/Dockerfile` directly on every push to `main`
 (`autoDeploy: yes`); Vercel is deployed manually via `vercel --prod` from
 `frontend/` (see `frontend/vercel.json` for the SPA-fallback rewrite every
-client-side route needs). Secrets marked `sync: false` in `render.yaml`
-(`TMDB_API_KEY`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`) are set by
-hand in the Render dashboard, never committed. `CORS_ALLOWED_ORIGINS` and
-`FRONTEND_BASE_URL` are set to the real Vercel URL post-deploy, once it's
-known.
+client-side route needs). Values marked `sync: false` in `render.yaml` (`TMDB_API_KEY`, `JWT_SECRET`,
+`MAIL_USERNAME`, `MAIL_PASSWORD`, `CORS_ALLOWED_ORIGINS`,
+`FRONTEND_BASE_URL`) are set by hand in the Render dashboard, never
+committed — the latter two aren't secret, but the live Vercel origin
+doesn't match what's in source control, and a real `value:` here would
+mean the next blueprint sync silently reverts production CORS to
+localhost-only.
 
 Two GitHub Actions workflows exist purely to cover gaps the free-tier
 platforms themselves don't: `keepalive.yml` pings both services every 10
