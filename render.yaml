@@ -53,3 +53,11 @@ services:
         value: http://localhost:5173
       - key: ADMIN_EMAILS
         value: ""
+      # Render's edge proxy appends its own observed peer address to
+      # X-Forwarded-For rather than overwriting it, and SecurityUtil.clientIp()
+      # reads the rightmost entry specifically because of that — see its doc
+      # comment. Safe to enable only under that append-not-overwrite topology;
+      # without this, every request behind Render's proxy resolves to the same
+      # internal address and all rate limits share one bucket.
+      - key: TRUST_PROXY_HEADERS
+        value: "true"

@@ -55,12 +55,27 @@ public final class SecurityUtil {
         trustProxyHeaders = trust;
     }
 
-    /** The caller's IP for rate-limiting. See {@link #trustProxyHeaders} for why X-Forwarded-For isn't trusted by default. */
+    /**
+     * The caller's IP for rate-limiting. See {@link #trustProxyHeaders} for
+     * why X-Forwarded-For isn't trusted by default.
+     *
+     * <p>When it is trusted, this reads the <strong>rightmost</strong> entry,
+     * never the leftmost. A proxy that appends (Render, and most reverse
+     * proxies/load balancers) adds its own observed peer address to the
+     * <em>end</em> of the header rather than replacing it, so the chain looks
+     * like {@code client-claimed-value, ..., last-hop-observed-value}. The
+     * leftmost entry is whatever the original request claimed — a client can
+     * put anything there, including a fresh fake value on every request,
+     * which would turn RateLimiterService into a no-op. The rightmost entry
+     * is what the proxy closest to this server actually observed on the TCP
+     * connection it made to us, which a client cannot forge.
+     */
     public static String clientIp(HttpServletRequest request) {
         if (trustProxyHeaders) {
             String forwarded = request.getHeader("X-Forwarded-For");
             if (forwarded != null && !forwarded.isBlank()) {
-                return forwarded.split(",")[0].trim();
+                String[] hops = forwarded.split(",");
+                return hops[hops.length - 1].trim();
             }
         }
         return request.getRemoteAddr();
