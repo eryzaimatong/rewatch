@@ -33,6 +33,13 @@ public class PasswordResetToken {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    /**
+     * A SHA-256 hex digest of the raw token, not the raw token itself — see
+     * PasswordResetService.hashToken(). The raw value only ever exists in
+     * the request that generated it and the email it goes out in; nothing
+     * durable stores it, so a leaked read of this table doesn't hand out
+     * directly usable reset links.
+     */
     @Column(nullable = false, unique = true, length = 64)
     private String token;
 

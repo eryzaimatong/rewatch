@@ -1,9 +1,13 @@
 package com.rewatch.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.HexFormat;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,22 +67,37 @@ public class PasswordResetService {
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 
+        // Only the hash is persisted — the raw token exists solely in this
+        // request's memory and the email it's about to go out in. A 256-bit
+        // random token is already infeasible to brute-force from its hash
+        // (unlike a password, so no slow KDF is needed here), but a raw
+        // value in the database means anyone who can read that table — a
+        // backup, a leaked dump, a future bug in an admin export — gets a
+        // directly usable, unexpired reset token with no extra step.
         Instant now = Instant.now();
-        tokenRepo.save(new PasswordResetToken(user.getId(), token, now.plus(EXPIRY_MINUTES, ChronoUnit.MINUTES), now));
+        tokenRepo.save(new PasswordResetToken(user.getId(), hashToken(token), now.plus(EXPIRY_MINUTES, ChronoUnit.MINUTES), now));
 
         String resetLink = frontendBaseUrl + "/reset-password?token=" + token;
         try {
             emailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetLink);
         } catch (Exception e) {
-            // Deliberately swallowed, not rethrown: requestReset()'s whole contract
-            // is "always looks like success to the caller" (see class javadoc) —
-            // an SMTP failure (unset credentials, provider outage) must not turn
-            // into a 500 that both breaks that contract and leaks which emails
-            // are registered via a timing/error-shape difference. The token row
-            // is already saved, so once mail delivery is fixed a matching
-            // /reset-password link still works; this is a delivery failure, not
-            // a lost request.
-            log.error("Failed to send password reset email to user {} — link: {}", user.getId(), resetLink, e);
+            // EmailService.send() no longer lets an ordinary delivery
+            // failure reach here at all (it records an EmailDeliveryRecord
+            // and logs its own correlation id instead of throwing) — this
+            // is now a backstop for a genuinely unexpected exception in
+            // sendPasswordResetEmail itself, not the normal SMTP-down path.
+            // Never log the link/token here regardless: this exact line
+            // used to, and that's live in Render's log retention now.
+            log.error("Unexpected exception while sending password reset email to user {}", user.getId(), e);
+        }
+    }
+
+    private static String hashToken(String rawToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(rawToken.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is a JDK-mandatory algorithm", e);
         }
     }
 
@@ -88,7 +107,7 @@ public class PasswordResetService {
             throw new IllegalArgumentException("Password must be at least 6 characters.");
         }
 
-        PasswordResetToken token = tokenRepo.findByToken(rawToken).orElse(null);
+        PasswordResetToken token = tokenRepo.findByToken(hashToken(rawToken)).orElse(null);
         if (token == null || !token.isValid(Instant.now())) {
             throw new IllegalArgumentException("Invalid or expired reset link.");
         }
