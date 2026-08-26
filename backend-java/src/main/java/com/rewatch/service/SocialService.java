@@ -339,6 +339,12 @@ public class SocialService {
     private static final int MAX_CONNECTIONS_PER_PAGE = 200;
 
     public List<UserSummaryDTO> followers(Long targetId, Long callerId) {
+        if (callerId != null && isBlocked(targetId, callerId)) {
+            return List.of();
+        }
+        if (!isProfileVisibleTo(targetId, callerId)) {
+            return List.of();
+        }
         List<Long> ids = followRepo
                 .findByFolloweeIdOrderByCreatedAtDesc(targetId, PageRequest.of(0, MAX_CONNECTIONS_PER_PAGE))
                 .stream().map(Follow::getFollowerId).toList();
@@ -346,6 +352,12 @@ public class SocialService {
     }
 
     public List<UserSummaryDTO> following(Long targetId, Long callerId) {
+        if (callerId != null && isBlocked(targetId, callerId)) {
+            return List.of();
+        }
+        if (!isProfileVisibleTo(targetId, callerId)) {
+            return List.of();
+        }
         List<Long> ids = followRepo
                 .findByFollowerIdOrderByCreatedAtDesc(targetId, PageRequest.of(0, MAX_CONNECTIONS_PER_PAGE))
                 .stream().map(Follow::getFolloweeId).toList();
@@ -478,6 +490,9 @@ public class SocialService {
     /** Public (owner-marked-shareable) folders with their items. */
     public List<Map<String, Object>> publicLists(Long targetId, Long callerId) {
         if (callerId != null && isBlocked(targetId, callerId)) {
+            return List.of();
+        }
+        if (!isProfileVisibleTo(targetId, callerId)) {
             return List.of();
         }
         List<WatchlistFolder> folders = folderRepo.findByUserIdOrderByNameAsc(targetId).stream()
