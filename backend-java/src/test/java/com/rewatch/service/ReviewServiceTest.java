@@ -47,6 +47,15 @@ class ReviewServiceTest {
         r.setId(id);
         r.setUserId(userId);
         r.setTitleId(1L);
+        r.setMoment("Loved every minute of this.");
+        return r;
+    }
+
+    private Rating unpublishedRatingBy(long id, long userId) {
+        Rating r = new Rating();
+        r.setId(id);
+        r.setUserId(userId);
+        r.setTitleId(1L);
         return r;
     }
 
@@ -88,6 +97,45 @@ class ReviewServiceTest {
     void addCommentThrowsWhenTooLong() {
         String tooLong = "x".repeat(501);
         assertThrows(IllegalArgumentException.class, () -> newService().addComment(1L, 10L, tooLong));
+        verify(reviewCommentRepo, never()).save(any());
+    }
+
+    /**
+     * The IDOR finding this closes: Rating ids are one global auto-increment
+     * sequence, trivially enumerable — liking/commenting used to only check
+     * the rating existed, letting any authenticated user confirm a private
+     * (blank-moment) rating's existence and spam its owner with a "liked
+     * your review" notification for content they never published.
+     */
+    @Test
+    void toggleLikeThrowsOnAnUnpublishedRatingWithTheSameMessageAsUnknown() {
+        when(ratingRepo.findById(10L)).thenReturn(Optional.of(unpublishedRatingBy(10L, 2L)));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> newService().toggleLike(1L, 10L));
+        assertEquals("Unknown review 10", ex.getMessage());
+        verify(reviewLikeRepo, never()).save(any());
+        // Never even reaches the block check — the rating isn't treated as
+        // "a review" at all, so there's nothing to check callers against.
+        verify(blockRepo, never()).existsByBlockerIdAndBlockedId(any(), any());
+    }
+
+    @Test
+    void toggleLikeThrowsTheIdenticalMessageForATrulyUnknownRatingId() {
+        when(ratingRepo.findById(999L)).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> newService().toggleLike(1L, 999L));
+        assertEquals("Unknown review 999", ex.getMessage());
+    }
+
+    @Test
+    void addCommentThrowsOnAnUnpublishedRating() {
+        when(ratingRepo.findById(10L)).thenReturn(Optional.of(unpublishedRatingBy(10L, 2L)));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> newService().addComment(1L, 10L, "Nice pick!"));
+        assertEquals("Unknown review 10", ex.getMessage());
         verify(reviewCommentRepo, never()).save(any());
     }
 

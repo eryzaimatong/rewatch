@@ -53,6 +53,27 @@ public class ReviewService {
     }
 
     /**
+     * A blank-moment Rating is private telemetry, never published as a
+     * review (see the class doc comment and SocialService.reviews()) — but
+     * Rating ids are one global auto-increment sequence, trivially
+     * enumerable by any authenticated user. Liking/commenting used to only
+     * check the rating existed, which let anyone confirm a specific
+     * private rating's existence (and spam its owner with a "liked your
+     * review of X" notification for content they never published) just by
+     * guessing ids. Throwing the identical message/shape as "doesn't
+     * exist" here means a blank-moment rating and a genuinely unknown id
+     * are indistinguishable to the caller.
+     */
+    private Rating requirePublishedReview(Long ratingId) {
+        Rating rating = ratingRepo.findById(ratingId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown review " + ratingId));
+        if (rating.getMoment() == null || rating.getMoment().isBlank()) {
+            throw new IllegalArgumentException("Unknown review " + ratingId);
+        }
+        return rating;
+    }
+
+    /**
      * Annotates an already-built review list (SocialService.reviews()/
      * activityFeed()'s output shape — each entry a Map with "ratingId") with
      * likeCount/commentCount/likedByCaller, without SocialService needing to
@@ -72,8 +93,7 @@ public class ReviewService {
 
     @Transactional
     public LikeResult toggleLike(Long callerId, Long ratingId) {
-        Rating rating = ratingRepo.findById(ratingId)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown review " + ratingId));
+        Rating rating = requirePublishedReview(ratingId);
         if (isBlocked(callerId, rating.getUserId())) {
             throw new IllegalArgumentException("Cannot interact with this review.");
         }
@@ -134,8 +154,7 @@ public class ReviewService {
         if (trimmed.length() > MAX_COMMENT_LENGTH) {
             throw new IllegalArgumentException("Comment is too long (max " + MAX_COMMENT_LENGTH + " characters).");
         }
-        Rating rating = ratingRepo.findById(ratingId)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown review " + ratingId));
+        Rating rating = requirePublishedReview(ratingId);
         if (isBlocked(callerId, rating.getUserId())) {
             throw new IllegalArgumentException("Cannot interact with this review.");
         }
