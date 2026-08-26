@@ -89,4 +89,65 @@ describe("installSessionGuard", () => {
     installSessionGuard();
     expect(window.fetch).toBe(patchedOnce);
   });
+
+  // A timeout that fires during a legitimate Render cold-start wake-up
+  // (measured this session at 135-144s) is worse than no timeout at all —
+  // it would show "failed" for a server that was actually just slow. These
+  // lock in that the 180s budget doesn't misfire on a slow-but-legitimate
+  // response, and that it does eventually abort a truly hung request.
+  describe("request timeout", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("does not abort a request that resolves well within the budget (simulating a slow cold-start wake-up)", async () => {
+      let capturedSignal;
+      window.fetch = vi.fn((input, init) => {
+        capturedSignal = init?.signal;
+        return new Promise((resolve) => {
+          setTimeout(() => resolve({ status: 200 }), 150_000); // 150s < 180s budget
+        });
+      });
+      installSessionGuard();
+
+      const promise = window.fetch("/api/titles");
+      await vi.advanceTimersByTimeAsync(150_000);
+      const res = await promise;
+
+      expect(res.status).toBe(200);
+      expect(capturedSignal.aborted).toBe(false);
+    });
+
+    it("aborts a request that never resolves once the 180s budget elapses", async () => {
+      let capturedSignal;
+      window.fetch = vi.fn((input, init) => {
+        capturedSignal = init?.signal;
+        return new Promise(() => {}); // never resolves — a truly hung request
+      });
+      installSessionGuard();
+
+      window.fetch("/api/titles").catch(() => {});
+      await vi.advanceTimersByTimeAsync(180_000);
+
+      expect(capturedSignal.aborted).toBe(true);
+    });
+
+    it("respects a caller-supplied signal instead of overriding it", async () => {
+      const ownController = new AbortController();
+      let capturedSignal;
+      window.fetch = vi.fn((input, init) => {
+        capturedSignal = init?.signal;
+        return Promise.resolve({ status: 200 });
+      });
+      installSessionGuard();
+
+      await window.fetch("/api/titles", { signal: ownController.signal });
+
+      expect(capturedSignal).toBe(ownController.signal);
+    });
+  });
 });

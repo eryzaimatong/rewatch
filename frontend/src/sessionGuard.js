@@ -18,6 +18,19 @@ import { clearSession } from "./auth";
  * logged-out public feed request — never triggers a session reset over what
  * would legitimately be a 401 for a different reason.
  */
+// This app's Render free-tier backend spins down after inactivity, and a
+// real cold wake-up was measured this session (from actual boot logs, not
+// a vendor estimate) at 135-144 seconds for the app to finish starting —
+// on top of whatever platform-level delay happens before that process
+// even starts receiving traffic. A budget picked against the commonly
+// quoted "~40s cold start" figure would abort every request made during a
+// completely legitimate wake-up, which is worse than no timeout at all:
+// it turns "the server is slow right now" into "the server is broken" in
+// the UI. 180s gives real margin (25-45s) above both measured boots while
+// still bounding a genuinely dead request (server unreachable, hung
+// connection) to a finite wait instead of forever.
+const FETCH_TIMEOUT_MS = 180_000;
+
 export function installSessionGuard() {
   if (typeof window === "undefined" || window.fetch.__rewatchSessionGuarded) {
     return;
@@ -27,15 +40,34 @@ export function installSessionGuard() {
   let sessionExpiredHandled = false;
 
   function guardedFetch(input, init) {
-    return nativeFetch(input, init).then((res) => {
-      const hadAuthHeader = !!(init && init.headers && init.headers.Authorization);
-      if (res.status === 401 && hadAuthHeader && !sessionExpiredHandled) {
-        sessionExpiredHandled = true;
-        clearSession();
-        window.location.href = "/";
+    // No call site in this app passes its own `signal` today (grepped —
+    // zero uses of AbortController/signal outside this file), so every
+    // request gets this budget. If one starts passing its own signal in
+    // the future, respect it instead of overriding.
+    const hasOwnSignal = !!(init && init.signal);
+    const controller = hasOwnSignal ? null : new AbortController();
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(new DOMException("Timed out waiting for a response", "TimeoutError")), FETCH_TIMEOUT_MS)
+      : null;
+
+    const requestInit = controller ? { ...init, signal: controller.signal } : init;
+
+    return nativeFetch(input, requestInit).then(
+      (res) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        const hadAuthHeader = !!(init && init.headers && init.headers.Authorization);
+        if (res.status === 401 && hadAuthHeader && !sessionExpiredHandled) {
+          sessionExpiredHandled = true;
+          clearSession();
+          window.location.href = "/";
+        }
+        return res;
+      },
+      (err) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        throw err;
       }
-      return res;
-    });
+    );
   }
 
   guardedFetch.__rewatchSessionGuarded = true;
