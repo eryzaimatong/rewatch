@@ -7,6 +7,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -44,8 +45,18 @@ public class WebConfig implements WebMvcConfigurer {
     /**
      * TMDB calls previously used `new RestTemplate()` with no timeouts, so a single
      * slow upstream response would pin a Tomcat worker thread indefinitely.
+     *
+     * @Primary since EmailConfig's resendRestTemplate bean means there are now
+     * two RestTemplate beans in the context — confirmed live: the deploy that
+     * added it crashed boot outright with "expected single matching bean but
+     * found 2" the moment TmdbClient's unqualified RestTemplate constructor
+     * param needed resolving. This keeps every existing unqualified
+     * RestTemplate injection point (TmdbClient and anything else) resolving
+     * to the same bean it always did; resendRestTemplate is only ever
+     * consumed by name in EmailConfig.httpEmailSender's own parameter.
      */
     @Bean
+    @Primary
     public RestTemplate tmdbRestTemplate(RestTemplateBuilder builder) {
         return builder
                 .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))

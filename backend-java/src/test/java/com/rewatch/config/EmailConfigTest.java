@@ -8,10 +8,14 @@ import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoCon
 import org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 import com.rewatch.service.email.EmailSender;
 import com.rewatch.service.email.HttpEmailSender;
@@ -32,6 +36,17 @@ class EmailConfigTest {
         @Bean
         JavaMailSender javaMailSender() {
             return new JavaMailSenderImpl();
+        }
+
+        // Only load-bearing for the 4th test below (WebConfig carries
+        // @EnableCaching at the class level, which requires a CacheManager
+        // bean to exist in ANY context that includes it, regardless of
+        // whether anything in that specific context is actually
+        // @Cacheable) — harmless extra bean in the other three tests here,
+        // which never load WebConfig at all.
+        @Bean
+        CacheManager cacheManager() {
+            return new ConcurrentMapCacheManager();
         }
     }
 
@@ -78,6 +93,62 @@ class EmailConfigTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(EmailSender.class);
                     assertThat(context.getBean(EmailSender.class)).isInstanceOf(HttpEmailSender.class);
+                });
+    }
+
+    /**
+     * A stand-in for TmdbClient's exact injection shape (a single-arg
+     * constructor taking a plain, unqualified RestTemplate) WITHOUT its
+     * unrelated dependencies (tmdb.api.url/api.key, @Cacheable's CacheManager
+     * requirement) — those kept surfacing as new test-setup gaps unrelated to
+     * the actual thing under test, each costing a full context-boot attempt
+     * to discover on an environment where that took 9-14 minutes per run.
+     * This isolates the one real question: does an unqualified RestTemplate
+     * constructor param still resolve unambiguously once EmailConfig adds a
+     * second RestTemplate bean to the context.
+     */
+    @Component
+    static class UnqualifiedRestTemplateConsumer {
+        final RestTemplate restTemplate;
+        UnqualifiedRestTemplateConsumer(RestTemplate restTemplate) {
+            this.restTemplate = restTemplate;
+        }
+    }
+
+    /**
+     * Reproduces the actual production failure's mechanism directly, not a
+     * plausible guess at its cause: deploying EmailConfig's resendRestTemplate
+     * bean alongside WebConfig's existing tmdbRestTemplate crashed real boot
+     * with "expected single matching bean but found 2" the moment
+     * TmdbClient's unqualified `RestTemplate rest` constructor param needed
+     * resolving — confirmed live in Render's logs. EmailConfigTest alone
+     * never combined WebConfig and a RestTemplate consumer in the same
+     * context, so it could not have caught this; this test exists
+     * specifically to close that gap rather than trust @Primary fixes it by
+     * reading the annotation.
+     */
+    @Test
+    void addingEmailConfigDoesNotBreakAnUnqualifiedRestTemplateConsumer() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        RestTemplateAutoConfiguration.class, PropertyPlaceholderAutoConfiguration.class))
+                .withUserConfiguration(FakeMailSenderConfig.class, WebConfig.class, EmailConfig.class,
+                        UnqualifiedRestTemplateConsumer.class)
+                .withPropertyValues(
+                        "rewatch.mail.from=noreply@rewatch.local",
+                        "rewatch.cors.allowed-origins=http://localhost:5173",
+                        "tmdb.connect-timeout-ms=3000",
+                        "tmdb.read-timeout-ms=5000")
+                .run((AssertableApplicationContext context) -> {
+                    // The real regression check: this failed to even boot before
+                    // the @Primary fix, with an UnsatisfiedDependencyException
+                    // naming exactly resendRestTemplate/tmdbRestTemplate as the
+                    // two competing candidates. A clean boot IS the proof.
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(UnqualifiedRestTemplateConsumer.class);
+                    RestTemplate resolved = context.getBean(UnqualifiedRestTemplateConsumer.class).restTemplate;
+                    RestTemplate tmdbBean = context.getBean("tmdbRestTemplate", RestTemplate.class);
+                    assertThat(resolved).isSameAs(tmdbBean);
                 });
     }
 }
