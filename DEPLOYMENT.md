@@ -181,10 +181,15 @@ rotation risks data loss instead of preventing it).
 
 ## Known gaps
 
-- No schema migration tool (Flyway/Liquibase). `spring.jpa.hibernate.ddl-auto`
-  is `update` even in the `prod` profile, so Hibernate auto-alters the schema
-  on boot. Fine for a single-instance early-stage deploy; revisit before
-  scaling past one backend instance or wanting real migration history.
+- Email doesn't actually send on the current deployment. Confirmed live:
+  both port 587 (STARTTLS) and 465 (implicit TLS) to smtp.gmail.com hit
+  `SocketTimeoutException` — Render's free tier blocks outbound SMTP
+  entirely. Password-reset and new-follower emails fail into their
+  existing catch blocks by design (the request itself still succeeds), so
+  nothing crashes, but no email has ever actually been delivered from this
+  deployment. The real fix is moving `EmailService` off SMTP to an
+  HTTP-based transactional email API (SendGrid, Resend, Postmark) — plain
+  HTTPS isn't blocked, only SMTP is — not a config change to this file.
 - Render's free Postgres tier hard-deletes the database 30 days after
   creation, with no free way to extend it — see `db-guardian.yml` above.
   The durable fix is migrating off it to a provider without that limit
