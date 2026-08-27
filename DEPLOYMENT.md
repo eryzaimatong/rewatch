@@ -191,21 +191,50 @@ frontend-ping step fails every run until it's set.
 
 opens a GitHub issue with an exact runbook once it's within 5 days of
 deletion. The latter needs `RENDER_API_KEY` as a repo secret to do anything;
-see the comment at the top of that file for why it can't be fully automated
-(Render refuses to run two free-tier databases at once, so an unattended
-rotation risks data loss instead of preventing it).
+**currently unset** — every run to date has hit the no-op branch (confirmed
+via the Actions API: the "Fetch database expiry" step shows `skipped`, not
+just reading the workflow file) — see the comment at the top of that file
+for why it can't be fully automated (Render refuses to run two free-tier
+databases at once, so an unattended rotation risks data loss instead of
+preventing it).
+
+A third workflow, `actions-heartbeat.yml`, exists purely to stop GitHub's
+own scheduler from disabling `keepalive.yml`/`db-guardian.yml` in the first
+place: GitHub auto-disables every scheduled workflow in a public repo after
+60 days with no repository *activity* (a push/release/PR — not the
+workflow's own runs, and not an issue db-guardian.yml opens). It commits a
+timestamp file weekly, comfortably under the 60-day deadline even accounting
+for GitHub's scheduler being measurably unreliable (see below). This does
+NOT cover the case of the heartbeat workflow itself silently failing — only
+a genuinely external, out-of-band watchdog (a free service like
+healthchecks.io or UptimeRobot's heartbeat monitor, pinged by a successful
+`keepalive.yml` run) can detect that, and setting one up needs a
+third-party account this repo can't create on its own.
+
+**GitHub's cron schedule is measurably unreliable at this frequency** —
+worth knowing before trusting `*/10 * * * *` to mean every 10 minutes.
+Pulled every available run of `keepalive.yml` (100 runs, spanning ~4 days)
+and measured the actual gaps between them: 100% exceeded Render's 15-minute
+idle-sleep window, median gap 44.5 minutes, worst gap 309.8 minutes (over
+5 hours). This is documented GitHub behavior for high-frequency scheduled
+triggers under platform load, not a bug in this workflow — it means the
+keepalive ping is not reliably preventing cold starts today, regardless of
+the cron expression, and no code change to this repo fixes that.
 
 ## Known gaps
 
-- Email doesn't actually send on the current deployment. Confirmed live:
-  both port 587 (STARTTLS) and 465 (implicit TLS) to smtp.gmail.com hit
-  `SocketTimeoutException` — Render's free tier blocks outbound SMTP
-  entirely. Password-reset and new-follower emails fail into their
-  existing catch blocks by design (the request itself still succeeds), so
-  nothing crashes, but no email has ever actually been delivered from this
-  deployment. The real fix is moving `EmailService` off SMTP to an
-  HTTP-based transactional email API (SendGrid, Resend, Postmark) — plain
-  HTTPS isn't blocked, only SMTP is — not a config change to this file.
+- Email still doesn't actually send on the current deployment, despite the
+  fix being built. Render's free tier blocks outbound SMTP entirely
+  (confirmed live: both 587 and 465 hit `SocketTimeoutException`), so
+  `EmailConfig`/`HttpEmailSender` now route mail through Resend's HTTP API
+  instead (`rewatch.mail.provider=http`) — plain HTTPS isn't blocked, only
+  SMTP is. That path is built and unit-tested against a mocked client, but
+  UNVERIFIED against a real send: no `RESEND_API_KEY` has ever been
+  provisioned, so `rewatch.mail.provider` still defaults to `smtp` in
+  production (a known-broken but gracefully-degrading default) rather than
+  `http` (which would hard-fail at boot without a real key). Password-reset
+  and new-follower emails fail into `EmailDeliveryRecord` by design (the
+  request itself still succeeds) — see `EmailService`'s doc comment.
 - Render's free Postgres tier hard-deletes the database 30 days after
   creation, with no free way to extend it — see `db-guardian.yml` above.
   The durable fix is migrating off it to a provider without that limit
@@ -219,6 +248,8 @@ rotation risks data loss instead of preventing it).
   schema change from here forward, but `ddl-auto=update` deliberately stays
   on as the active schema authority until a full DDL baseline can be tested
   against a real Postgres instance rather than shipped blind.
-- Frontend test coverage is thin — one utility module covered by Vitest,
-  everything else verified only by ad hoc manual passes, not a committed
-  suite.
+- Frontend test coverage covers the security/reliability-critical modules
+  (api.js's network-error/HTTP-error handling, sessionGuard.js's fetch
+  timeout and dead-session detection, auth.js, onboardingUtils.js,
+  accessibility) via Vitest, but not the UI components themselves — those
+  are still verified only by ad hoc manual passes, not a committed suite.

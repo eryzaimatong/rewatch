@@ -1,0 +1,55 @@
+name: Actions heartbeat
+
+# GitHub auto-disables every SCHEDULED workflow in a public repo after 60
+# days with no repository activity — confirmed current behavior, and
+# "activity" is specifically a push/release/PR merge, NOT a workflow simply
+# running on its own schedule (otherwise this rule would be self-defeating)
+# and NOT an issue being opened (so db-guardian.yml's own expiry issues
+# don't count either). That means keepalive.yml and db-guardian.yml are
+# both silently at risk of being switched off with no code-level signal —
+# the repo just stops getting pinged/checked and nothing says why.
+#
+# The fix: a real git push, on a schedule with wide margin under 60 days.
+# Weekly (well under half the deadline) means even a few delayed/skipped
+# runs — GitHub's own scheduler is best-effort, not guaranteed to the
+# minute, confirmed separately by this repo's keepalive.yml run-gap data —
+# still land nowhere close to the 60-day cutoff.
+#
+# This does NOT solve the separate problem of "what if this workflow
+# itself silently gets disabled anyway" (e.g. if GitHub changes this
+# behavior, or the runner starts failing before the push step). That needs
+# a genuinely external, out-of-band watchdog (a free heartbeat/dead-man's-
+# switch service like healthchecks.io or UptimeRobot, pinged by
+# keepalive.yml's successful runs) — that requires a third-party account
+# this workflow deliberately does not attempt to create for you. See
+# DEPLOYMENT.md.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # every Monday, 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record a heartbeat timestamp
+        run: |
+          mkdir -p .github
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/heartbeat.txt
+
+      - name: Commit and push if the timestamp changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/heartbeat.txt
+          if git diff --cached --quiet; then
+            echo "No change (unexpected — timestamp always changes); skipping commit."
+            exit 0
+          fi
+          git commit -m "chore: actions heartbeat — keep scheduled workflows from being auto-disabled"
+          git push
