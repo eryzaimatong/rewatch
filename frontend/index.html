@@ -16,20 +16,25 @@
          Facebook's) don't reliably resolve a relative og:image against the
          page origin, which silently kills the preview image on exactly the
          links this app's viral mechanics depend on (a shared compatibility
-         test, a Roast card, a profile link). The production domain is now
-         live, so this is a real fix, not a placeholder note anymore. -->
+         test, a Roast card, a profile link).
+
+         %VITE_SITE_URL% is Vite's native HTML env-replacement (build-time
+         only, not a runtime template) — see .env.example. This is the
+         static, root-level fallback for any route without its own OG tags;
+         /compare/:username and /social/:userId get real per-route dynamic
+         ones instead (see DEPLOYMENT.md). -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://frontend-teal-eight-ij12n87mrc.vercel.app/" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
     <meta property="og:site_name" content="Re:Watch" />
     <meta property="og:title" content="Re:Watch — Stories chosen for how you feel" />
     <meta property="og:description" content="A recommendation engine built on a real taste model, not popularity." />
-    <meta property="og:image" content="https://frontend-teal-eight-ij12n87mrc.vercel.app/og-image.png" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Re:Watch — Stories chosen for how you feel" />
     <meta name="twitter:description" content="A recommendation engine built on a real taste model, not popularity." />
-    <meta name="twitter:image" content="https://frontend-teal-eight-ij12n87mrc.vercel.app/og-image.png" />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og-image.png" />
   </head>
   <body>
     <div id="root"></div>

@@ -32,8 +32,14 @@ jobs:
           fi
 
       - name: Ping frontend
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" https://frontend-teal-eight-ij12n87mrc.vercel.app/)
+          if [ -z "$FRONTEND_URL" ]; then
+            echo "::error::Repository variable FRONTEND_URL is not set (Settings > Secrets and variables > Actions > Variables) — see DEPLOYMENT.md."
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL")
           echo "HTTP $code"
           if [ "$code" != "200" ]; then
             echo "::error::Frontend returned $code instead of 200"

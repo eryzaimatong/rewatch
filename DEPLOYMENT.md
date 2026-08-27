@@ -179,6 +179,16 @@ platforms themselves don't: `keepalive.yml` pings both services every 10
 minutes so Render's 15-minute idle-sleep never triggers on a real visitor
 (and doubles as uptime monitoring — a failed ping fails the workflow), and
 `db-guardian.yml` watches the free Postgres instance's 30-day expiry and
+
+`keepalive.yml`'s frontend ping reads the target from the `FRONTEND_URL`
+repository variable (Settings → Secrets and variables → Actions →
+Variables — not a secret, it's not sensitive) instead of a hardcoded URL,
+same reasoning as `VITE_SITE_URL` above: the moment the real domain is
+live, this is a one-line update instead of a string literal to hunt down.
+Set it once — `gh variable set FRONTEND_URL --body "https://your-domain"`
+or via the GitHub UI — before merging any change to that workflow, or the
+frontend-ping step fails every run until it's set.
+
 opens a GitHub issue with an exact runbook once it's within 5 days of
 deletion. The latter needs `RENDER_API_KEY` as a repo secret to do anything;
 see the comment at the top of that file for why it can't be fully automated
