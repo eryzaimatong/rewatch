@@ -161,18 +161,24 @@ client claimed.
 
 ## Live deployment
 
-Backend + Postgres run on Render (`render.yaml`, blueprint-managed), frontend
-on Vercel — two separate services, not the docker-compose monolith above.
+Backend runs on Render (`render.yaml`, blueprint-managed), frontend on
+Vercel — two separate services, not the docker-compose monolith above.
 Render builds `backend-java/Dockerfile` directly on every push to `main`
 (`autoDeploy: yes`); Vercel is deployed manually via `vercel --prod` from
 `frontend/` (see `frontend/vercel.json` for the SPA-fallback rewrite every
-client-side route needs). Values marked `sync: false` in `render.yaml` (`TMDB_API_KEY`, `JWT_SECRET`,
-`MAIL_USERNAME`, `MAIL_PASSWORD`, `CORS_ALLOWED_ORIGINS`,
-`FRONTEND_BASE_URL`) are set by hand in the Render dashboard, never
-committed — the latter two aren't secret, but the live Vercel origin
-doesn't match what's in source control, and a real `value:` here would
-mean the next blueprint sync silently reverts production CORS to
-localhost-only.
+client-side route needs). Values marked `sync: false` in `render.yaml`
+(`TMDB_API_KEY`, `JWT_SECRET`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+`CORS_ALLOWED_ORIGINS`, `FRONTEND_BASE_URL`, `DB_HOST`, `DB_PORT`,
+`DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SSLMODE`) are set by hand in
+the Render dashboard, never committed — some of these aren't secret (the
+live Vercel origin, e.g.), but a real `value:`/`fromDatabase` here would
+mean the next blueprint sync silently reverts production to a stale or
+wrong value.
+
+**Postgres runs on Neon, not Render, as of the migration below** — the
+`databases:` block in `render.yaml` still declares the original Render
+Postgres resource so it stays alive (deliberately not deleted; see below),
+but the app no longer connects to it.
 
 Two GitHub Actions workflows exist purely to cover gaps the free-tier
 platforms themselves don't: `keepalive.yml` pings both services every 10
@@ -220,6 +226,123 @@ idle-sleep window, median gap 44.5 minutes, worst gap 309.8 minutes (over
 triggers under platform load, not a bug in this workflow — it means the
 keepalive ping is not reliably preventing cold starts today, regardless of
 the cron expression, and no code change to this repo fixes that.
+
+## Database migration: Render Postgres → Neon (2026-08-28)
+
+Render's free Postgres tier deletes the database 30 days after creation
+(confirmed live via `render postgres get`: created 2026-08-22, expires
+2026-09-21) — with real user data on that clock, this was treated as the
+highest-priority infra item, ahead of everything else in this phase.
+
+**Why Neon over Supabase:** both offer a free tier with a Singapore region
+(`ap-southeast-1`) and no hard data-deletion policy. The deciding factor was
+how each recovers from idle: Neon's free-tier compute auto-suspends after 5
+minutes idle and **auto-wakes on the next connection**, sub-second, no human
+involved. Supabase pauses after ~7 days idle and requires a human to click
+"Resume" in its dashboard — there's no API/CLI unpause. A side project with
+sporadic traffic going a week without a visitor would go dark on Supabase
+and stay dark until someone noticed. Neon self-recovers.
+
+**Connection endpoint: direct, not pooled.** Neon exposes both a pooled
+(PgBouncer, `-pooler` in the hostname) and a direct endpoint. The app uses
+the **direct** endpoint, for two independent reasons found during migration:
+1. HikariCP's `connection-init-sql` (`SET statement_timeout = 30000`,
+   see above) needs to reliably apply per connection. Neon's pooler runs
+   PgBouncer in transaction mode, where `SET`/`RESET` are documented as
+   restricted — session state isn't guaranteed to survive across
+   transactions when the underlying server connection can be handed to a
+   different client. That would silently defang the statement-timeout
+   safety net this app already relies on.
+2. **Observed directly during migration, not just theoretical:** an
+   `ALTER ROLE neondb_owner SET search_path = public` was run to fix
+   unqualified table access (see below). Querying `SHOW search_path;`
+   through the **pooled** endpoint immediately after still returned empty,
+   even though `pg_db_role_setting` confirmed the setting was persisted
+   server-side. The same query through the **direct** endpoint correctly
+   returned `public`. Whatever the exact cause, the pooled endpoint did not
+   reliably reflect a role-level default that had already committed —
+   reinforcing #1 rather than being purely theoretical.
+
+HikariCP's own pool (`spring.datasource.hikari.maximum-pool-size=10`,
+explicit rather than left at Hikari's implicit default) already provides
+the application-side pooling a single Render instance needs. Neon's direct
+endpoint reports `max_connections=104` at the free tier's minimum 0.25 CU
+compute (scaling to 839 as it autoscales) — a pool of 10 uses under 10% of
+the floor, so there's no capacity reason to take on PgBouncer's
+transaction-mode restrictions at this scale.
+
+**A note for anyone restoring a fresh Neon project from scratch:** the new
+project's `neondb_owner` role came up with an *empty* `search_path` (not
+Postgres's usual `"$user", public` default) — `pg_restore` still succeeded
+and created every table correctly in the `public` schema, but unqualified
+queries (`SELECT * FROM titles`) failed with "relation does not exist"
+until `ALTER ROLE neondb_owner SET search_path = public;` was run once,
+directly, against the new database. Not yet clear whether this is a Neon
+platform default or specific to this project — flagging as observed,
+unverified as to cause.
+
+**SSL:** `spring.datasource.url` now appends `?sslmode=${DB_SSLMODE:prefer}`.
+Default `prefer` matches pgjdbc's own implicit default, so Render/local
+behavior is unchanged; `DB_SSLMODE=require` is set via the dashboard
+specifically for the Neon connection. Neon's dashboard-provided connection
+string also includes a `channel_binding=require` parameter, deliberately
+**not** added to the JDBC URL — this environment had no way to verify
+pgjdbc's exact support/spelling for that parameter against a real
+connection, and `sslmode=require` alone is sufficient for an encrypted,
+verified connection.
+
+**Migration verification, row counts (exact `count(*)`, not stats
+estimates), before (Render) vs. after (Neon), 19 tables — full set:**
+
+| Table | Before | After |
+|---|---|---|
+| blocks | 0 | 0 |
+| collection_follows | 0 | 0 |
+| daily_guesses | 0 | 0 |
+| email_delivery_records | 1 | 1 |
+| flyway_schema_history | 2 | 2 |
+| follows | 0 | 0 |
+| notifications | 41 | 41 |
+| password_reset_tokens | 4 | 4 |
+| ratings | 144 | 144 |
+| reports | 0 | 0 |
+| review_comments | 0 | 0 |
+| review_likes | 0 | 0 |
+| titles | 6005 | 6005 |
+| trait_events | 1690 | 1690 |
+| user_traits | 250 | 250 |
+| users | 32 | 32 |
+| watch_statuses | 1 | 1 |
+| watchlist_folders | 8 | 8 |
+| watchlist_items | 64 | 64 |
+
+Taken via `pg_dump --format=custom --no-owner --no-privileges` from Render's
+**external** connection string (its internal `dpg-...` hostname only
+resolves inside Render's own network — the first dump attempt failed on
+that before the external one was used), restored via `pg_restore --clean
+--if-exists` against Neon. `pg_restore` exit 0, 0 errors; `pg_restore
+--list` confirmed all 19 `TABLE DATA` entries were included in the dump
+before restoring.
+
+**Rollback procedure (written before cutover):**
+1. Trigger: `/api/health` fails, login fails, a rating write fails,
+   read-back of pre-existing data comes back missing/wrong, or Neon's
+   compute fails to wake within a reasonable window.
+2. Mechanism: flip `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USERNAME`/
+   `DB_PASSWORD`/`DB_SSLMODE` in the Render dashboard back to the original
+   Render-managed values, then restart the service. No code change or
+   redeploy needed since these are dashboard-set, not committed.
+3. Re-run the same live checklist post-rollback: clean boot, `/api/health`
+   200, login, a rating write, read-back.
+4. **Not perfectly clean either direction:** the Render DB is never
+   written to or deleted during cutover, so rolling back loses nothing
+   that existed before migration — but any writes that land on Neon
+   *after* cutover and before a rollback is triggered would not be on the
+   Render DB being rolled back to.
+
+**The Render Postgres instance is being kept alive deliberately** — not
+deleted as a cleanup step. It expires on its own on 2026-09-21; until then
+it's the rollback safety net.
 
 ## Known gaps
 
