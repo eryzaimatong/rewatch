@@ -12,6 +12,17 @@ services:
     dockerfilePath: ./backend-java/Dockerfile
     dockerContext: ./backend-java
     healthCheckPath: /api/health
+    # Without this, autoDeploy rebuilds and cold-restarts the backend on
+    # EVERY push to main, including frontend-only changes that never touch
+    # backend-java/ — confirmed directly (a frontend-only commit triggered a
+    # full backend rebuild + ~150s cold boot, invalidating a cold-start
+    # measurement mid-session; see DEPLOYMENT.md). Scoped to the backend's
+    # own source plus this file (a render.yaml change, e.g. an env var
+    # wiring change, should still trigger a rebuild).
+    buildFilter:
+      paths:
+        - backend-java/**
+        - render.yaml
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
