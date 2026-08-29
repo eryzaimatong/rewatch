@@ -18,18 +18,34 @@ import { clearSession } from "./auth";
  * logged-out public feed request — never triggers a session reset over what
  * would legitimately be a 401 for a different reason.
  */
-// This app's Render free-tier backend spins down after inactivity, and a
-// real cold wake-up was measured this session (from actual boot logs, not
-// a vendor estimate) at 135-144 seconds for the app to finish starting —
-// on top of whatever platform-level delay happens before that process
-// even starts receiving traffic. A budget picked against the commonly
-// quoted "~40s cold start" figure would abort every request made during a
-// completely legitimate wake-up, which is worse than no timeout at all:
-// it turns "the server is slow right now" into "the server is broken" in
-// the UI. 180s gives real margin (25-45s) above both measured boots while
-// still bounding a genuinely dead request (server unreachable, hung
-// connection) to a finite wait instead of forever.
-const FETCH_TIMEOUT_MS = 180_000;
+// This app's Render free-tier backend spins down after inactivity. Real
+// cold wake-ups measured this session (from actual boot logs, not a vendor
+// estimate): 135-146s typical, one single-service outlier at 166.6s, and
+// 167.40s for the worst case actually tested — Render idle-sleep AND Neon
+// (the Postgres provider) suspended at the same time, measured with a
+// clean 16-minute silent window and no interference. The previous 180s
+// budget left only ~13s of margin over that worst-observed case, on a
+// small handful of samples with ~30s of spread already seen between the
+// typical and outlier figures — not enough margin to be confident another
+// sample wouldn't exceed it.
+//
+// The tradeoff: raising this budget costs nothing to a legitimately slow
+// but succeeding wake-up (a real visitor just waits — and WakingState.jsx
+// fills the entire wait with staged, evolving content, not a stall) but
+// delays how long a genuinely dead server takes to surface a real error.
+// Lowering it (or leaving it thin) risks aborting a request that would
+// have succeeded a few seconds later, which is worse than either
+// alternative: the visitor lands on a false "something's wrong, retry"
+// state, and a retry restarts the whole wait from zero — turning one
+// ~167s wait into a ~167s wait plus a second ~150s+ one. That asymmetry
+// (a false abort costs a full extra wake cycle; a longer budget on a truly
+// dead server costs seconds of already-filled waiting) is why this leans
+// toward more margin. 200s = worst observed (167.40s) + roughly one more
+// typical-to-outlier spread (~30s), giving ~33s of margin over the worst
+// case actually measured — not an arbitrary round-up, and not a reflexive
+// "just make it bigger": if a future measurement lands meaningfully closer
+// to 200s, this number needs revisiting again, not left untouched forever.
+const FETCH_TIMEOUT_MS = 200_000;
 
 export function installSessionGuard() {
   if (typeof window === "undefined" || window.fetch.__rewatchSessionGuarded) {

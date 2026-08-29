@@ -33,7 +33,7 @@ const DEFAULT_STAGE_4_MESSAGES = [
  * A resume-at-stage-3 alternative was considered for a post-timeout retry
  * specifically, on the theory the server is probably still mid-wake — but
  * by the time a human reads the error and taps retry, several more seconds
- * have passed on top of the 180s that already elapsed, often enough for
+ * have passed on top of the 200s that already elapsed, often enough for
  * the boot to have finished underneath. Claiming "still waking up" on a
  * retry that resolves in under a second is worse than briefly
  * under-explaining one that's genuinely still slow, which self-corrects by
