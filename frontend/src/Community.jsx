@@ -71,7 +71,8 @@ export default function Community() {
   const [matches, setmatches] = useState([]);
   const [feed, setfeed] = useState([]);
   const [collections, setcollections] = useState([]);
-  const [loading, setloading] = useState(true);
+  const [matchesloading, setmatchesloading] = useState(true);
+  const [collectionsloading, setcollectionsloading] = useState(true);
   const [err, seterr] = useState("");
   const [collectionBusyIds, setcollectionBusyIds] = useState(new Set());
 
@@ -81,8 +82,14 @@ export default function Community() {
   const [searched, setsearched] = useState(false);
   const [busyIds, setbusyIds] = useState(new Set());
 
-  async function load() {
-    setloading(true);
+  // Split from a single `loading` flag: discoverCollections() was previously
+  // awaited AFTER the matches/feed pair resolved, so the "Similar TasteDNA"
+  // skeleton — which has nothing to do with collections — sat waiting on a
+  // ~20s collections query it didn't depend on. Independent loading state
+  // per section means each renders the moment its own data is actually
+  // ready, instead of all being gated by whichever fetch happens to be
+  // slowest.
+  async function loadPeople() {
     seterr("");
     const [matchesRes, feedRes] = await Promise.all([
       fetch(`${BASE}/api/social/dna-matches/${userid}`, { headers: authHeaders() }).catch(() => null),
@@ -96,15 +103,20 @@ export default function Community() {
     } else {
       seterr("Could not load your community feed right now.");
     }
+    setmatchesloading(false);
+  }
+
+  async function loadCollections() {
     setcollections(await discoverCollections());
-    setloading(false);
+    setcollectionsloading(false);
   }
 
   useEffect(() => {
     // See EvolutionTimeline.jsx for why this needs no further change despite
     // the linter's static analysis of mount-time fetches that set state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    loadPeople();
+    loadCollections();
   }, []);
 
   async function handlesearch(e) {
@@ -159,22 +171,6 @@ export default function Community() {
     });
   }
 
-  if (loading) {
-    return (
-      <div>
-        <section className="feed-section">
-          <p className="section-eyebrow">Find people</p>
-          <h2>Search by Username</h2>
-        </section>
-        <section className="feed-section">
-          <p className="section-eyebrow">People like you</p>
-          <h2>Similar TasteDNA</h2>
-          <SkeletonPersonGrid count={3} />
-        </section>
-      </div>
-    );
-  }
-
   return (
     <div>
       <section className="feed-section">
@@ -215,7 +211,9 @@ export default function Community() {
 
         {err && <div className="status-message status-message--error">{err}</div>}
 
-        {matches.length === 0 ? (
+        {matchesloading ? (
+          <SkeletonPersonGrid count={3} />
+        ) : matches.length === 0 ? (
           <EmptyState message="Rate a few more titles to unlock DNA matches — at least 3 ratings are needed to compare shapes meaningfully." />
         ) : (
           <div className="dna-match-grid">
@@ -233,7 +231,11 @@ export default function Community() {
           Public shelves other people have curated and made shareable — follow one to keep it in your own Watchlist page.
         </p>
 
-        {collections.length === 0 ? (
+        {collectionsloading ? (
+          <div className="feed-state">
+            <div className="loading-orb" />
+          </div>
+        ) : collections.length === 0 ? (
           <EmptyState message="No public collections yet — be the first: make a watchlist shelf public from your Watchlist page." />
         ) : (
           <div className="trait-list">
@@ -268,7 +270,11 @@ export default function Community() {
         <p className="section-eyebrow">Activity</p>
         <h2>From People You Follow</h2>
 
-        {feed.length === 0 ? (
+        {matchesloading ? (
+          <div className="feed-state">
+            <div className="loading-orb" />
+          </div>
+        ) : feed.length === 0 ? (
           <EmptyState message="Follow someone from their public profile to see what they're watching here." />
         ) : (
           <div className="activity-feed">
