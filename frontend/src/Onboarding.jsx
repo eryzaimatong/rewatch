@@ -254,14 +254,17 @@ export default function Onboarding({ onFinish }) {
     await doSubmit({ userId: userid, favs, genres, avoid, tropes, emotionalGoals, pacing, intensity });
   }
 
-  // A blank profile is an already-supported state, not a fabricated one — a
-  // fresh account with no rating history and no onboarding answers both fall
-  // back to the same neutral (all-0.5) TraitVector server-side (see
-  // ProfileService). Skipping just reaches that state immediately instead of
-  // forcing five mandatory steps before a first-time visitor can look around.
+  // Submits whatever's actually been entered so far, not a hardcoded blank
+  // slate — previously this discarded any favorites/tropes/genres/etc.
+  // already selected on the current visit, so a user who filled in three
+  // steps and then hit "Skip for now" (visible from step 1 onward) silently
+  // lost all of it with no warning. A genuinely untouched profile (skip
+  // immediately, nothing selected) still reaches the same neutral (all-0.5)
+  // TraitVector server-side as before (see ProfileService) — this only
+  // changes what happens when the user has already given real signal.
   async function skiponboarding() {
     seterr("");
-    await doSubmit({ userId: userid, favs: [], genres: {}, avoid: [], tropes: [], emotionalGoals: [] });
+    await doSubmit({ userId: userid, favs, genres, avoid, tropes, emotionalGoals, pacing, intensity });
   }
 
   if (reveal) {
