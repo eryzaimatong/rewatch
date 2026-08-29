@@ -222,15 +222,11 @@ export default function Onboarding({ onFinish }) {
     setsubmitting(true);
     setanalyzing(true);
 
-    const minDelay = new Promise((resolve) => setTimeout(resolve, 1200));
-    const [res] = await Promise.all([
-      fetch(`${BASE}/api/movies/onboard`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify(payload)
-      }).catch(() => null),
-      minDelay
-    ]);
+    const res = await fetch(`${BASE}/api/movies/onboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(payload)
+    }).catch(() => null);
 
     setsubmitting(false);
 
