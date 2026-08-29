@@ -2573,6 +2573,21 @@ input[type="range"] {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* TraitRadar renders at size={360} inside a square viewBox padded by
+   VIEWBOX_PAD (112px each side, see TraitRadar.jsx) but scales down to fit
+   its container — a fixed pixel min-height would still be wrong on a
+   narrower viewport. aspect-ratio: 1 tracks the radar's own square shape
+   at whatever width the container actually gives it, so the loading state
+   this replaces resolves into roughly the same footprint instead of a
+   visible jump from a 260px box into whatever the radar turns out to be. */
+.feed-state--radar {
+  width: 100%;
+  max-width: 584px;
+  aspect-ratio: 1;
+  min-height: 0;
+  margin: 0 auto;
+}
+
 .feed-state h3 {
   margin-bottom: 4px;
 }

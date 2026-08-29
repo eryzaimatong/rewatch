@@ -350,7 +350,7 @@ export default function TasteProfile() {
         </div>
 
         {loading && (
-          <div className="feed-state">
+          <div className="feed-state feed-state--radar">
             <div className="loading-orb" />
             <p>Loading your trait nodes...</p>
           </div>
