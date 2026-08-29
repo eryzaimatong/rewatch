@@ -38,11 +38,11 @@ class DataSourceConfigTest {
         assertThat(initSql).isEqualTo("SET statement_timeout = 30000");
 
         long timeoutMs = Long.parseLong(initSql.replaceAll("[^0-9]", ""));
-        // 180s is sessionGuard.js's frontend fetch budget (FETCH_TIMEOUT_MS) —
+        // 200s is sessionGuard.js's frontend fetch budget (FETCH_TIMEOUT_MS) —
         // the database must give up well before the browser does, or the
         // browser's own timeout fires first and the client never even sees
         // the clean error this statement_timeout was meant to produce.
-        long frontendFetchBudgetMs = 180_000;
+        long frontendFetchBudgetMs = 200_000;
         assertThat(timeoutMs).isLessThan(frontendFetchBudgetMs);
         assertThat(timeoutMs).isPositive();
     }
