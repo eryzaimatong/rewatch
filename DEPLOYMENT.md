@@ -229,8 +229,7 @@ the cron expression, and no code change to this repo fixes that.
 
 **Measured cold-boot times so far: 135–146s, and one outlier at 166.6s**
 (hit live mid-session on 2026-08-27, `/api/health` didn't respond until
-166.6s). The frontend's abort budget (`FETCH_TIMEOUT_MS` in
-`sessionGuard.js`) is 180s, so that outlier left under 14s of margin.
+166.6s).
 
 **Compound case measured (2026-08-29): Render idle-sleep + Neon
 suspended at the same time, not just Render alone.** Deliberately let
@@ -250,17 +249,35 @@ the wait window triggering a Render redeploy — see the build-filter
 note below; the 167.40s figure is from a clean, non-interfered second
 attempt.)
 
-180s still holds, with a similarly thin margin (~13s) as the single-outlier
-case — C2 (the waking-state work) exists because that margin is thin
-regardless of which specific scenario produces it, not because the
-compound case is uniquely worse.
+**Frontend abort budget raised 180s → 200s (2026-08-29)**, after the
+167.40s compound measurement left the old budget only ~13s of margin on
+a small handful of samples with ~30s of spread already seen between the
+typical (135-146s) and outlier (166-167s) cases — not enough to be
+confident another sample wouldn't exceed it. The tradeoff: a longer
+budget costs nothing to a legitimately slow-but-succeeding wake-up (the
+visitor just waits, and `WakingState.jsx` fills the entire wait with
+staged content, not a stall) but delays how long a genuinely dead server
+takes to surface a real error. A budget left too thin risks aborting a
+request that would have succeeded seconds later — worse than either
+alternative, since the retry (see `WakingState.jsx`) restarts the whole
+wait from zero, turning one ~167s wait into that plus a second ~150s+
+one. 200s = worst observed (167.40s) + roughly one more typical-to-
+outlier spread (~30s) — chosen from that arithmetic, not a reflexive
+round-up; a future measurement landing meaningfully closer to 200s means
+revisiting this again. Updated everywhere the old figure was referenced:
+`sessionGuard.js` (`FETCH_TIMEOUT_MS`), its test, and the backend's
+`DataSourceConfigTest` (statement_timeout must stay well under whatever
+this number is).
 
 **Render's `autoDeploy` rebuilds the backend on every push to `main`,
 including frontend-only changes that never touch `backend-java/`** —
 confirmed directly (a frontend-only commit triggered a full backend
-rebuild + ~150s cold boot mid-session). No `buildFilter` is currently
-set in `render.yaml`. Not fixed as of this writing — flagged, not yet
-decided whether to scope it.
+rebuild + ~150s cold boot mid-session, which is what invalidated the
+first compound cold-start attempt above). Fixed (2026-08-29):
+`render.yaml`'s `rewatch-backend` service now sets `buildFilter.paths`
+to `backend-java/**` and `render.yaml` itself. Verified both directions:
+a `render.yaml` change (in the filter) still triggered a deploy; a
+frontend-only push should now be confirmed separately not to.
 
 ## Database migration: Render Postgres → Neon (2026-08-28)
 
