@@ -2,12 +2,35 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import BrandMark from "./BrandMark";
 import MatchRing from "./MatchRing";
+import TraitRadar from "./TraitRadar";
+import WakingState from "./WakingState";
 import { BASE } from "./api";
 import {
   CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
   wrapText, shareOrDownloadBlob
 } from "./shareCard";
 import "./App.css";
+
+// Shown by WakingState while the quiz loads — a real example (the exact
+// "Cozy Nostalgic" combo from ArchetypeService.java: comfort >= 0.80 &&
+// nostalgia >= 0.80), not invented data, so a stranger waiting out a cold
+// boot gets a true preview of the product instead of a placeholder.
+const SAMPLE_TRAITS = [
+  { key: "family", label: "Found Family" },
+  { key: "nostalgia", label: "Nostalgia & Memory" },
+  { key: "growth", label: "Character Growth" },
+  { key: "pacing", label: "Slow Burn Pacing" },
+  { key: "humor", label: "Humor & Lightheartedness" },
+  { key: "romance", label: "Romance" },
+  { key: "intensity", label: "Emotional Intensity" },
+  { key: "hope", label: "Hopeful Payoff" },
+  { key: "bitter", label: "Bittersweet Drama" },
+  { key: "comfort", label: "Comfort & Warmth" }
+];
+const SAMPLE_VALUES = {
+  family: 0.55, nostalgia: 0.85, growth: 0.4, pacing: 0.6, humor: 0.35,
+  romance: 0.5, intensity: 0.3, hope: 0.65, bitter: 0.35, comfort: 0.85
+};
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
 const FALLBACK_POSTER = "https://placehold.co/200x300/191a21/a855f7?text=Re:Watch";
@@ -55,7 +78,13 @@ export default function CompareTaste() {
   const navigate = useNavigate();
 
   const [quiz, setquiz] = useState([]);
-  const [loadingQuiz, setloadingQuiz] = useState(true);
+  const [quizStatus, setquizStatus] = useState("loading");
+  const [quizErrorKind, setquizErrorKind] = useState(null);
+  // Bumped on every retry and used as WakingState's `key` — a fresh mount
+  // resets its internal elapsed-time clock via useState's own initial value
+  // instead of a synchronous setState call inside an effect (see
+  // WakingState.jsx). Not used for anything else.
+  const [quizAttempt, setquizAttempt] = useState(0);
   const [answers, setanswers] = useState({});
   const [submitting, setsubmitting] = useState(false);
   const [result, setresult] = useState(null);
@@ -63,12 +92,33 @@ export default function CompareTaste() {
   const [linkCopied, setlinkCopied] = useState(false);
   const [exporting, setexporting] = useState(false);
 
+  // No synchronous setState before the first `await` — kept free of the
+  // "loading"/error-reset assignments on purpose so this can be called
+  // directly from the initial-mount effect below without triggering it to
+  // re-render synchronously on every mount. retryQuiz (used by the actual
+  // retry button, a real event handler, not an effect) does that reset.
+  async function fetchQuiz() {
+    try {
+      const res = await fetch(`${BASE}/api/compatibility/quiz`);
+      const data = res.ok ? await res.json().catch(() => null) : null;
+      setquiz(Array.isArray(data) ? data : []);
+      setquizStatus("ready");
+    } catch (e) {
+      setquizStatus("error");
+      setquizErrorKind(e?.name === "TimeoutError" ? "timeout" : "network");
+    }
+  }
+
+  function retryQuiz() {
+    setquizAttempt((n) => n + 1);
+    setquizStatus("loading");
+    setquizErrorKind(null);
+    fetchQuiz();
+  }
+
   useEffect(() => {
     (async () => {
-      const res = await fetch(`${BASE}/api/compatibility/quiz`).catch(() => null);
-      const data = res && res.ok ? await res.json().catch(() => null) : null;
-      setquiz(Array.isArray(data) ? data : []);
-      setloadingQuiz(false);
+      await fetchQuiz();
     })();
   }, []);
 
@@ -188,9 +238,34 @@ export default function CompareTaste() {
               Rate at least {MIN_ANSWERS} of these — skip anything you haven't seen. No account needed.
             </p>
 
-            {loadingQuiz && <p style={{ color: "var(--text-muted)" }}>Loading the quiz...</p>}
+            {quizStatus !== "ready" && (
+              <WakingState
+                key={quizAttempt}
+                status={quizStatus}
+                errorKind={quizErrorKind}
+                onRetry={retryQuiz}
+                subject="the quiz"
+              >
+                <div className="waking-sample" style={{ marginTop: "var(--sp-3)" }}>
+                  <p style={{
+                    fontSize: "0.72rem", textTransform: "uppercase",
+                    color: "var(--text-faint)", margin: "0 0 8px"
+                  }}>
+                    Example TasteDNA — "Cozy Nostalgic"
+                  </p>
+                  <TraitRadar
+                    traits={SAMPLE_TRAITS}
+                    primary={{ label: "Cozy Nostalgic", color: "#a855f7", values: SAMPLE_VALUES }}
+                    size={220}
+                  />
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "8px" }}>
+                    "You gravitate toward warmth, memory, and low-anxiety worlds."
+                  </p>
+                </div>
+              </WakingState>
+            )}
 
-            {!loadingQuiz && quiz.length === 0 && (
+            {quizStatus === "ready" && quiz.length === 0 && (
               <p style={{ color: "var(--text-muted)" }}>Could not load the quiz right now. Try again shortly.</p>
             )}
 
