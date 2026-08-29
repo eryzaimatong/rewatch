@@ -227,6 +227,13 @@ triggers under platform load, not a bug in this workflow — it means the
 keepalive ping is not reliably preventing cold starts today, regardless of
 the cron expression, and no code change to this repo fixes that.
 
+**Measured cold-boot times so far: 135–146s, and one outlier at 166.6s**
+(hit live mid-session on 2026-08-27, `/api/health` didn't respond until
+166.6s). The frontend's abort budget (`FETCH_TIMEOUT_MS` in
+`sessionGuard.js`) is 180s, so that outlier left under 14s of margin.
+Whether 180s still holds is a question for the C2 waking-state work, not
+answered here — logged as a real data point, not resolved.
+
 ## Database migration: Render Postgres → Neon (2026-08-28)
 
 Render's free Postgres tier deletes the database 30 days after creation
@@ -343,6 +350,42 @@ before restoring.
 **The Render Postgres instance is being kept alive deliberately** — not
 deleted as a cleanup step. It expires on its own on 2026-09-21; until then
 it's the rollback safety net.
+
+**Two real problems hit during cutover, not anticipated in the plan above:**
+
+1. **pgjdbc 42.6.2 (Spring Boot 3.2.5's managed default) couldn't
+   authenticate against Neon**: `java.lang.IllegalArgumentException:
+   Argument 'iteration must be >= 4096' is not valid`, thrown inside the
+   driver's bundled SCRAM library while parsing Neon's SCRAM server-first
+   message. Confirmed this was the driver, not the credentials: the exact
+   same connection string authenticated cleanly from a local machine with
+   this same 42.6.2 driver — only Render's connection to it failed. Fixed
+   by pinning `org.postgresql:postgresql` to `42.7.13` explicitly in
+   `pom.xml` (overriding Spring Boot's managed version). Re-verified
+   locally against the real Neon endpoint post-upgrade before pushing.
+2. **`render.yaml` switching `DB_*` from `fromDatabase` to `sync: false`
+   did not clear the previously-injected Render-managed values** — it
+   only stopped Render from overwriting them going forward. The first
+   deploy after the dashboard values were (eventually) set still failed
+   with `password authentication failed for user 'rewatch'` — Render's
+   original Postgres username — until the dashboard values were actually
+   saved. Worth knowing for next time: a `fromDatabase` → `sync: false`
+   switch is not itself a value reset.
+
+**Final live verification, 2026-08-29, actual production deploy**
+(`d09d9bd`, status `live`, confirmed via `render deploys list`):
+- `/api/health` → `200 {"status":"ok","db":"up"}`, 1.18s response.
+- Real register + login against production (`userId=34`) — both 200.
+- Real rating write against production (`POST /api/movies/rate`,
+  `ratingId=146`) — 200, trait shifts computed, achievement unlocked.
+- Read-back of pre-existing data: `ratings.id=1` (user 1, "Colony",
+  predates migration) — present and correctly joined to its title.
+- Smoke-test user/rating (id 34) and its 20 trait_events / 1 notification
+  / 10 user_traits rows deleted afterward — row counts confirmed back to
+  the exact pre-migration baseline (32 users, 144 ratings, 1690
+  trait_events).
+
+C1 is done and verified live.
 
 ## Known gaps
 
