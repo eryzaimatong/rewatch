@@ -231,8 +231,36 @@ the cron expression, and no code change to this repo fixes that.
 (hit live mid-session on 2026-08-27, `/api/health` didn't respond until
 166.6s). The frontend's abort budget (`FETCH_TIMEOUT_MS` in
 `sessionGuard.js`) is 180s, so that outlier left under 14s of margin.
-Whether 180s still holds is a question for the C2 waking-state work, not
-answered here — logged as a real data point, not resolved.
+
+**Compound case measured (2026-08-29): Render idle-sleep + Neon
+suspended at the same time, not just Render alone.** Deliberately let
+both go idle (a genuinely silent ~16-minute window — no requests to
+either service, confirmed via Render's own request logs, since even the
+CLI's `render logs`/`render deploys list` calls don't touch the deployed
+web service's own traffic-based idle timer) then hit `/api/health` cold:
+**167.40s, HTTP 200, `db: up`.** Indistinguishable in magnitude from the
+Render-only range above — the compound case is not materially worse.
+Isolated separately via boot logs from a clean deploy-boot window:
+HikariCP took 7.2s to get its first connection cold vs. ~2s when Neon
+was already warm (local testing) — Neon's suspend costs roughly 5-7s at
+the DB-connection step specifically, not a multiplicative or
+compounding delay on top of Render's own boot time. (One earlier attempt
+at this same measurement was invalidated by an unrelated push during
+the wait window triggering a Render redeploy — see the build-filter
+note below; the 167.40s figure is from a clean, non-interfered second
+attempt.)
+
+180s still holds, with a similarly thin margin (~13s) as the single-outlier
+case — C2 (the waking-state work) exists because that margin is thin
+regardless of which specific scenario produces it, not because the
+compound case is uniquely worse.
+
+**Render's `autoDeploy` rebuilds the backend on every push to `main`,
+including frontend-only changes that never touch `backend-java/`** —
+confirmed directly (a frontend-only commit triggered a full backend
+rebuild + ~150s cold boot mid-session). No `buildFilter` is currently
+set in `render.yaml`. Not fixed as of this writing — flagged, not yet
+decided whether to scope it.
 
 ## Database migration: Render Postgres → Neon (2026-08-28)
 
