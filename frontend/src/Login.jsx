@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { login, register } from "./api";
+import { login, register, getApiMeta } from "./api";
 import { saveSession } from "./auth";
 import BrandMark from "./BrandMark";
 import Footer from "./Footer";
+import WakingState from "./WakingState";
 import { IconEye, IconEyeOff } from "./Icons";
 import "./App.css";
 
@@ -24,7 +25,17 @@ export default function Login({ onLogin }) {
   const [isreg, setisreg] = useState(false);
   const [errmsg, seterrmsg] = useState("");
   const [okmsg, setokmsg] = useState("");
-  const [loading, setloading] = useState(false);
+  // "ready" | "loading" | "error" — same status enum WakingState.jsx already
+  // uses for CompareTaste's quiz load, applied here to the actual most
+  // common cold-start entry point (registration). A cold Render boot
+  // (135-166s+, see DEPLOYMENT.md) previously left this page showing only a
+  // greyed-out "Please wait..." button — functionally indistinguishable
+  // from broken to a first-time visitor.
+  const [submitStatus, setsubmitStatus] = useState("ready");
+  const [submitErrorKind, setsubmitErrorKind] = useState(null);
+  // Bumped on retry and used as WakingState's `key`, same pattern as
+  // CompareTaste's quizAttempt — see WakingState.jsx for why.
+  const [submitAttempt, setsubmitAttempt] = useState(0);
 
   const passwordTooShort = isreg && password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
   const passwordsMismatch = isreg && confirmpassword.length > 0 && confirmpassword !== password;
@@ -54,40 +65,58 @@ export default function Login({ onLogin }) {
       return;
     }
 
-    setloading(true);
+    await attemptAuth();
+  }
+
+  // Split from handlesubmit so a WakingState retry (which re-attempts the
+  // same network call, not the whole form submission) can call this
+  // directly without re-running client-side validation that already
+  // passed the first time.
+  async function attemptAuth() {
+    setsubmitStatus("loading");
+    setsubmitErrorKind(null);
     seterrmsg("");
     setokmsg("");
 
-    if (isreg) {
-      const res = await register(username, password, email);
-      if (res && res.token) {
-        // Registration now returns a full session, same as login — no reason to
-        // make the user re-enter their password immediately after choosing it.
-        const uid = res.userId || 1;
-        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame, role: res.role });
-        if (onLogin) {
-          onLogin(uid);
-        } else {
-          window.location.reload();
-        }
-      } else {
-        seterrmsg(res?.message || "Registration failed. That username might already be taken.");
-      }
-    } else {
-      const res = await login(username, password);
-      if (res && res.token) {
-        const uid = res.userId || 1;
-        saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame, role: res.role });
-        if (onLogin) {
-          onLogin(uid);
-        } else {
-          window.location.reload();
-        }
-      } else {
-        seterrmsg(res?.message || "Invalid username or password.");
-      }
+    const res = isreg ? await register(username, password, email) : await login(username, password);
+    const meta = getApiMeta(res);
+
+    // type === "network" is specifically "never got an HTTP response at
+    // all" (a real network failure, or sessionGuard.js's own 200s timeout
+    // abort — meta.name === "TimeoutError" distinguishes the two) — that's
+    // WakingState's error state. A real 401/400 with an actual response
+    // body (wrong password, username taken) is type "http", not this: it's
+    // a genuine answer and belongs in the normal errmsg path below, not a
+    // "couldn't reach the server" state.
+    if (meta?.type === "network") {
+      setsubmitStatus("error");
+      setsubmitErrorKind(meta.name === "TimeoutError" ? "timeout" : "network");
+      return;
     }
-    setloading(false);
+
+    setsubmitStatus("ready");
+
+    if (res && res.token) {
+      // Registration now returns a full session, same as login — no reason to
+      // make the user re-enter their password immediately after choosing it.
+      const uid = res.userId || 1;
+      saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame, role: res.role });
+      if (onLogin) {
+        onLogin(uid);
+      } else {
+        window.location.reload();
+      }
+      return;
+    }
+
+    seterrmsg(res?.message || (isreg
+      ? "Registration failed. That username might already be taken."
+      : "Invalid username or password."));
+  }
+
+  function retrySubmit() {
+    setsubmitAttempt((n) => n + 1);
+    attemptAuth();
   }
 
   return (
@@ -108,6 +137,18 @@ export default function Login({ onLogin }) {
         {errmsg && <div className="status-message status-message--error">{errmsg}</div>}
         {okmsg && <div className="status-message status-message--success">{okmsg}</div>}
 
+        {submitStatus !== "ready" && (
+          <WakingState
+            key={submitAttempt}
+            status={submitStatus}
+            errorKind={submitErrorKind}
+            onRetry={retrySubmit}
+            subject={isreg ? "your new account" : "your account"}
+          />
+        )}
+
+        {submitStatus === "ready" && (
+        <>
         <form onSubmit={handlesubmit} className="auth-form">
           <div className="auth-field">
             <label htmlFor="login-username">Username</label>
@@ -199,8 +240,8 @@ export default function Login({ onLogin }) {
             </div>
           )}
 
-          <button type="submit" className="btn-primary btn-block" disabled={loading}>
-            {loading ? "Please wait..." : isreg ? "Register & Enter" : "Sign In"}
+          <button type="submit" className="btn-primary btn-block">
+            {isreg ? "Register & Enter" : "Sign In"}
           </button>
         </form>
 
@@ -223,6 +264,8 @@ export default function Login({ onLogin }) {
             {isreg ? "Sign in here" : "Create one now"}
           </span>
         </div>
+        </>
+        )}
       </div>
     </div>
     <Footer />

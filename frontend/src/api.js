@@ -45,7 +45,12 @@ async function safeFetch(url, options) {
     const res = await fetch(url, options);
     return { res, meta: { ok: res.ok, status: res.status, type: res.ok ? undefined : "http" } };
   } catch (e) {
-    return { res: null, meta: { ok: false, type: "network", message: e.message } };
+    // `name` is what distinguishes sessionGuard.js's own timeout abort
+    // ("TimeoutError") from every other network failure — a caller that
+    // cares (WakingState's errorKind, same as CompareTaste's raw fetch)
+    // needs it; nothing existing reads this field, so nothing changes for
+    // callers that don't.
+    return { res: null, meta: { ok: false, type: "network", message: e.message, name: e.name } };
   }
 }
 
@@ -156,7 +161,11 @@ export async function login(user, pass) {
     body: JSON.stringify({ username: user, password: pass })
   });
   if (!res) {
-    return withMeta(null, meta);
+    // {} rather than null — Login.jsx needs getApiMeta() to actually work
+    // here (to tell a cold/timed-out backend apart from real invalid
+    // credentials) and withMeta() is a no-op on null, only ever attaching
+    // to a real object.
+    return withMeta({}, meta);
   }
   // Parsed either way (not just on !res.ok) — the backend's error responses
   // carry a real `message` (e.g. "Invalid username/email or password") that
@@ -176,7 +185,8 @@ export async function register(user, pass, email) {
     })
   });
   if (!res) {
-    return withMeta(null, meta);
+    // See login()'s identical comment just above.
+    return withMeta({}, meta);
   }
   return withMeta(await res.json().catch(() => null), meta);
 }
