@@ -359,7 +359,7 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
       const { ok, data: result } = await rateMovie(payload);
 
       if (!ok) {
-        seterr("Could not save this rating to the server.");
+        seterr("Could not save your rating. Check your connection and try again.");
         playSoftError();
         return;
       }
@@ -430,7 +430,7 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
         loadMatch(movie?.titleId, userid);
         onRatingChange?.();
       } else {
-        seterr("Could not delete this rating.");
+        seterr("Could not delete this rating. Check your connection and try again.");
         setconfirmingDeleteRating(false);
       }
     } finally {

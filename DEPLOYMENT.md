@@ -432,70 +432,47 @@ it's the rollback safety net.
 
 C1 is done and verified live.
 
-## Per-route Open Graph previews
+## Per-route Open Graph previews — DEFERRED to next week
 
-`/compare/:username` and `/social/:userId` are the two shareable links the
-viral loop depends on — a link posted to a group chat or Discord needs a
-preview specific to that user, not the generic homepage card every route
-got before this. Since crawlers don't execute JS, the SPA's client-rendered
-`<title>`/meta was never going to reach them; the fix runs entirely at the
-edge, before any of that:
+Every route currently shares the same static homepage card
+(`/og-image.png` + the generic title/description in `index.html`). A
+per-route version (real username/archetype in the preview for
+`/compare/:username` and `/social/:userId`) was built on 2026-08-30 —
+Vercel Edge Middleware detecting crawler UAs and rewriting them to a
+dynamic HTML/image pair — but **disabled before ship** rather than shipped
+unverified:
 
-1. `frontend/middleware.js` (Vercel Edge Middleware, plain Web APIs only —
-   see the note below on why it doesn't use the `@vercel/edge` package)
-   matches only those two routes and checks the request's User-Agent
-   against a crawler allowlist (facebookexternalhit, Twitterbot,
-   Discordbot, Slackbot, WhatsApp, LinkedInBot, TelegramBot). A real
-   visitor's browser never matches, and falls straight through untouched.
-2. A matched crawler request is rewritten (URL unchanged, same as any
-   Vercel rewrite) to `frontend/api/og-page.js`, which builds a minimal
-   static HTML document with real per-route `og:title`/`og:description`/
-   `og:image` — fetched from the new unauthenticated
-   `GET /api/social/{userId}/og-summary` (or `/username/{username}/...`
-   for compare) backend endpoint, a deliberately small slice of the profile
-   (username, archetype, top trait, rating count — see
-   `SocialService.publicOgSummary`'s own comment for exactly what's
-   excluded).
-3. `og:image` points at `frontend/api/og-image.js`, which renders an
-   actual 1200x630 PNG via `@vercel/og`, porting `shareCard.js`'s existing
-   card design (same gradient, purple accent, footer tagline/wordmark)
-   into the landscape link-preview shape instead of inventing a new look.
+- Twice in the same session, adding `middleware.js` (first with
+  `@vercel/edge`, then a hand-rolled rewrite of the same idea using plain
+  `Response` objects) caused the *entire* deployment to fail silently —
+  Vercel kept serving the last good build with no visible error anywhere
+  in this repo, only discoverable via `vercel inspect <deployment-id>
+  --logs`. Given that risk on ship day, the call was to cut the feature
+  entirely rather than debug the edge runtime further under deadline.
+- `frontend/middleware.js` was removed. `frontend/api/og-page.js` and
+  `frontend/api/og-image.js` are left in place, unreachable without the
+  middleware that rewrote crawler requests to them, but otherwise
+  complete and were verified working correctly before the middleware
+  issue forced this call: real per-user title/description confirmed live
+  per-route for a crawler UA (a normal browser got the untouched SPA),
+  privacy correctly collapsed a private/nonexistent profile and a
+  network/cold-backend failure into the identical generic fallback, and
+  a public→private flip took effect on the very next request once a
+  caching bug was caught and fixed. The dynamic `@vercel/og` image itself
+  was never confirmed rendering, since the deployment kept failing before
+  it could be tested cleanly.
+- The backend halves — `GET /api/social/{userId}/og-summary` and
+  `/username/{username}/og-summary` (see `SocialService.publicOgSummary`)
+  — are live and harmless to leave running unauthenticated; nothing
+  currently calls them from the frontend.
 
-**Why `middleware.js` doesn't import `@vercel/edge`:** it did originally
-(`next()`/`rewrite()` are that package's documented helpers for exactly
-this), but `vercel inspect <deployment-id> --logs` showed the real failure
-after several pushes silently kept serving a stale build: *"The Edge
-Function 'middleware' is referencing unsupported modules: @vercel: module"*
-— the whole deployment failed, not just this function, and Vercel kept
-serving the last good build with no visible error anywhere except that
-log. Continuing to the normal SPA is just returning nothing (`undefined`) from
-the middleware function, and a rewrite is a plain `Response` carrying the
-`x-middleware-rewrite` header Vercel's edge runtime already looks for —
-both trivial to hand-roll, so nothing is lost by not depending on the
-package.
-
-Privacy: a private (`profilePublic=false`) profile and a nonexistent one
-both make `og-summary` 404 identically, and `og-page.js` collapses that —
-along with a network error or a timed-out cold backend — into the exact
-same fully generic fallback (the static `/og-image.png`, the homepage
-title/description). No username, archetype, or count ever appears for a
-private profile, and a crawler hitting a cold Render instance gets the
-generic card instead of an error or a hang (a short server-side timeout in
-`og-page.js` guards this, since Render's free tier can take tens of seconds
-to wake and crawlers keep a much shorter fetch budget than that).
-
-Verified live (2026-08-30) once the middleware fix above actually deployed:
-a public profile's title/description render correctly per-route for a
-crawler UA, a real browser gets the untouched SPA, a nonexistent/private
-profile both collapse to the generic fallback, and flipping a profile from
-public to private mid-session takes effect on the very next crawler
-request (this caught and fixed a real caching bug — see Known gaps below
-for the more serious deployment issue it was tangled up with). The
-dynamic `@vercel/og` image specifically — UNVERIFIED as of this writing,
-check it renders once the `@vercel/edge` fix is confirmed live. Also not
-yet checked: Facebook's Sharing Debugger, Twitter/X's Card Validator, a
-real Discord paste — do those next, for both a public and a private
-profile.
+**Next week:** re-add `middleware.js` (the last hand-rolled, no-package
+version, not the `@vercel/edge` one) on its own, deploy it alone, and
+confirm via the GitHub Deployments API (not just git) that the deployment
+actually succeeded before building anything on top of it again. Then
+verify the dynamic image renders and run it through Facebook's Sharing
+Debugger, Twitter/X's Card Validator, and a real Discord paste, for both
+a public and a private profile.
 
 ## Known gaps
 

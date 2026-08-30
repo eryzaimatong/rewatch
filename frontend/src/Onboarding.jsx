@@ -251,6 +251,7 @@ export default function Onboarding({ onFinish }) {
 
         <input
           type="text"
+          aria-label={`Search ${FAV_TABS.find((t) => t.key === favTab)?.label.toLowerCase()}`}
           placeholder={`Search ${FAV_TABS.find((t) => t.key === favTab)?.label.toLowerCase()}...`}
           value={favQuery}
           onChange={(e) => setfavQuery(e.target.value)}

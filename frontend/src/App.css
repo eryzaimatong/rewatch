@@ -4839,7 +4839,8 @@ input[type="range"] {
   /* Touch targets ≥44px (WCAG 2.5.5 / Apple HIG), tighter than the desktop
      hover-oriented sizing is comfortable for. */
   .save-icon-button,
-  .modal-close {
+  .modal-close,
+  .refinement-prompt-dismiss {
     width: 44px;
     height: 44px;
     min-height: 44px;

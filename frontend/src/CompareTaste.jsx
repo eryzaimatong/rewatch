@@ -141,7 +141,7 @@ export default function CompareTaste() {
       setresult(await res.json());
     } else if (res && res.status === 404) {
       const body = await res.json().catch(() => null);
-      seterr(body?.message || "Could not compare with that profile.");
+      seterr(body?.message || "Could not compare with that profile. Double-check the username and try again.");
     } else if (res && res.status === 429) {
       seterr("Too many checks from here — try again in a bit.");
     } else {
@@ -156,7 +156,7 @@ export default function CompareTaste() {
       setlinkCopied(true);
       setTimeout(() => setlinkCopied(false), 2000);
     } catch {
-      seterr("Could not copy the link.");
+      seterr("Could not copy the link automatically — select it from the address bar instead.");
     }
   }
 
@@ -219,7 +219,7 @@ export default function CompareTaste() {
       shareOrDownloadBlob(blob, `taste-compatibility-with-${result.targetUsername}.png`, {
         title: `${result.compatibilityPercent}% taste compatibility on Re:Watch`,
         text: `I'm ${result.compatibilityPercent}% compatible with @${result.targetUsername} on Re:Watch.`
-      }).catch(() => seterr("Could not share this card."));
+      }).catch(() => seterr("Could not share this card. Try again, or take a screenshot instead."));
     });
   }
 
