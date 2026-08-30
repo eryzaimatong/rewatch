@@ -38,6 +38,16 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
+                // Retry-After isn't on the CORS response-header safelist, so
+                // without this a cross-origin fetch() genuinely cannot read
+                // it via Headers.get() — confirmed live via Playwright: the
+                // header is sent correctly (curl sees it), but
+                // res.headers.get('retry-after') came back null from the
+                // actual frontend origin. The 429 body's own
+                // retryAfterSeconds field is what the UI actually reads, so
+                // this wasn't blocking anything, but the header should be
+                // genuinely usable, not just RFC-compliant on paper.
+                .exposedHeaders("Retry-After")
                 .allowCredentials(true)
                 .maxAge(3600);
     }
