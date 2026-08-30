@@ -1,6 +1,8 @@
 package com.rewatch.security;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -88,11 +90,23 @@ public class SecurityExceptionHandler {
      * `render logs`. Logging the full exception plus the method+URI that
      * triggered it turns those logs into the only error-monitoring this app
      * has, which is meaningfully better than none.
+     *
+     * Every endpoint that doesn't catch its own exceptions (search,
+     * nlp-search, understand among them — none of the three had a try/catch
+     * of their own) lands here, so this is the one place a correlationId
+     * needed to be attached to cover all of them at once, the same shape
+     * onboard/refine's own try/catch already used — a report of "search
+     * failed" is otherwise unmatchable to a specific log line.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleUnexpected(Exception ex, HttpServletRequest request) {
-        log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("status", "error", "message", "Unexpected server error"));
+        String correlationId = UUID.randomUUID().toString();
+        log.error("[correlationId={}] Unhandled exception on {} {}",
+                correlationId, request.getMethod(), request.getRequestURI(), ex);
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "error");
+        body.put("message", "Unexpected server error");
+        body.put("correlationId", correlationId);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 }

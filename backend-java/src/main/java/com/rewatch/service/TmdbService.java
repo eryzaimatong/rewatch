@@ -154,7 +154,36 @@ public class TmdbService {
             return getpopular(userId);
         }
 
-        NlpQueryParser.ParsedQuery parsed = nlpQueryParser.parse(query, titleRepo.findAll());
+        String trimmed = query.trim();
+        long effectiveUserId = userId == null ? GUEST_USER_ID : userId;
+        List<Title> catalog = titleRepo.findAll();
+
+        // A query that closely matches a real catalog title is a title
+        // search, not a mood search — confirmed live: typing "Inception"
+        // ran it through the vibe lexicon exactly like "cozy", found no
+        // real signal, and still returned 30 unrelated titles each falsely
+        // labelled "Matches your search: \"Inception\"". Checked first and
+        // returned on its own, ranked by relevance rather than taste-fit —
+        // same reasoning as searchmovies()'s own comment on why match
+        // quality, not personal taste, is the right signal for a literal
+        // title.
+        String needle = trimmed.toLowerCase();
+        List<Title> titleMatches = catalog.stream()
+                .filter(t -> t.getTitle() != null && titleRelevanceRank(t.getTitle(), needle) <= 1)
+                .sorted(Comparator.comparingInt((Title t) -> titleRelevanceRank(t.getTitle(), needle)))
+                .limit(5)
+                .toList();
+        if (!titleMatches.isEmpty()) {
+            List<MovieDTO> out = new ArrayList<>(titleMatches.size());
+            for (Title t : titleMatches) {
+                MovieDTO dto = recommender.scoreForUser(t, effectiveUserId);
+                dto.getReasons().add(0, "Matches the title \"" + t.getTitle() + "\"");
+                out.add(dto);
+            }
+            return out;
+        }
+
+        NlpQueryParser.ParsedQuery parsed = nlpQueryParser.parse(query, catalog);
         // Unlike recommend()'s candidate pool, this used to be the raw, entirely
         // unfiltered catalog — including titles with a single stray vote and a
         // two-word TMDB overview (bulkExpand ingests broadly, and not every
@@ -166,14 +195,45 @@ public class TmdbService {
         // applies, reused here rather than re-derived.
         List<Title> candidates = recommender.candidatePool(30);
 
+        // "Matches your search" was previously attached unconditionally, to
+        // every one of the 30 results, regardless of whether the parser
+        // actually found anything — confirmed live as the same root cause as
+        // the title-match gap above: a query with no lexicon hits anywhere
+        // (gibberish, an unmatched title, a name) still got 30 confidently
+        // "matching" cards. hasRealSignal is true only when the parser found
+        // a real anchor title or an actual keyword hit somewhere — see its
+        // own comment for why that's exactly what NlpQueryParser's
+        // confidence floor lets this check for.
+        boolean realSignal = hasRealSignal(parsed.confidence());
+
         List<MovieDTO> scored = new ArrayList<>(candidates.size());
         for (Title t : candidates) {
             MovieDTO dto = recommender.scoreAgainstVector(t, parsed.targetVector(), parsed.confidence());
-            dto.getReasons().add(0, "Matches your search: \"" + query.trim() + "\"");
+            if (realSignal) {
+                dto.getReasons().add(0, "Matches your search: \"" + trimmed + "\"");
+            }
             scored.add(dto);
         }
         scored.sort(Comparator.comparingDouble(MovieDTO::getMatchScore).reversed());
         return scored.subList(0, Math.min(30, scored.size()));
+    }
+
+    /**
+     * NlpQueryParser.parse() clamps every trait's confidence to a floor of
+     * 0.15 unconditionally (Math.max(0.15, ...)), so confidence is never
+     * literally zero even for a query with no lexicon meaning at all — this
+     * checks for any value ABOVE that floor instead, which only happens when
+     * a real keyword hit landed on that axis, or a comparative-query anchor
+     * title was found (anchor confidence starts at 0.4, also above the
+     * floor). Below the floor everywhere means the parser found nothing.
+     */
+    private boolean hasRealSignal(double[] confidence) {
+        for (double c : confidence) {
+            if (c > 0.15) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional
