@@ -171,6 +171,24 @@ public class TmdbController {
         return ResponseEntity.ok(res);
     }
 
+    /**
+     * The post-dashboard "Sharpen your TasteDNA" refinement — steps 2-5's
+     * old form, now optional and offered after a first result exists
+     * instead of gating it. Same request shape as /onboard, but favs is
+     * expected empty/absent (refinement doesn't resend step 1's picks) and
+     * the merge is additive — see ProfileService.refineSeed.
+     */
+    @PostMapping("/onboard/refine")
+    public ResponseEntity<?> refine(@Valid @RequestBody OnboardingRequest req, Authentication authentication) {
+        SecurityUtil.requireSelf(authentication, req.getUserId());
+        profileService.refineSeed(req.getUserId(), req);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("status", "success");
+        res.put("message", "Taste profile refined.");
+        return ResponseEntity.ok(res);
+    }
+
     @PostMapping("/rate")
     public ResponseEntity<?> rate(@Valid @RequestBody RatingDTO dto, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, dto.getUserId());

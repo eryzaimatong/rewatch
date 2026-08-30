@@ -50,7 +50,8 @@ class SocialServiceCompatibilityTest {
 
     private SocialService newService() {
         ProfileService profileService = new ProfileService(
-                ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
+                ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine(),
+                new OnboardingService(titleRepo));
         return new SocialService(userRepo, followRepo, blockRepo, ratingRepo, titleRepo,
                 folderRepo, itemRepo, profileService, new ArchetypeService(), null);
     }

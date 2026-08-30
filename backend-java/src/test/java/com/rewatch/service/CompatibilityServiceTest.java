@@ -42,7 +42,7 @@ class CompatibilityServiceTest {
         private final Map<Trait, TraitNode> profile;
 
         FakeProfileService(Map<Trait, TraitNode> profile) {
-            super(null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null);
             this.profile = profile;
         }
 

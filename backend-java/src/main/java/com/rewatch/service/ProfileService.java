@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.rewatch.dto.OnboardingRequest;
 import com.rewatch.model.Rating;
 import com.rewatch.model.Title;
 import com.rewatch.model.Trait;
@@ -64,19 +65,22 @@ public class ProfileService {
     private final TraitEventRepository traitEventRepo;
     private final UserRepository userRepo;
     private final VectorEngine vectorEngine;
+    private final OnboardingService onboardingService;
 
     public ProfileService(RatingRepository ratingRepo,
                           TitleRepository titleRepo,
                           UserTraitRepository userTraitRepo,
                           TraitEventRepository traitEventRepo,
                           UserRepository userRepo,
-                          VectorEngine vectorEngine) {
+                          VectorEngine vectorEngine,
+                          OnboardingService onboardingService) {
         this.ratingRepo = ratingRepo;
         this.titleRepo = titleRepo;
         this.userTraitRepo = userTraitRepo;
         this.traitEventRepo = traitEventRepo;
         this.userRepo = userRepo;
         this.vectorEngine = vectorEngine;
+        this.onboardingService = onboardingService;
     }
 
     /** One trait's movement caused by a single rating. */
@@ -250,6 +254,53 @@ public class ProfileService {
             user.setSeedVector(encode(seed));
             if (dealbreakers != null && !dealbreakers.isEmpty()) {
                 user.setDealbreakers(String.join(",", dealbreakers));
+            }
+            userRepo.save(user);
+        });
+        replay(userId);
+    }
+
+    /**
+     * The post-dashboard refinement path (step 1 is the only onboarding
+     * gate now; steps 2-5 are an optional "Sharpen your TasteDNA" prompt
+     * offered afterward). Merges the refinement's new genre/trope/goal/
+     * dealbreaker/slider signal into the user's EXISTING seed vector,
+     * rather than seedFromOnboarding's overwrite — a refinement submission
+     * never resends the 5 favourites from step 1, so overwriting would
+     * silently erase their contribution.
+     *
+     * The merge happens in raw/logit space (OnboardingService.rawFrom /
+     * SIGMOID_STEEPNESS), not by averaging the two already-squashed [0,1]
+     * vectors — that would double-count and non-linearly distort whatever
+     * favourites already contributed, since the original seed was itself
+     * produced by squashing an accumulated raw delta, not by taking a
+     * midpoint.
+     */
+    @Transactional
+    public void refineSeed(Long userId, OnboardingRequest req) {
+        userRepo.findById(userId).ifPresent(user -> {
+            TraitVector current = decode(user.getSeedVector());
+            double[] existingRaw = current != null
+                    ? onboardingService.rawFrom(current)
+                    : new double[Trait.count()];
+            double[] delta = onboardingService.refinementRawDelta(req);
+            double[] merged = new double[existingRaw.length];
+            for (int i = 0; i < merged.length; i++) {
+                merged[i] = existingRaw[i] + delta[i];
+            }
+            TraitVector seed = onboardingService.squashAndApplySliders(merged, req.getPacing(), req.getIntensity());
+            user.setSeedVector(encode(seed));
+
+            // Union with whatever dealbreakers already exist — a refinement
+            // adds to the hard-constraint set, it doesn't replace it.
+            if (req.getAvoid() != null && !req.getAvoid().isEmpty()) {
+                java.util.Set<String> merged2 = new java.util.LinkedHashSet<>();
+                String existingDealbreakers = user.getDealbreakers();
+                if (existingDealbreakers != null && !existingDealbreakers.isBlank()) {
+                    merged2.addAll(java.util.Arrays.asList(existingDealbreakers.split(",")));
+                }
+                merged2.addAll(req.getAvoid());
+                user.setDealbreakers(String.join(",", merged2));
             }
             userRepo.save(user);
         });

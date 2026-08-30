@@ -44,7 +44,8 @@ class ProfileServiceReplayTest {
     @Mock private UserRepository userRepo;
 
     private ProfileService newService() {
-        return new ProfileService(ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
+        return new ProfileService(ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine(),
+                new OnboardingService(titleRepo));
     }
 
     private Title titleWith(long id, double... traitValues) {

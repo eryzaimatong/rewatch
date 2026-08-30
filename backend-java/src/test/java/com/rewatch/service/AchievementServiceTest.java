@@ -44,7 +44,8 @@ class AchievementServiceTest {
 
     private AchievementService newService() {
         ProfileService profileService = new ProfileService(
-                ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
+                ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine(),
+                new OnboardingService(titleRepo));
         return new AchievementService(
                 ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService, new StreakService(ratingRepo));
     }

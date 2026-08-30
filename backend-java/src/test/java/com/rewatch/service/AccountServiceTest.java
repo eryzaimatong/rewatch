@@ -59,7 +59,8 @@ class AccountServiceTest {
      */
     private AccountService newServiceWithRealAchievements() {
         ProfileService profileService = new ProfileService(
-                ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine());
+                ratingRepo, titleRepo, userTraitRepo, traitEventRepo, userRepo, new VectorEngine(),
+                new OnboardingService(titleRepo));
         AchievementService achievementService = new AchievementService(
                 ratingRepo, followRepo, watchlistItemRepo, userRepo, profileService, new StreakService(ratingRepo));
         return new AccountService(userRepo, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, achievementService, null);

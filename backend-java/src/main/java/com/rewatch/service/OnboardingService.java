@@ -95,7 +95,72 @@ public class OnboardingService {
         this.titleRepo = titleRepo;
     }
 
+    /**
+     * Steepness of the logistic squash that turns an unbounded accumulated
+     * raw[] delta into a [0,1] trait value (see deriveSeed). Public — and
+     * paired with {@link #rawFrom} below — because ProfileService.refineSeed
+     * needs to invert it: to merge a refinement submission's new deltas into
+     * an already-squashed, already-stored seed vector, it has to convert
+     * that stored vector back into the same raw/logit space these deltas
+     * live in, add there, and re-squash with this exact same constant, or
+     * the merge would be mathematically inconsistent with how the vector
+     * was originally built.
+     */
+    public static final double SIGMOID_STEEPNESS = 0.9;
+
     public TraitVector deriveSeed(OnboardingRequest req) {
+        double[] raw = rawDeltaFor(req, true);
+        return squashAndApplySliders(raw, req.getPacing(), req.getIntensity());
+    }
+
+    /**
+     * Same accumulation as deriveSeed, minus favourites — the refinement
+     * flow (steps 2-5, offered after the dashboard shows a first result)
+     * doesn't resend the 5 titles already picked in step 1. Returns the raw
+     * (pre-squash) delta; ProfileService.refineSeed adds it to the user's
+     * existing raw-space vector rather than squashing it alone, which would
+     * throw away everything favourites/a prior refinement already
+     * contributed.
+     */
+    public double[] refinementRawDelta(OnboardingRequest req) {
+        return rawDeltaFor(req, false);
+    }
+
+    /** Inverse of the logistic squash — see SIGMOID_STEEPNESS's comment. Clamped away from exactly 0/1 to avoid -/+Infinity on an extreme prior vector. */
+    public double[] rawFrom(TraitVector v) {
+        double[] out = new double[Trait.count()];
+        for (int i = 0; i < out.length; i++) {
+            double p = Math.max(1e-6, Math.min(1 - 1e-6, v.get(i)));
+            out[i] = Math.log(p / (1 - p)) / SIGMOID_STEEPNESS;
+        }
+        return out;
+    }
+
+    /** Squashes an accumulated raw[] delta into [0,1] and applies the pacing/intensity sliders — the tail half of deriveSeed, reused by ProfileService.refineSeed after merging in raw/logit space. */
+    public TraitVector squashAndApplySliders(double[] raw, Integer pacing, Integer intensity) {
+        double[] squashed = new double[raw.length];
+        for (int i = 0; i < raw.length; i++) {
+            squashed[i] = 1.0 / (1.0 + Math.exp(-SIGMOID_STEEPNESS * raw[i]));
+        }
+        TraitVector seed = TraitVector.of(squashed);
+
+        // Pacing slider: 1 (very slow) .. 5 (hyper fast). Our PACING trait means
+        // "prefers slow-burn", so this is inverted.
+        if (pacing != null) {
+            double t = clampSlider(pacing, 1, 5);
+            seed = seed.with(Trait.PACING, shrinkSlider(1.0 - t));
+        }
+
+        // Intensity slider: 1 (cozy) .. 10 (soul crushing) maps directly.
+        if (intensity != null) {
+            double t = clampSlider(intensity, 1, 10);
+            seed = seed.with(Trait.INTENSITY, shrinkSlider(t));
+        }
+
+        return seed;
+    }
+
+    private double[] rawDeltaFor(OnboardingRequest req, boolean includeFavorites) {
         double[] raw = new double[Trait.count()];
 
         // Favourites: average the trait vectors of any we can match in the catalog.
@@ -105,7 +170,7 @@ public class OnboardingService {
         // now" with zero favourites — !favs.isEmpty() below fixes that half;
         // the targeted lookup fixes the other half.
         List<TraitVector> favVectors = new ArrayList<>();
-        if (req.getFavs() != null && !req.getFavs().isEmpty()) {
+        if (includeFavorites && req.getFavs() != null && !req.getFavs().isEmpty()) {
             List<String> needles = req.getFavs().stream()
                     .filter(java.util.Objects::nonNull)
                     .map(f -> f.trim().toLowerCase(Locale.ROOT))
@@ -155,26 +220,7 @@ public class OnboardingService {
         addSelections(raw, req.getEmotionalGoals(), EMOTIONAL_GOAL_SENTIMENT);
         addSelections(raw, req.getAvoid(), DEALBREAKER_SENTIMENT);
 
-        double[] squashed = new double[raw.length];
-        for (int i = 0; i < raw.length; i++) {
-            squashed[i] = 1.0 / (1.0 + Math.exp(-0.9 * raw[i]));
-        }
-        TraitVector seed = TraitVector.of(squashed);
-
-        // Pacing slider: 1 (very slow) .. 5 (hyper fast). Our PACING trait means
-        // "prefers slow-burn", so this is inverted.
-        if (req.getPacing() != null) {
-            double t = clampSlider(req.getPacing(), 1, 5);
-            seed = seed.with(Trait.PACING, shrinkSlider(1.0 - t));
-        }
-
-        // Intensity slider: 1 (cozy) .. 10 (soul crushing) maps directly.
-        if (req.getIntensity() != null) {
-            double t = clampSlider(req.getIntensity(), 1, 10);
-            seed = seed.with(Trait.INTENSITY, shrinkSlider(t));
-        }
-
-        return seed;
+        return raw;
     }
 
     // A max slider pick maps to raw t=1.0 (or t=0.0), which would set a trait
