@@ -106,6 +106,13 @@ class SocialServiceCollectionTest {
         verify(collectionFollowRepo).deleteByUserIdAndFolderId(1L, 10L);
     }
 
+    private static WatchlistItemRepository.FolderCount folderCount(long folderId, long cnt) {
+        return new WatchlistItemRepository.FolderCount() {
+            @Override public Long getFolderId() { return folderId; }
+            @Override public Long getCnt() { return cnt; }
+        };
+    }
+
     @Test
     void discoverExcludesTheCallersOwnFoldersAndBlockedOwners() {
         WatchlistFolder own = folder(1L, 1L, true);
@@ -123,13 +130,18 @@ class SocialServiceCollectionTest {
         owner4.setId(4L);
         owner4.setUsername("visible-owner");
         when(userRepo.findAllById(any())).thenReturn(List.of(owner4));
-        // Non-empty on purpose: discoverCollections filters out folders with no
-        // items (an empty public folder has nothing to discover), so an empty
-        // fixture here would fail this test for the same reason a real empty
-        // "Just Mine" default shelf no longer surfaces in production.
+        // Folder 1 (own) and 2 (blocked owner) are excluded before the batch
+        // count queries even run — only folder 3's id should ever reach them.
+        // Non-empty item count on purpose: discoverCollections filters out
+        // folders with no items (an empty public folder has nothing to
+        // discover), so an empty fixture here would fail this test for the
+        // same reason a real empty "Just Mine" default shelf no longer
+        // surfaces in production.
         WatchlistItem item = new WatchlistItem(4L, 100L, 3L, Instant.now());
-        when(itemRepo.findByFolderIdOrderByAddedAtDesc(3L)).thenReturn(List.of(item));
-        when(collectionFollowRepo.countByFolderId(3L)).thenReturn(0L);
+        when(itemRepo.countByFolderIdIn(List.of(3L))).thenReturn(List.of(folderCount(3L, 1L)));
+        when(itemRepo.findByFolderIdInOrderByAddedAtDesc(List.of(3L))).thenReturn(List.of(item));
+        when(collectionFollowRepo.countByFolderIdIn(List.of(3L))).thenReturn(List.of(folderCount(3L, 0L)));
+        when(collectionFollowRepo.findFolderIdsFollowedByUser(1L, List.of(3L))).thenReturn(List.of());
 
         List<java.util.Map<String, Object>> results = newService().discoverCollections(1L, 20);
 

@@ -553,28 +553,104 @@ public class SocialService {
      * folders grows past a few hundred.
      */
     public List<Map<String, Object>> discoverCollections(Long callerId, int limit) {
-        List<WatchlistFolder> folders = folderRepo.findByIsPublicTrueOrderByCreatedAtDesc().stream()
+        List<WatchlistFolder> candidates = folderRepo.findByIsPublicTrueOrderByCreatedAtDesc().stream()
                 .filter(f -> !f.getUserId().equals(callerId))
                 .filter(f -> !isBlocked(callerId, f.getUserId()))
                 .toList();
 
-        Map<Long, User> owners = new HashMap<>();
-        userRepo.findAllById(folders.stream().map(WatchlistFolder::getUserId).distinct().toList())
-                .forEach(u -> owners.put(u.getId(), u));
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
 
-        return folders.stream()
-                .sorted(Comparator.comparingLong((WatchlistFolder f) -> collectionFollowRepo.countByFolderId(f.getId())).reversed())
-                .map(f -> collectionSummary(f, owners.get(f.getUserId()), callerId))
-                .filter(java.util.Objects::nonNull)
-                // An empty folder someone made public (often by accident, or a
-                // leftover default "Just Mine" shelf) has nothing to preview and
-                // nothing worth discovering — surfacing it just makes the whole
-                // rail look broken/unfinished. Filtered here rather than at the
-                // WatchlistFolder query level since itemCount only exists once
-                // collectionSummary has already loaded the folder's items.
-                .filter(summary -> ((Integer) summary.get("itemCount")) > 0)
+        List<Long> candidateIds = candidates.stream().map(WatchlistFolder::getId).toList();
+
+        // Batched, not one query per folder — item counts and follower counts
+        // for every candidate up front, so sorting/filtering (which folders
+        // even make the cut) happens BEFORE the expensive per-folder work
+        // below. Previously that work — including a poster lookup per
+        // preview image — ran for every public folder in the app; `limit`
+        // only trimmed the already-fully-built result list afterward.
+        Map<Long, Long> itemCounts = toCountMap(itemRepo.countByFolderIdIn(candidateIds));
+        Map<Long, Long> followerCounts = toCountMap(collectionFollowRepo.countByFolderIdIn(candidateIds));
+
+        // An empty folder someone made public (often by accident, or a
+        // leftover default "Just Mine" shelf) has nothing to preview and
+        // nothing worth discovering — surfacing it just makes the whole rail
+        // look broken/unfinished.
+        List<WatchlistFolder> selected = candidates.stream()
+                .filter(f -> itemCounts.getOrDefault(f.getId(), 0L) > 0)
+                .sorted(Comparator.comparingLong((WatchlistFolder f) -> followerCounts.getOrDefault(f.getId(), 0L)).reversed())
                 .limit(limit)
                 .toList();
+
+        if (selected.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> selectedIds = selected.stream().map(WatchlistFolder::getId).toList();
+
+        Map<Long, User> owners = new HashMap<>();
+        userRepo.findAllById(selected.stream().map(WatchlistFolder::getUserId).distinct().toList())
+                .forEach(u -> owners.put(u.getId(), u));
+
+        // Newest-first items for every selected folder in one query, grouped
+        // client-side, instead of one findByFolderIdOrderByAddedAtDesc call
+        // per folder.
+        Map<Long, List<WatchlistItem>> itemsByFolder = itemRepo.findByFolderIdInOrderByAddedAtDesc(selectedIds).stream()
+                .collect(Collectors.groupingBy(WatchlistItem::getFolderId));
+
+        // Every preview poster across every selected folder, resolved in one
+        // findAllById instead of one findById call per poster (previously up
+        // to COLLECTION_PREVIEW_COUNT separate lookups PER folder).
+        List<Long> previewTitleIds = itemsByFolder.values().stream()
+                .flatMap(items -> items.stream().limit(COLLECTION_PREVIEW_COUNT))
+                .map(WatchlistItem::getTitleId)
+                .distinct()
+                .toList();
+        Map<Long, Title> titlesById = new HashMap<>();
+        titleRepo.findAllById(previewTitleIds).forEach(t -> titlesById.put(t.getId(), t));
+
+        java.util.Set<Long> followedByCaller = callerId == null
+                ? java.util.Set.of()
+                : java.util.Set.copyOf(collectionFollowRepo.findFolderIdsFollowedByUser(callerId, selectedIds));
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (WatchlistFolder f : selected) {
+            User owner = owners.get(f.getUserId());
+            if (owner == null) {
+                continue;
+            }
+            List<WatchlistItem> items = itemsByFolder.getOrDefault(f.getId(), List.of());
+            List<String> previewPosters = items.stream()
+                    .limit(COLLECTION_PREVIEW_COUNT)
+                    .map(item -> titlesById.get(item.getTitleId()))
+                    .filter(java.util.Objects::nonNull)
+                    .map(Title::getPoster)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("folderId", f.getId());
+            summary.put("name", f.getName());
+            summary.put("ownerUserId", owner.getId());
+            summary.put("ownerUsername", owner.getUsername());
+            summary.put("ownerAvatarUrl", owner.getAvatarUrl());
+            summary.put("itemCount", items.size());
+            summary.put("followerCount", followerCounts.getOrDefault(f.getId(), 0L));
+            summary.put("isFollowing", followedByCaller.contains(f.getId()));
+            summary.put("previewPosters", previewPosters);
+            summary.put("collaborative", f.isCollaborative());
+            out.add(summary);
+        }
+        return out;
+    }
+
+    private static Map<Long, Long> toCountMap(List<WatchlistItemRepository.FolderCount> counts) {
+        Map<Long, Long> out = new HashMap<>();
+        for (WatchlistItemRepository.FolderCount c : counts) {
+            out.put(c.getFolderId(), c.getCnt());
+        }
+        return out;
     }
 
     /** Collections the caller has chosen to follow — same card shape as discoverCollections. */
