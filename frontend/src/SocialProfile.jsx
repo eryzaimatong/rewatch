@@ -8,6 +8,7 @@ import { BASE, blockUser, fileReport, saveToWatchlist, searchmovies } from "./ap
 import ConfirmDialog from "./ConfirmDialog";
 import ReportDialog from "./ReportDialog";
 import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
 import ReviewInteractions from "./ReviewInteractions";
 import CollageCover from "./CollageCover";
 import { drawBrandMark } from "./canvasBrandMark";
@@ -51,6 +52,7 @@ export default function SocialProfile() {
   const [profile, setprofile] = useState(null);
   const [lists, setlists] = useState([]);
   const [reviews, setreviews] = useState([]);
+  const [reviewserr, setreviewserr] = useState("");
   const [myProfile, setmyProfile] = useState(null);
   const [loading, setloading] = useState(true);
   const [err, seterr] = useState("");
@@ -203,7 +205,12 @@ export default function SocialProfile() {
       seterr("Could not find that profile.");
     }
     if (listsRes && listsRes.ok) setlists(await listsRes.json());
-    if (reviewsRes && reviewsRes.ok) setreviews(await reviewsRes.json());
+    setreviewserr("");
+    if (reviewsRes && reviewsRes.ok) {
+      setreviews(await reviewsRes.json());
+    } else {
+      setreviewserr("Could not load reviews right now.");
+    }
     if (myProfileRes && myProfileRes.ok) setmyProfile(await myProfileRes.json());
     setloading(false);
   }
@@ -492,7 +499,9 @@ export default function SocialProfile() {
       <section className="feed-section">
         <p className="section-eyebrow">Reviews</p>
         <h2>What {profile.username} Thought</h2>
-        {reviews.length === 0 ? (
+        {reviewserr ? (
+          <ErrorState message={reviewserr} onRetry={load} />
+        ) : reviews.length === 0 ? (
           <EmptyState message="No reviews written yet." />
         ) : (
           <div className="activity-feed">

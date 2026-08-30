@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { authHeaders } from "./auth";
-import { BASE, searchUsers, followUser, unfollowUser, discoverCollections, followCollection, unfollowCollection } from "./api";
+import { BASE, searchUsers, followUser, unfollowUser, discoverCollections, followCollection, unfollowCollection, getApiMeta } from "./api";
 import EmptyState from "./EmptyState";
+import ErrorState from "./ErrorState";
 import CollageCover from "./CollageCover";
 import { SkeletonPersonGrid } from "./Skeleton";
 import MatchRing from "./MatchRing";
@@ -73,7 +74,13 @@ export default function Community() {
   const [collections, setcollections] = useState([]);
   const [matchesloading, setmatchesloading] = useState(true);
   const [collectionsloading, setcollectionsloading] = useState(true);
-  const [err, seterr] = useState("");
+  // Split by section rather than one shared `err` — a fetch failure was
+  // previously indistinguishable from a genuinely empty result, so a
+  // dna-matches or activity-feed request that failed silently rendered as
+  // "you haven't rated/followed enough yet" instead of "this broke."
+  const [matcheserr, setmatcheserr] = useState("");
+  const [feederr, setfeederr] = useState("");
+  const [collectionserr, setcollectionserr] = useState("");
   const [collectionBusyIds, setcollectionBusyIds] = useState(new Set());
 
   const [searchquery, setsearchquery] = useState("");
@@ -90,24 +97,32 @@ export default function Community() {
   // ready, instead of all being gated by whichever fetch happens to be
   // slowest.
   async function loadPeople() {
-    seterr("");
+    setmatcheserr("");
+    setfeederr("");
     const [matchesRes, feedRes] = await Promise.all([
       fetch(`${BASE}/api/social/dna-matches/${userid}`, { headers: authHeaders() }).catch(() => null),
       fetch(`${BASE}/api/social/${userid}/activity-feed`, { headers: authHeaders() }).catch(() => null)
     ]);
     if (matchesRes && matchesRes.ok) {
       setmatches(await matchesRes.json());
+    } else {
+      setmatcheserr("Could not load DNA matches right now.");
     }
     if (feedRes && feedRes.ok) {
       setfeed(await feedRes.json());
     } else {
-      seterr("Could not load your community feed right now.");
+      setfeederr("Could not load your community feed right now.");
     }
     setmatchesloading(false);
   }
 
   async function loadCollections() {
-    setcollections(await discoverCollections());
+    setcollectionserr("");
+    const result = await discoverCollections();
+    if (getApiMeta(result)?.ok === false) {
+      setcollectionserr("Could not load collections right now.");
+    }
+    setcollections(result);
     setcollectionsloading(false);
   }
 
@@ -209,10 +224,10 @@ export default function Community() {
           Ranked by how closely their whole TasteDNA shape matches yours — the same vector math behind your recommendations, applied person to person.
         </p>
 
-        {err && <div className="status-message status-message--error">{err}</div>}
-
         {matchesloading ? (
           <SkeletonPersonGrid count={3} />
+        ) : matcheserr ? (
+          <ErrorState message={matcheserr} onRetry={loadPeople} />
         ) : matches.length === 0 ? (
           <EmptyState message="Rate a few more titles to unlock DNA matches — at least 3 ratings are needed to compare shapes meaningfully." />
         ) : (
@@ -235,6 +250,8 @@ export default function Community() {
           <div className="feed-state">
             <div className="loading-orb" />
           </div>
+        ) : collectionserr ? (
+          <ErrorState message={collectionserr} onRetry={loadCollections} />
         ) : collections.length === 0 ? (
           <EmptyState message="No public collections yet — be the first: make a watchlist shelf public from your Watchlist page." />
         ) : (
@@ -274,6 +291,8 @@ export default function Community() {
           <div className="feed-state">
             <div className="loading-orb" />
           </div>
+        ) : feederr ? (
+          <ErrorState message={feederr} onRetry={loadPeople} />
         ) : feed.length === 0 ? (
           <EmptyState message="Follow someone from their public profile to see what they're watching here." />
         ) : (
