@@ -756,8 +756,15 @@ input[type="range"] {
    who hasn't been told it exists. Hidden below the tablet breakpoint
    (App.jsx's mobile bottom nav covers navigation there, and there's no
    hardware keyboard to shortcut with on a phone anyway). */
+/* Visible at every width now — was display:none below 860px, which was
+   the entire title-search affordance on mobile not existing at all, not
+   just being hard to find (confirmed live: display:none in the computed
+   style, zero tap target). Below 860px this is the primary and only way
+   to reach title search, so it gets a real height and a text label
+   there instead of desktop's compact icon+kbd-hint treatment — see the
+   command-palette-trigger-label/-kbd rules below. */
 .command-palette-trigger {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 8px;
   height: 38px;
@@ -775,7 +782,7 @@ input[type="range"] {
   background: var(--neutral-surface);
 }
 
-.command-palette-trigger kbd {
+.command-palette-trigger-kbd {
   padding: 1px 6px;
   border: 1px solid var(--neutral-border);
   border-radius: 5px;
@@ -785,9 +792,27 @@ input[type="range"] {
   color: var(--text-faint);
 }
 
-@media (min-width: 860px) {
+/* Desktop keeps the original compact icon+kbd-hint look unchanged — the
+   text label only exists for the width range where the kbd hint would be
+   describing a keyboard shortcut nobody on that device can actually use. */
+.command-palette-trigger-label {
+  display: none;
+}
+
+@media (max-width: 859px) {
   .command-palette-trigger {
-    display: flex;
+    /* 44px minimum touch target (WCAG 2.5.5 / Apple HIG), same convention
+       as .modal-close/.save-icon-button at the mobile breakpoint. */
+    height: 44px;
+    padding: 0 14px;
+  }
+
+  .command-palette-trigger-label {
+    display: inline;
+  }
+
+  .command-palette-trigger-kbd {
+    display: none;
   }
 }
 

@@ -625,6 +625,51 @@ export async function getAchievements(id) {
   return withMeta(await res.json(), meta);
 }
 
+// The dashboard hero search: tries the NLP/vibe endpoint first, falls back
+// to plain title search on an HTTP error, and separately asks what the
+// query was understood as (for the "we read that as..." chips) — folded
+// into one function, using the same safeFetch/withMeta network-vs-HTTP
+// split every other endpoint here uses, because the raw fetch()s this used
+// to be inline in MovieFeed.jsx collapsed every failure (offline, a
+// timeout, a 429, a 500) into the same "Could not reach the search
+// server" string via a bare .catch(() => null). meta.ok/status/type let
+// the caller tell those apart the same way TasteRefinement's save() does.
+export async function heroSearch(query) {
+  const q = query.trim();
+  const [primary, understandCall] = await Promise.all([
+    safeFetch(`${BASE}/api/movies/nlp-search?query=${encodeURIComponent(q)}`, { headers: authHeaders() }),
+    safeFetch(`${BASE}/api/movies/nlp-search/understand?query=${encodeURIComponent(q)}`, { headers: authHeaders() })
+  ]);
+
+  let final = primary;
+  let usedFallback = false;
+  if (!final.res || !final.res.ok) {
+    final = await safeFetch(`${BASE}/api/movies/search?query=${encodeURIComponent(q)}`, { headers: authHeaders() });
+    usedFallback = true;
+  }
+
+  if (!final.res) {
+    return withMeta({ ok: false, movies: [], understood: null, data: null }, final.meta);
+  }
+
+  const body = await final.res.json().catch(() => null);
+  if (!final.res.ok) {
+    return withMeta({ ok: false, movies: [], understood: null, data: body }, final.meta);
+  }
+
+  // Only trust the parse for what it was actually parsed FROM — if the
+  // primary nlp-search call failed and this fell back to plain title
+  // search, "understood" would be describing a query that wasn't the one
+  // actually used to rank these results.
+  let understood = null;
+  if (!usedFallback && understandCall.res && understandCall.res.ok) {
+    const understandBody = await understandCall.res.json().catch(() => null);
+    understood = understandBody?.understood ?? null;
+  }
+
+  return withMeta({ ok: true, movies: Array.isArray(body) ? body : [], understood, data: body }, final.meta);
+}
+
 export async function searchmovies(query) {
   if (!query || !query.trim()) {
     const { res, meta } = await safeFetch(`${BASE}/api/movies/popular`, { headers: authHeaders() });

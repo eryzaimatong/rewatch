@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus } from "./api";
+import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus, heroSearch, getApiMeta } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
 import TasteRefinement from "./TasteRefinement";
@@ -313,6 +313,13 @@ export default function MovieFeed() {
   const [recentsearches, setrecentsearches] = useState(() => loadRecentSearches());
   const [searchunderstood, setsearchunderstood] = useState(null);
   const [searchhook, setsearchhook] = useState(null);
+  // The exact string a hero search actually ran with, or null when the
+  // current results came from browsing (mount, a filter pill, Reset All
+  // Filters). Lets the empty state below reference what was actually
+  // searched instead of always describing vibe/genre/language, which a
+  // hero search never touches — see loadData and dosearch for where this
+  // gets set and cleared.
+  const [lastsearchquery, setlastsearchquery] = useState(null);
   // Persisted so switching moods sticks across a reload/re-login instead of
   // silently resetting to "All" every time — it's a real choice, not
   // ephemeral render state.
@@ -621,6 +628,7 @@ export default function MovieFeed() {
     setLoading(true);
     setError("");
     setrelaxednotice("");
+    setlastsearchquery(null);
 
     const activeVibe = vibeArg ?? vibe;
     const activeGenre = genreArg ?? genrefilter;
@@ -723,45 +731,41 @@ export default function MovieFeed() {
     setLoading(true);
     setError("");
 
-    const [res, understandRes] = await Promise.all([
-      fetch(`${BASE}/api/movies/nlp-search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null),
-      fetch(`${BASE}/api/movies/nlp-search/understand?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null)
-    ]);
+    const result = await heroSearch(q);
+    const meta = getApiMeta(result);
 
-    let finalRes = res;
-    if (!finalRes || !finalRes.ok) {
-      finalRes = await fetch(`${BASE}/api/movies/search?query=` + encodeURIComponent(q), { headers: authHeaders() }).catch(() => null);
-    }
-
-    if (!finalRes || !finalRes.ok) {
-      setError("Could not reach the search server. Please try again.");
+    if (!result.ok) {
+      // Was a single .catch(() => null) collapsing a dropped connection, a
+      // cold-boot timeout, a 429, and a 500 into the same "Could not reach
+      // the search server" string — same distinction TasteRefinement's
+      // save() already makes, applied here for the same reason: each of
+      // these means something different and calls for a different next
+      // action from the user.
+      if (meta?.type === "network") {
+        setError(meta.name === "TimeoutError"
+          ? "That took too long — the server may still be waking up. Please try again."
+          : "Could not reach Re:Watch. Check your connection and try again.");
+      } else if (meta?.status === 429) {
+        setError(result.data?.message || "Too many searches. Please wait a moment and try again.");
+      } else if (meta?.status >= 500) {
+        const ref = result.data?.correlationId;
+        setError(`Something went wrong on our end. Please try again.${ref ? ` (ref: ${ref})` : ""}`);
+      } else {
+        setError("Could not complete that search. Please try again.");
+      }
       setLoading(false);
       return;
     }
 
-    // Only trust the parse for what it was actually parsed FROM — if the
-    // primary nlp-search call failed and this fell back to plain title
-    // search, the "understood" chips would be describing a query that
-    // wasn't the one actually used to rank these results.
-    if (res && res.ok && understandRes && understandRes.ok) {
-      const { understood } = await understandRes.json();
-      const chips = chipsFromUnderstood(understood);
-      setsearchunderstood(chips);
-      setsearchhook(
-        chips ? `You searched for "${q}" — we read that as ${chips.join(", ").toLowerCase()}.` : null
-      );
-    } else {
-      setsearchunderstood(null);
-      setsearchhook(null);
-    }
+    const chips = chipsFromUnderstood(result.understood);
+    setsearchunderstood(chips);
+    setsearchhook(
+      chips ? `You searched for "${q}" — we read that as ${chips.join(", ").toLowerCase()}.` : null
+    );
 
-    const data = await finalRes.json();
-    if (Array.isArray(data)) {
-      const normalizedMovies = data.map((item, index) => normalizeMovie(item, index));
-      setMovies(normalizedMovies);
-    } else {
-      setMovies([]);
-    }
+    const normalizedMovies = result.movies.map((item, index) => normalizeMovie(item, index));
+    setMovies(normalizedMovies);
+    setlastsearchquery(q);
     setrecentsearches(pushRecentSearch(q));
     setLoading(false);
   }
@@ -1390,7 +1394,28 @@ export default function MovieFeed() {
           <ErrorState message={error} onRetry={loadData} />
         )}
 
-        {!loading && !error && visiblemovies.length === 0 && (
+        {!loading && !error && visiblemovies.length === 0 && lastsearchquery && (
+          // A hero search never touches vibe/genre/language — they stay
+          // "All" the whole time — so the filter-pill branch below used to
+          // render regardless, producing nonsense like 'Nothing matched
+          // "All"' for a zero-result search. This branch names the actual
+          // query instead.
+          <EmptyState
+            title="No matches for that search."
+            message={`Nothing matched "${lastsearchquery}". Try a different phrase, or search for a title directly.`}
+            action={
+              <button
+                type="button"
+                onClick={() => { setquery(""); dosearch(""); }}
+                className="btn-primary"
+              >
+                Clear Search
+              </button>
+            }
+          />
+        )}
+
+        {!loading && !error && visiblemovies.length === 0 && !lastsearchquery && (
           <EmptyState
             title="We searched every universe."
             message={

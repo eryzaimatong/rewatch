@@ -117,15 +117,21 @@ function AppShell({ onLogout }) {
         </nav>
 
         <div className="app-header-actions" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+          {/* Was display:none below 860px with no other way to reach title
+              search on mobile at all — not hard to find, not there. Same
+              button, same handler; below 860px it shows a real "Search"
+              label instead of the Ctrl+K hint, which is meaningless on a
+              touchscreen with no physical keyboard. */}
           <button
             type="button"
             className="command-palette-trigger"
             onClick={() => window.dispatchEvent(new CustomEvent("rewatch:open-command-palette"))}
-            aria-label="Open command palette"
-            title="Jump to..."
+            aria-label="Search titles"
+            title="Search titles"
           >
             <IconSearch />
-            <kbd>{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K</kbd>
+            <span className="command-palette-trigger-label">Search</span>
+            <kbd className="command-palette-trigger-kbd">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K</kbd>
           </button>
           <NotificationBell userId={userid} />
           <AccountMenu userId={userid} username={username} avatarUrl={avatarUrl} onLogout={onLogout} />
