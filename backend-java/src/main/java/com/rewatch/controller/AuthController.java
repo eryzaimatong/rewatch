@@ -74,10 +74,24 @@ public class AuthController {
     // and a successful login never counts against it at all.
     private static final int MAX_LOGIN_FAILURES_PER_ACCOUNT = 10;
     private static final Duration LOGIN_ACCOUNT_WINDOW = Duration.ofMinutes(15);
-    private static final int MAX_FORGOT_PASSWORD_PER_HOUR = 3;
+    // Two separate keys, both required to have budget (see forgotPassword
+    // below) — not an either/or escape valve, an earlier read of this code
+    // got that backwards. The email-keyed limit is what actually stops
+    // abuse (hammering one victim's inbox from many IPs); the IP-keyed one
+    // was only ever a blunt second line, and on carrier NAT it punishes
+    // strangers for each other's password resets — someone else on the same
+    // carrier gateway exhausting the IP budget blocks your request even
+    // though your own email has never been used. Raised well past the
+    // email limit so the IP gate stops mattering for any realistic shared-
+    // NAT scenario, while the email limit (unchanged) keeps doing the real
+    // work.
+    private static final int MAX_FORGOT_PASSWORD_PER_HOUR_BY_IP = 50;
+    private static final int MAX_FORGOT_PASSWORD_PER_HOUR_BY_EMAIL = 3;
     // Generous relative to forgot-password: a legit user can retry a typo'd new
     // password several times against the same valid link without tripping this,
     // while still bounding how many guesses an attacker gets against one token.
+    // Single IP-keyed gate only — no second key, so no AND-composition
+    // concern here the way forgot-password had.
     private static final int MAX_RESET_PASSWORD_PER_HOUR = 10;
 
     @PostMapping("/register")
@@ -163,9 +177,9 @@ public class AuthController {
         // being used to bomb one specific victim's inbox from many IPs.
         String ipKey = "forgot-ip:" + SecurityUtil.clientIp(request);
         String emailKey = "forgot-email:" + email;
-        boolean ipOk = rateLimiter.allow(ipKey, MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
+        boolean ipOk = rateLimiter.allow(ipKey, MAX_FORGOT_PASSWORD_PER_HOUR_BY_IP, Duration.ofHours(1));
         boolean emailOk = email.isBlank()
-                || rateLimiter.allow(emailKey, MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
+                || rateLimiter.allow(emailKey, MAX_FORGOT_PASSWORD_PER_HOUR_BY_EMAIL, Duration.ofHours(1));
         if (!ipOk || !emailOk) {
             // Whichever gate actually failed drives the retry-after estimate
             // shown — if both did, the IP one is reported (it's the one a

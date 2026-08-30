@@ -329,14 +329,20 @@ class AuthControllerTest {
     }
 
     @Test
-    void forgotPasswordIsRateLimitedPerIpAfterThreeAttemptsInAnHour() {
+    void forgotPasswordIsRateLimitedPerIpAfterFiftyAttemptsInAnHour() {
+        // A different email per attempt isolates the IP-keyed gate (raised
+        // to 50 from the old 3 — carrier NAT means that IP gate was
+        // blocking strangers over each other's unrelated password resets;
+        // the email-keyed gate below is what actually stops abuse) from the
+        // per-email gate, which would otherwise trip first on a shared email.
         AuthController controller = controller();
         ResponseEntity<?> last = null;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 51; i++) {
             last = controller.forgotPassword(Map.of("email", "someone" + i + "@example.com"), request);
         }
 
         assertThat(last.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(last.getHeaders().getFirst("Retry-After")).isNotNull();
     }
 
     @Test
