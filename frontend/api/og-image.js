@@ -38,6 +38,15 @@ async function loadFont(text) {
   return null;
 }
 
+// Plain element-object tree, not JSX — @vercel/og's ImageResponse (satori)
+// accepts this shape natively, and skipping JSX means this file needs no
+// special build-time transform, which a .jsx extension under api/ was not
+// reliably getting (confirmed live: requests to it fell through to the
+// SPA's index.html instead of hitting the function at all).
+function el(type, props, children) {
+  return { type, props: { ...props, children } };
+}
+
 export default async function handler(request) {
   const { searchParams } = new URL(request.url);
   const kind = searchParams.get("kind");
@@ -60,43 +69,38 @@ export default async function handler(request) {
 
   const fontData = await loadFont(`${eyebrow}${heading}${sub}Stories chosen for how you feel.RE:WATCH`);
 
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "1200px",
-          height: "630px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: `linear-gradient(135deg, ${BG_TOP} 0%, ${BG_BOTTOM} 100%)`,
-          border: "2px solid rgba(168,85,247,0.5)",
-          padding: "64px",
-          fontFamily: fontData ? FONT_FAMILY : "sans-serif"
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <div style={{ width: "30px", height: "30px", borderRadius: "50%", border: `2px solid ${PURPLE}`, opacity: 0.85 }} />
-          <span style={{ color: PURPLE, fontSize: "20px", fontWeight: 700, letterSpacing: "3px" }}>{eyebrow}</span>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "22px", maxWidth: "920px" }}>
-          <span style={{ color: "#f4f4f5", fontSize: "56px", fontWeight: 700, lineHeight: 1.2 }}>{heading}</span>
-          {sub && <span style={{ color: "#a1a1aa", fontSize: "26px" }}>{sub}</span>}
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "48px", height: "1px", background: "rgba(255,255,255,0.16)" }} />
-          <span style={{ color: "#71717a", fontSize: "18px" }}>Stories chosen for how you feel.</span>
-          <span style={{ color: PURPLE, fontSize: "20px", fontWeight: 700, letterSpacing: "1px" }}>RE:WATCH</span>
-        </div>
-      </div>
-    ),
-    {
-      width: 1200,
-      height: 630,
-      fonts: fontData ? [{ name: FONT_FAMILY, data: fontData, weight: 700, style: "normal" }] : undefined
+  const tree = el("div", {
+    style: {
+      width: "1200px",
+      height: "630px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "space-between",
+      background: `linear-gradient(135deg, ${BG_TOP} 0%, ${BG_BOTTOM} 100%)`,
+      border: "2px solid rgba(168,85,247,0.5)",
+      padding: "64px",
+      fontFamily: fontData ? FONT_FAMILY : "sans-serif"
     }
-  );
+  }, [
+    el("div", { style: { display: "flex", alignItems: "center", gap: "14px" } }, [
+      el("div", { style: { width: "30px", height: "30px", borderRadius: "50%", border: `2px solid ${PURPLE}`, opacity: 0.85 } }, []),
+      el("span", { style: { color: PURPLE, fontSize: "20px", fontWeight: 700, letterSpacing: "3px" } }, [eyebrow])
+    ]),
+    el("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "22px", maxWidth: "920px" } }, [
+      el("span", { style: { color: "#f4f4f5", fontSize: "56px", fontWeight: 700, lineHeight: 1.2 } }, [heading]),
+      ...(sub ? [el("span", { style: { color: "#a1a1aa", fontSize: "26px" } }, [sub])] : [])
+    ]),
+    el("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" } }, [
+      el("div", { style: { width: "48px", height: "1px", background: "rgba(255,255,255,0.16)" } }, []),
+      el("span", { style: { color: "#71717a", fontSize: "18px" } }, ["Stories chosen for how you feel."]),
+      el("span", { style: { color: PURPLE, fontSize: "20px", fontWeight: 700, letterSpacing: "1px" } }, ["RE:WATCH"])
+    ])
+  ]);
+
+  return new ImageResponse(tree, {
+    width: 1200,
+    height: 630,
+    fonts: fontData ? [{ name: FONT_FAMILY, data: fontData, weight: 700, style: "normal" }] : undefined
+  });
 }
