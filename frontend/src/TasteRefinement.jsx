@@ -1,6 +1,6 @@
 import { useState } from "react";
 import useModalA11y from "./useModalA11y";
-import { refineOnboarding } from "./api";
+import { refineOnboarding, getApiMeta } from "./api";
 import "./App.css";
 
 const GENRES = [
@@ -79,15 +79,36 @@ export default function TasteRefinement({ userid, onClose, onSaved }) {
   async function save() {
     seterr("");
     setsaving(true);
-    const { ok } = await refineOnboarding({
+    const result = await refineOnboarding({
       userId: userid, genres, avoid, tropes, emotionalGoals, pacing, intensity
     });
     setsaving(false);
-    if (!ok) {
-      seterr("Could not save your refinements. Please try again.");
+    if (result.ok) {
+      onSaved && onSaved();
       return;
     }
-    onSaved && onSaved();
+
+    // One generic string for every failure mode was exactly what made a
+    // real production failure of this call undiagnosable — no way to tell
+    // "rate limited," "rejected," "our server broke," and "never reached
+    // the server at all" apart from a bug report alone. Distinguishing them
+    // here means the copy itself tells the user something actionable, and
+    // a 5xx carries the same correlationId the server just logged under
+    // (see TmdbController.refine), so a report of this message is
+    // immediately traceable instead of requiring a repro.
+    const meta = getApiMeta(result);
+    if (meta?.type === "network") {
+      seterr(meta.name === "TimeoutError"
+        ? "That took too long — the server may still be waking up. Please try again."
+        : "Could not reach Re:Watch. Check your connection and try again.");
+    } else if (meta?.status === 429) {
+      seterr("Too many attempts from your network right now. Please wait a moment and try again.");
+    } else if (meta?.status >= 500) {
+      const ref = result.data?.correlationId;
+      seterr(`Something went wrong on our end. Please try again.${ref ? ` (ref: ${ref})` : ""}`);
+    } else {
+      seterr(result.data?.message || "Could not save your refinements — check your selections and try again.");
+    }
   }
 
   return (

@@ -4,10 +4,13 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -40,6 +43,8 @@ import com.rewatch.service.TmdbService;
 @RestController
 @RequestMapping("/api/movies")
 public class TmdbController {
+
+    private static final Logger log = LoggerFactory.getLogger(TmdbController.class);
 
     private final TmdbService tmdbservice;
     private final OnboardingService onboardingService;
@@ -181,7 +186,25 @@ public class TmdbController {
     @PostMapping("/onboard/refine")
     public ResponseEntity<?> refine(@Valid @RequestBody OnboardingRequest req, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, req.getUserId());
-        profileService.refineSeed(req.getUserId(), req);
+
+        // A prior report of this endpoint failing in production could never be
+        // diagnosed — no server-side trace of what happened, and the client
+        // only ever showed one generic string regardless of cause. Every
+        // failure now gets a real log line a report can be matched against,
+        // the same correlationId shape HttpEmailSender already uses for
+        // exactly this reason.
+        String correlationId = UUID.randomUUID().toString();
+        try {
+            profileService.refineSeed(req.getUserId(), req);
+        } catch (Exception e) {
+            log.error("[correlationId={}] onboard/refine failed for user {}: {}",
+                    correlationId, req.getUserId(), e.toString(), e);
+            Map<String, Object> err = new HashMap<>();
+            err.put("status", "error");
+            err.put("message", "Could not refine your taste profile. Please try again.");
+            err.put("correlationId", correlationId);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
+        }
 
         Map<String, Object> res = new HashMap<>();
         res.put("status", "success");
