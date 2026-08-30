@@ -74,10 +74,13 @@ export default async function handler(request) {
       title = `${username}'s TasteDNA: ${archetype} — Re:Watch`;
       description = `${ratingCount} rating${ratingCount === 1 ? "" : "s"} logged, leaning ${topTrait ? topTrait.toLowerCase() : "balanced"}. See the full profile on Re:Watch.`;
     }
-    const imgParams = new URLSearchParams({ kind, username, archetype });
-    if (topTrait) imgParams.set("topTrait", topTrait);
-    if (ratingCount != null) imgParams.set("ratingCount", String(ratingCount));
-    imageUrl = `${origin}/api/og-image?${imgParams.toString()}`;
+    // TEMPORARY: /api/og-image (the per-user 1200x630 @vercel/og render) is
+    // not deploying as a function on this project — confirmed live, with a
+    // maximally minimal reproduction, requests to it fall through to the
+    // SPA instead of running (see DEPLOYMENT.md's Known gaps). Until that's
+    // root-caused (needs Vercel's build logs, which aren't accessible from
+    // here), keep the static card as the image so a real, working
+    // personalized title/description still ships instead of blocking on it.
   }
 
   const html = `<!doctype html>

@@ -455,10 +455,13 @@ edge, before any of that:
    (username, archetype, top trait, rating count — see
    `SocialService.publicOgSummary`'s own comment for exactly what's
    excluded).
-3. `og:image` points at `frontend/api/og-image.jsx`, which renders an
-   actual 1200x630 PNG via `@vercel/og`, porting `shareCard.js`'s existing
-   card design (same gradient, purple accent, footer tagline/wordmark)
-   into the landscape link-preview shape instead of inventing a new look.
+3. `og:image` is *meant* to point at `frontend/api/og-image.js`, which
+   renders an actual 1200x630 PNG via `@vercel/og`, porting `shareCard.js`'s
+   existing card design (same gradient, purple accent, footer tagline/
+   wordmark) into the landscape link-preview shape instead of inventing a
+   new look. **Currently disabled** — see Known gaps below — `og-page.js`
+   points `og:image` at the static `/og-image.png` for every route instead
+   until this is fixed.
 
 Privacy: a private (`profilePublic=false`) profile and a nonexistent one
 both make `og-summary` 404 identically, and `og-page.js` collapses that —
@@ -470,13 +473,35 @@ generic card instead of an error or a hang (a short server-side timeout in
 `og-page.js` guards this, since Render's free tier can take tens of seconds
 to wake and crawlers keep a much shorter fetch budget than that).
 
-UNVERIFIED as of this writing: the actual rendered previews have not yet
-been checked against Facebook's Sharing Debugger, Twitter/X's Card
-Validator, or a real Discord paste — do that after the next deploy, for
-both a public and a private profile.
+Verified live (2026-08-30): a public profile's title/description render
+correctly per-route for a crawler UA, a real browser gets the untouched
+SPA, a nonexistent/private profile both collapse to the generic fallback,
+and flipping a profile from public to private mid-session takes effect on
+the very next crawler request (this caught and fixed a real bug — see
+Known gaps). Not yet checked against Facebook's Sharing Debugger, Twitter/
+X's Card Validator, or a real Discord paste — do that next, for both a
+public and a private profile.
 
 ## Known gaps
 
+- `frontend/api/og-image.js` (the per-user 1200x630 `@vercel/og` image for
+  the OG previews above) does not deploy as a working function on this
+  project — confirmed live: requests to it fall through to the SPA's
+  `index.html` instead of running, and a maximally minimal reproduction
+  (`ImageResponse` with a single hardcoded div, no fonts, no dynamic data)
+  fails identically, ruling out anything specific to this file's content.
+  Every other function in `frontend/api/` (`og-page.js`, no `@vercel/og`
+  import) deploys and runs correctly, so the divergence is specifically
+  tied to bundling `@vercel/og` for the edge runtime in this project's
+  setup — possibly an edge function size limit, a WASM-asset bundling gap
+  in the non-Next zero-config function builder, or something else only
+  visible in Vercel's actual build logs, which weren't accessible from
+  this session. `og-page.js` currently points every route's `og:image` at
+  the static `/og-image.png` instead, so the share loop still works — real
+  personalized titles/descriptions, generic image — rather than being
+  blocked entirely. Next step: pull the build log for `api/og-image.js`
+  from the Vercel dashboard for the actual error, then either fix the
+  bundling or drop `@vercel/og` for a different image-generation approach.
 - Email still doesn't actually send on the current deployment, despite the
   fix being built. Render's free tier blocks outbound SMTP entirely
   (confirmed live: both 587 and 465 hit `SocketTimeoutException`), so
