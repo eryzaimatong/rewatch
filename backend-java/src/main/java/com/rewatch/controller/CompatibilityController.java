@@ -34,7 +34,12 @@ import com.rewatch.service.CompatibilityService.QuizResponse;
 @RequestMapping("/api/compatibility")
 public class CompatibilityController {
 
-    private static final int MAX_CHECKS_PER_HOUR = 20;
+    // This is the share loop's entire mechanic — a link opened in a group
+    // chat can produce hundreds of checks from one carrier-NAT gateway in an
+    // hour. A cosine-similarity computation over ~10 traits is cheap to
+    // serve; raised from 20 so the limiter bounds a scripted single-IP
+    // abuser without ever being what kills a real viral moment.
+    private static final int MAX_CHECKS_PER_HOUR = 500;
 
     private final CompatibilityService compatibilityService;
     private final RateLimiterService rateLimiter;
@@ -60,9 +65,9 @@ public class CompatibilityController {
 
     @PostMapping("/check")
     public ResponseEntity<?> check(@Valid @RequestBody CheckCompatibility req, HttpServletRequest request) {
-        if (!rateLimiter.allow("compatibility:" + SecurityUtil.clientIp(request), MAX_CHECKS_PER_HOUR, Duration.ofHours(1))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("status", "error", "message", "Too many checks. Please try again later."));
+        String key = "compatibility:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(key, MAX_CHECKS_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofHours(1), "Too many compatibility checks from your network.");
         }
 
         List<QuizResponse> responses = req.getResponses().stream()

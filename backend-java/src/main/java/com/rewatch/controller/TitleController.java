@@ -77,10 +77,18 @@ public class TitleController {
      * the cost of emptying a genuinely thin type bucket.
      */
     @GetMapping
-    public List<Title> getAllTitles(HttpServletRequest request) {
-        String key = "titles-public:" + SecurityUtil.clientIp(request);
+    public List<Title> getAllTitles(HttpServletRequest request, Authentication authentication) {
+        // Keyed on the account when the caller is logged in — this route
+        // permits anonymous access, but most real traffic to it is actually
+        // authenticated (a logged-in browser hitting the no-personalization
+        // fallback), and an IP-only key made every visitor behind the same
+        // carrier-NAT gateway share one budget for no reason. Only a
+        // genuinely anonymous caller falls back to IP, which is still the
+        // only identity available for them.
+        Long userId = SecurityUtil.currentUserId(authentication);
+        String key = userId != null ? "titles:" + userId : "titles-public:" + SecurityUtil.clientIp(request);
         if (!rateLimiter.allow(key, MAX_PUBLIC_REQUESTS_PER_MINUTE, Duration.ofMinutes(1))) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please slow down.");
+            throw rateLimiter.tooManyRequestsException(key, Duration.ofMinutes(1), "Too many requests.");
         }
         Map<String, List<Title>> byType = titleRepository.findAll().stream()
                 .filter(this::hasRenderableData)

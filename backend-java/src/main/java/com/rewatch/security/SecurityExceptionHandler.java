@@ -46,6 +46,24 @@ public class SecurityExceptionHandler {
     }
 
     /**
+     * More specific than the plain ResponseStatusException handler above —
+     * Spring resolves @ExceptionHandler by nearest matching type, so this
+     * one wins for RateLimitExceededException specifically, and is the only
+     * place the Retry-After header (and the machine-readable
+     * retryAfterSeconds a client could use instead of parsing the message)
+     * actually gets attached to the response.
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<?> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(ex.getStatusCode())
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(Map.of(
+                        "status", "error",
+                        "message", ex.getReason() != null ? ex.getReason() : "Too many requests.",
+                        "retryAfterSeconds", ex.getRetryAfterSeconds()));
+    }
+
+    /**
      * Without this, a @Valid failure (e.g. POST /api/auth/register missing
      * email) fell through to the catch-all below — the same "no explicit
      * handler for this exception type" gap that used to misroute 403s as

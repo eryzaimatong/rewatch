@@ -43,9 +43,9 @@ public class ReportController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("status", "error", "message", "Login required"));
         }
-        if (!rateLimiter.allow("report:" + reporterId, MAX_REPORTS_PER_HOUR, Duration.ofHours(1))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("status", "error", "message", "Too many reports. Please try again later."));
+        String key = "report:" + reporterId;
+        if (!rateLimiter.allow(key, MAX_REPORTS_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofHours(1), "Too many reports filed.");
         }
         try {
             reportService.file(reporterId, req.getReportedUserId(), req.getReason(), req.getDetails(), req.getCommentId());

@@ -57,23 +57,34 @@ public class AuthController {
                 .toList();
     }
 
-    private static final int MAX_REGISTER_PER_HOUR = 5;
-    private static final int MAX_LOGIN_PER_15_MIN = 10;
+    // Carrier-grade NAT means thousands of real subscribers can share a
+    // handful of public IPs — a shared link or a group of friends signing up
+    // together from the same carrier gateway must not exhaust an IP-keyed
+    // budget meant for a single abuser. Six people registering from one
+    // group chat is the success case, not an attack, so this stays generous;
+    // it still bounds a scripted mass-registration run.
+    private static final int MAX_REGISTER_PER_HOUR = 50;
+    private static final int MAX_LOGIN_PER_15_MIN = 100;
+    // The limit that actually stops credential stuffing — repeated wrong
+    // guesses against ONE account — since the IP-keyed limit above was never
+    // doing that job for anyone behind shared NAT; it only ever bounded a
+    // single machine. Counts failures only (see the recordAttempt() call
+    // below), not every login attempt, so a legitimate user retyping a
+    // remembered-wrong password a few times doesn't get anywhere near it,
+    // and a successful login never counts against it at all.
+    private static final int MAX_LOGIN_FAILURES_PER_ACCOUNT = 10;
+    private static final Duration LOGIN_ACCOUNT_WINDOW = Duration.ofMinutes(15);
     private static final int MAX_FORGOT_PASSWORD_PER_HOUR = 3;
     // Generous relative to forgot-password: a legit user can retry a typo'd new
     // password several times against the same valid link without tripping this,
     // while still bounding how many guesses an attacker gets against one token.
     private static final int MAX_RESET_PASSWORD_PER_HOUR = 10;
 
-    private ResponseEntity<?> tooManyRequests() {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(Map.of("status", "error", "message", "Too many attempts. Please try again later."));
-    }
-
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody User user, HttpServletRequest request) {
-        if (!rateLimiter.allow("register:" + SecurityUtil.clientIp(request), MAX_REGISTER_PER_HOUR, Duration.ofHours(1))) {
-            return tooManyRequests();
+        String key = "register:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(key, MAX_REGISTER_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofHours(1), "Too many registration attempts from your network.");
         }
         if (user.getPassword() == null || user.getPassword().length() < 6) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -102,8 +113,9 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials, HttpServletRequest request) {
-        if (!rateLimiter.allow("login:" + SecurityUtil.clientIp(request), MAX_LOGIN_PER_15_MIN, Duration.ofMinutes(15))) {
-            return tooManyRequests();
+        String ipKey = "login:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(ipKey, MAX_LOGIN_PER_15_MIN, Duration.ofMinutes(15))) {
+            return rateLimiter.tooManyRequests(ipKey, Duration.ofMinutes(15), "Too many login attempts from your network.");
         }
         String loginInput = credentials.get("username");
         String password = credentials.get("password");
@@ -111,6 +123,17 @@ public class AuthController {
         User user = userRepo.findByEmail(loginInput);
         if (user == null) {
             user = userRepo.findByUsername(loginInput);
+        }
+
+        // Keyed on the resolved account when one exists — unifies email vs
+        // username entry for the same account — falling back to the raw
+        // submitted identifier when no account matches at all, so guessing
+        // against a nonexistent account is still bounded, just less precisely.
+        String accountKey = "login-account:" + (user != null
+                ? user.getId().toString()
+                : (loginInput == null ? "" : loginInput.trim().toLowerCase()));
+        if (rateLimiter.isBlocked(accountKey, MAX_LOGIN_FAILURES_PER_ACCOUNT, LOGIN_ACCOUNT_WINDOW)) {
+            return rateLimiter.tooManyRequests(accountKey, LOGIN_ACCOUNT_WINDOW, "Too many failed attempts for this account.");
         }
 
         if (user != null && password != null && passwordEncoder.matches(password, user.getPassword())) {
@@ -124,6 +147,10 @@ public class AuthController {
             return ResponseEntity.ok(sessionResponse(user, "Login successful"));
         }
 
+        // Only a genuine failure counts against the account — a successful
+        // login never touches this budget, so this can never lock out the
+        // account's real owner just for logging in normally.
+        rateLimiter.recordAttempt(accountKey);
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("status", "error", "message", "Invalid username/email or password"));
     }
@@ -134,11 +161,17 @@ public class AuthController {
         // Both keys checked: the IP limit stops one attacker spraying many
         // addresses, the email limit stops a real Gmail sending account from
         // being used to bomb one specific victim's inbox from many IPs.
-        boolean ipOk = rateLimiter.allow("forgot-ip:" + SecurityUtil.clientIp(request), MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
+        String ipKey = "forgot-ip:" + SecurityUtil.clientIp(request);
+        String emailKey = "forgot-email:" + email;
+        boolean ipOk = rateLimiter.allow(ipKey, MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
         boolean emailOk = email.isBlank()
-                || rateLimiter.allow("forgot-email:" + email, MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
+                || rateLimiter.allow(emailKey, MAX_FORGOT_PASSWORD_PER_HOUR, Duration.ofHours(1));
         if (!ipOk || !emailOk) {
-            return tooManyRequests();
+            // Whichever gate actually failed drives the retry-after estimate
+            // shown — if both did, the IP one is reported (it's the one a
+            // shared-network visitor is more likely to be waiting on).
+            String blockedKey = !ipOk ? ipKey : emailKey;
+            return rateLimiter.tooManyRequests(blockedKey, Duration.ofHours(1), "Too many password reset requests.");
         }
         passwordResetService.requestReset(body.get("email"));
         return ResponseEntity.ok(Map.of("status", "success",
@@ -147,8 +180,9 @@ public class AuthController {
 
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body, HttpServletRequest request) {
-        if (!rateLimiter.allow("reset:" + SecurityUtil.clientIp(request), MAX_RESET_PASSWORD_PER_HOUR, Duration.ofHours(1))) {
-            return tooManyRequests();
+        String key = "reset:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(key, MAX_RESET_PASSWORD_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofHours(1), "Too many password reset attempts.");
         }
         try {
             passwordResetService.resetPassword(body.get("token"), body.get("newPassword"));

@@ -82,9 +82,9 @@ public class ReviewController {
     public ResponseEntity<?> addComment(@PathVariable Long ratingId, @RequestBody Map<String, Object> body,
                                         Authentication authentication) {
         Long callerId = requireAuth(authentication);
-        if (!rateLimiter.allow("comment:" + callerId, MAX_COMMENTS_PER_HOUR, Duration.ofHours(1))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("status", "error", "message", "Too many comments. Please try again later."));
+        String key = "comment:" + callerId;
+        if (!rateLimiter.allow(key, MAX_COMMENTS_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofHours(1), "Too many comments posted.");
         }
         Object rawBody = body.get("body");
         if (!(rawBody instanceof String commentText)) {

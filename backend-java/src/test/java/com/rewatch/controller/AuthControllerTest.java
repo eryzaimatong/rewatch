@@ -165,17 +165,20 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerIsRateLimitedAfterFiveAttemptsInAnHourFromTheSameIp() {
+    void registerIsRateLimitedAfterFiftyAttemptsInAnHourFromTheSameIp() {
         // A too-short password already short-circuits before any repo
         // lookup — irrelevant here, since this test is about the rate
-        // limiter tripping before the 6th attempt is even evaluated.
+        // limiter tripping before the 51st attempt is even evaluated. 50
+        // (not the old 5) — carrier-grade NAT means a shared IP behind one
+        // carrier gateway is a real, common case, not just a single abuser.
         AuthController controller = controller();
         ResponseEntity<?> last = null;
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 51; i++) {
             last = controller.register(newUser("bob" + i, "bob" + i + "@example.com", "short"), request);
         }
 
         assertThat(last.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(last.getHeaders().getFirst("Retry-After")).isNotNull();
     }
 
     // ---------- login ----------
@@ -208,6 +211,10 @@ class AuthControllerTest {
     @Test
     void loginRejectsAWrongPassword() {
         User user = newUser("bob", "bob@example.com", "hashed");
+        // A real persisted user always has an id — needed now that a failed
+        // attempt is recorded against the resolved account's id, not just
+        // the submitted username.
+        user.setId(3L);
         when(userRepo.findByEmail("bob")).thenReturn(null);
         when(userRepo.findByUsername("bob")).thenReturn(user);
         when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
@@ -246,9 +253,42 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginIsRateLimitedAfterTenAttemptsIn15MinutesFromTheSameIp() {
+    void loginIsRateLimitedAfterOneHundredAttemptsIn15MinutesFromTheSameIp() {
+        // A different username per attempt — isolates the IP-keyed limit
+        // (100/15min, raised from the old 10: carrier-grade NAT means this
+        // was never actually stopping credential stuffing for anyone behind
+        // shared NAT, only ever a single machine) from the new per-account
+        // failure limit below, which would otherwise trip first at 10.
+        AuthController controller = controller();
+        ResponseEntity<?> last = null;
+        for (int i = 0; i < 101; i++) {
+            String username = "bob" + i;
+            // lenient: the very last iteration trips the IP limiter before
+            // ever reaching these repo lookups, so that one stub goes
+            // unused by design — that early return is exactly what's being
+            // tested.
+            org.mockito.Mockito.lenient().when(userRepo.findByEmail(username)).thenReturn(null);
+            org.mockito.Mockito.lenient().when(userRepo.findByUsername(username)).thenReturn(null);
+            last = controller.login(Map.of("username", username, "password", "wrong"), request);
+        }
+
+        assertThat(last.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(last.getHeaders().getFirst("Retry-After")).isNotNull();
+    }
+
+    @Test
+    void loginLocksOutOneAccountAfterTenFailuresRegardlessOfIpLimit() {
+        // The limit that actually stops credential stuffing: repeated wrong
+        // guesses against ONE account, independent of the (now much higher)
+        // IP-keyed limit above. A real account owner behind shared NAT can
+        // still log in freely from that IP; only the account being guessed
+        // against gets throttled.
+        User user = newUser("bob", "bob@example.com", "hashed");
+        user.setId(3L);
         when(userRepo.findByEmail("bob")).thenReturn(null);
-        when(userRepo.findByUsername("bob")).thenReturn(null);
+        when(userRepo.findByUsername("bob")).thenReturn(user);
+        when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
+
         AuthController controller = controller();
         ResponseEntity<?> last = null;
         for (int i = 0; i < 11; i++) {
@@ -256,6 +296,25 @@ class AuthControllerTest {
         }
 
         assertThat(last.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    void loginSucceedingNeverCountsAgainstTheAccountFailureLimit() {
+        User user = newUser("bob", "bob@example.com", "hashed");
+        user.setId(3L);
+        when(userRepo.findByEmail("bob")).thenReturn(null);
+        when(userRepo.findByUsername("bob")).thenReturn(user);
+        when(passwordEncoder.matches("correct", "hashed")).thenReturn(true);
+
+        AuthController controller = controller();
+        ResponseEntity<?> last = null;
+        // Comfortably more than the 10-failure budget — every one of these
+        // is a real, successful login, so none of them should ever count.
+        for (int i = 0; i < 15; i++) {
+            last = controller.login(Map.of("username", "bob", "password", "correct"), request);
+        }
+
+        assertThat(last.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     // ---------- forgot-password ----------

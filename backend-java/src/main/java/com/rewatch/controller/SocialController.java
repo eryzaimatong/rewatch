@@ -93,9 +93,9 @@ public class SocialController {
      */
     @GetMapping("/{userId}/og-summary")
     public ResponseEntity<?> ogSummary(@PathVariable Long userId, HttpServletRequest request) {
-        if (!rateLimiter.allow("og-summary:" + SecurityUtil.clientIp(request), MAX_OG_SUMMARY_PER_MINUTE, Duration.ofMinutes(1))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("status", "error", "message", "Too many requests. Please slow down."));
+        String key = "og-summary:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(key, MAX_OG_SUMMARY_PER_MINUTE, Duration.ofMinutes(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofMinutes(1), "Too many requests.");
         }
         Map<String, Object> summary = socialService.publicOgSummary(userId);
         if (summary == null) {
@@ -108,9 +108,9 @@ public class SocialController {
     /** Same as ogSummary() above, but by username — for the /compare/:username OG image. */
     @GetMapping("/username/{username}/og-summary")
     public ResponseEntity<?> ogSummaryByUsername(@PathVariable String username, HttpServletRequest request) {
-        if (!rateLimiter.allow("og-summary:" + SecurityUtil.clientIp(request), MAX_OG_SUMMARY_PER_MINUTE, Duration.ofMinutes(1))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("status", "error", "message", "Too many requests. Please slow down."));
+        String key = "og-summary:" + SecurityUtil.clientIp(request);
+        if (!rateLimiter.allow(key, MAX_OG_SUMMARY_PER_MINUTE, Duration.ofMinutes(1))) {
+            return rateLimiter.tooManyRequests(key, Duration.ofMinutes(1), "Too many requests.");
         }
         Map<String, Object> summary = socialService.publicOgSummaryByUsername(username);
         if (summary == null) {
@@ -123,9 +123,9 @@ public class SocialController {
     @PostMapping("/follow/{userId}")
     public ResponseEntity<?> follow(@PathVariable Long userId, Authentication authentication) {
         Long callerId = requireAuth(authentication);
-        if (!rateLimiter.allow("follow:" + callerId, MAX_FOLLOWS_PER_HOUR, Duration.ofHours(1))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(Map.of("status", "error", "message", "Too many follows. Please try again later."));
+        String followLimitKey = "follow:" + callerId;
+        if (!rateLimiter.allow(followLimitKey, MAX_FOLLOWS_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(followLimitKey, Duration.ofHours(1), "Too many follows.");
         }
         // Achievements on both sides of a follow depend on data this call is about
         // to change (the follower's following-count, the followee's follower-count)

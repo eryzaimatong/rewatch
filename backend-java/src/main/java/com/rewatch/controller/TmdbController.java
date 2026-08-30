@@ -62,6 +62,16 @@ public class TmdbController {
     // that a real browsing/typing session never gets near it.
     private static final int MAX_PUBLIC_REQUESTS_PER_MINUTE = 120;
 
+    // /rate, /onboard, and /onboard/refine had no limit at all before this —
+    // authenticated writes, so user-keyed rather than IP-keyed for all the
+    // same carrier-NAT reasons as everywhere else in this pass. Generous:
+    // these bound a scripted abuse loop, not real usage — a human rating
+    // titles one at a time, or opening the refinement panel a few times
+    // while experimenting, comes nowhere near any of these.
+    private static final int MAX_RATE_PER_HOUR = 300;
+    private static final int MAX_ONBOARD_PER_HOUR = 20;
+    private static final int MAX_REFINE_PER_HOUR = 30;
+
     public TmdbController(TmdbService tmdbservice, OnboardingService onboardingService,
                           ProfileService profileService, RatingService ratingService,
                           TitleRepository titleRepo, AchievementService achievementService,
@@ -76,10 +86,16 @@ public class TmdbController {
         this.rateLimiter = rateLimiter;
     }
 
-    private void checkPublicRateLimit(HttpServletRequest request) {
-        String key = "movies-public:" + SecurityUtil.clientIp(request);
+    // Keyed on the account when logged in — most real traffic to these
+    // routes is authenticated (this is the main feed), and an IP-only key
+    // made every visitor sharing a carrier-NAT gateway compete for one
+    // budget for no reason. Anonymous callers still fall back to IP, the
+    // only identity available for them.
+    private void checkPublicRateLimit(HttpServletRequest request, Authentication authentication) {
+        Long userId = SecurityUtil.currentUserId(authentication);
+        String key = userId != null ? "movies:" + userId : "movies-public:" + SecurityUtil.clientIp(request);
         if (!rateLimiter.allow(key, MAX_PUBLIC_REQUESTS_PER_MINUTE, Duration.ofMinutes(1))) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please slow down.");
+            throw rateLimiter.tooManyRequestsException(key, Duration.ofMinutes(1), "Too many requests.");
         }
     }
 
@@ -95,26 +111,26 @@ public class TmdbController {
                                      @RequestParam(required = false) String language,
                                      @RequestParam(required = false) String vibe,
                                      Authentication authentication, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+        checkPublicRateLimit(request, authentication);
         return tmdbservice.getpopular(SecurityUtil.currentUserId(authentication), genre, language, vibe);
     }
 
     @GetMapping("/search")
     public List<MovieDTO> search(@RequestParam("query") String query, Authentication authentication, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+        checkPublicRateLimit(request, authentication);
         return tmdbservice.searchmovies(query, SecurityUtil.currentUserId(authentication));
     }
 
     @GetMapping("/nlp-search")
     public List<MovieDTO> nlpsearch(@RequestParam("query") String query, Authentication authentication, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+        checkPublicRateLimit(request, authentication);
         return tmdbservice.nlpsearch(query, SecurityUtil.currentUserId(authentication));
     }
 
     /** Additive — doesn't change nlp-search's existing response shape. See TmdbService.understand. */
     @GetMapping("/nlp-search/understand")
-    public Map<String, Object> understand(@RequestParam("query") String query, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+    public Map<String, Object> understand(@RequestParam("query") String query, Authentication authentication, HttpServletRequest request) {
+        checkPublicRateLimit(request, authentication);
         return Map.of("understood", tmdbservice.understand(query));
     }
 
@@ -125,8 +141,8 @@ public class TmdbController {
      * Deliberately not labelled "AI": it's a local phrase lexicon, no LLM call.
      */
     @GetMapping("/search-suggestions")
-    public List<Map<String, String>> searchSuggestions(@RequestParam("query") String query, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+    public List<Map<String, String>> searchSuggestions(@RequestParam("query") String query, Authentication authentication, HttpServletRequest request) {
+        checkPublicRateLimit(request, authentication);
         if (query == null || query.trim().length() < 2) {
             return List.of();
         }
@@ -147,19 +163,23 @@ public class TmdbController {
 
     @GetMapping("/trending")
     public List<MovieDTO> gettrending(Authentication authentication, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+        checkPublicRateLimit(request, authentication);
         return tmdbservice.getTrending(SecurityUtil.currentUserId(authentication));
     }
 
     @GetMapping("/top-rated")
     public List<MovieDTO> gettoprated(Authentication authentication, HttpServletRequest request) {
-        checkPublicRateLimit(request);
+        checkPublicRateLimit(request, authentication);
         return tmdbservice.getTopRated(SecurityUtil.currentUserId(authentication));
     }
 
     @PostMapping("/onboard")
     public ResponseEntity<?> onboard(@Valid @RequestBody OnboardingRequest req, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, req.getUserId());
+        String rateLimitKey = "onboard:" + req.getUserId();
+        if (!rateLimiter.allow(rateLimitKey, MAX_ONBOARD_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(rateLimitKey, Duration.ofHours(1), "Too many onboarding attempts.");
+        }
         Map<String, String> unlockedBefore = achievementService.unlockedTitles(req.getUserId());
         TraitVector seed = onboardingService.deriveSeed(req);
         profileService.seedFromOnboarding(req.getUserId(), seed, req.getAvoid());
@@ -186,6 +206,10 @@ public class TmdbController {
     @PostMapping("/onboard/refine")
     public ResponseEntity<?> refine(@Valid @RequestBody OnboardingRequest req, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, req.getUserId());
+        String refineLimitKey = "refine:" + req.getUserId();
+        if (!rateLimiter.allow(refineLimitKey, MAX_REFINE_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(refineLimitKey, Duration.ofHours(1), "Too many refinement attempts.");
+        }
 
         // A prior report of this endpoint failing in production could never be
         // diagnosed — no server-side trace of what happened, and the client
@@ -215,6 +239,10 @@ public class TmdbController {
     @PostMapping("/rate")
     public ResponseEntity<?> rate(@Valid @RequestBody RatingDTO dto, Authentication authentication) {
         SecurityUtil.requireSelf(authentication, dto.getUserId());
+        String rateKey = "rate:" + dto.getUserId();
+        if (!rateLimiter.allow(rateKey, MAX_RATE_PER_HOUR, Duration.ofHours(1))) {
+            return rateLimiter.tooManyRequests(rateKey, Duration.ofHours(1), "Too many ratings submitted.");
+        }
         try {
             RatingService.Result result = ratingService.submit(dto);
 
