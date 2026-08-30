@@ -149,7 +149,17 @@ export default function Login({ onLogin }) {
 
         {submitStatus === "ready" && (
         <>
-        <form onSubmit={handlesubmit} className="auth-form">
+        {/* noValidate: without it, the browser's own native constraint
+            validation on the email input (type="email") silently intercepts
+            submission before handlesubmit's JS ever runs — no request, but
+            also none of this form's own error messaging, just whatever
+            generic native tooltip that browser happens to show. Confirmed
+            live via Playwright: a malformed email produced neither a
+            network request nor this component's own error message. This
+            app's own validation (real error text, tested against the
+            actual EMAIL_PATTERN this form uses) should be the only thing a
+            user ever sees here. */}
+        <form onSubmit={handlesubmit} className="auth-form" noValidate>
           <div className="auth-field">
             <label htmlFor="login-username">Username</label>
             <input

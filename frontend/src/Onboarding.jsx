@@ -135,7 +135,7 @@ export default function Onboarding({ onFinish }) {
         setfavResults(results);
         setfavResultsLoading(false);
       });
-    }, 250);
+    }, 300);
     return () => clearTimeout(handle);
   }, [favTab, favQuery]);
 
