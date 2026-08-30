@@ -99,11 +99,26 @@ public class OnboardingService {
         double[] raw = new double[Trait.count()];
 
         // Favourites: average the trait vectors of any we can match in the catalog.
+        // Was titleRepo.findAll() + a linear scan per favourite — loaded and
+        // Hibernate-managed all ~6,000 titles (measured live: a 6,026-entity
+        // flush, 1.9s of DB time) on every submission, INCLUDING a "Skip for
+        // now" with zero favourites — !favs.isEmpty() below fixes that half;
+        // the targeted lookup fixes the other half.
         List<TraitVector> favVectors = new ArrayList<>();
-        if (req.getFavs() != null) {
-            List<Title> all = titleRepo.findAll();
-            for (String fav : req.getFavs()) {
-                findByTitle(all, fav).ifPresent(t -> favVectors.add(t.traitVector()));
+        if (req.getFavs() != null && !req.getFavs().isEmpty()) {
+            List<String> needles = req.getFavs().stream()
+                    .filter(java.util.Objects::nonNull)
+                    .map(f -> f.trim().toLowerCase(Locale.ROOT))
+                    .toList();
+            Map<String, Title> byNeedle = new HashMap<>();
+            for (Title t : titleRepo.findByTitleTrimmedLowerIn(needles)) {
+                byNeedle.putIfAbsent(t.getTitle().trim().toLowerCase(Locale.ROOT), t);
+            }
+            for (String needle : needles) {
+                Title t = byNeedle.get(needle);
+                if (t != null) {
+                    favVectors.add(t.traitVector());
+                }
             }
         }
         if (!favVectors.isEmpty()) {
@@ -197,15 +212,5 @@ public class OnboardingService {
                 raw[i] += delta[i];
             }
         }
-    }
-
-    private java.util.Optional<Title> findByTitle(List<Title> all, String name) {
-        if (name == null) {
-            return java.util.Optional.empty();
-        }
-        String needle = name.trim().toLowerCase(Locale.ROOT);
-        return all.stream()
-                .filter(t -> t.getTitle() != null && t.getTitle().trim().toLowerCase(Locale.ROOT).equals(needle))
-                .findFirst();
     }
 }

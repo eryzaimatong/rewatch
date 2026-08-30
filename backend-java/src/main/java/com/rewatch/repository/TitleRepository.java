@@ -55,4 +55,17 @@ public interface TitleRepository extends JpaRepository<Title, Long> {
 
     /** Forces already-selected favourites to stay visible even if a later search/page would otherwise cut them off. */
     List<Title> findByTitleIn(List<String> titles);
+
+    /**
+     * Targeted lookup for OnboardingService.deriveSeed's favourites matching
+     * — replaces a titleRepo.findAll() + linear scan that ran on every
+     * onboarding submission (including a "Skip for now" with zero
+     * favourites) to find at most 5 titles by name. `needles` must already
+     * be trimmed and lower-cased by the caller, matching the exact
+     * trim+lowercase equality the old in-memory findByTitle used — a
+     * substring/LIKE match here would change which title an ambiguous name
+     * resolves to.
+     */
+    @Query("select t from Title t where lower(trim(t.title)) in :needles")
+    List<Title> findByTitleTrimmedLowerIn(@Param("needles") List<String> needles);
 }
