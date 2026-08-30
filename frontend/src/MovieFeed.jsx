@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
+import TasteRefinement from "./TasteRefinement";
 import DailyDoubleFeature from "./DailyDoubleFeature";
 import MatchRing from "./MatchRing";
 import EmptyState from "./EmptyState";
@@ -13,6 +14,11 @@ import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
 const FALLBACK_POSTER = "https://placehold.co/500x750/191a21/a855f7?text=Re:Watch";
+
+// Set once, permanently — either the user dismisses the prompt outright or
+// completes the refinement itself. Either way, a returning user shouldn't
+// keep seeing an offer they've already acted on.
+const REFINEMENT_DISMISSED_KEY = "tasteRefinementDismissed";
 
 // ISO 639-1 -> display name, for whatever originalLanguage codes actually
 // turn up in the catalog. Falls back to the raw code for anything unmapped
@@ -343,6 +349,26 @@ export default function MovieFeed() {
   const [dealbreakerhiddencount, setdealbreakerhiddencount] = useState(0);
   const [dealbreakerhidden, setdealbreakerhidden] = useState(null);
   const [dealbreakerhiddenloading, setdealbreakerhiddenloading] = useState(false);
+
+  const [refinementDismissed, setrefinementDismissed] = useState(
+    () => !!localStorage.getItem(REFINEMENT_DISMISSED_KEY)
+  );
+  const [showRefinement, setshowRefinement] = useState(false);
+
+  function dismissRefinementPrompt() {
+    localStorage.setItem(REFINEMENT_DISMISSED_KEY, "yes");
+    setrefinementDismissed(true);
+  }
+
+  function handleRefinementSaved() {
+    setshowRefinement(false);
+    dismissRefinementPrompt();
+    // The whole point of refining is that recommendations change — reload
+    // the sections whose ranking actually depends on the trait profile.
+    loadData(vibe, genrefilter, languagefilter);
+    loadMood();
+    loadDiscovery();
+  }
 
   const username = localStorage.getItem("username") || "friend";
 
@@ -1212,6 +1238,35 @@ export default function MovieFeed() {
           </div>
         )}
       </section>
+
+      {!refinementDismissed && (
+        <div className="moment-card refinement-prompt">
+          <button
+            type="button"
+            className="refinement-prompt-dismiss"
+            onClick={dismissRefinementPrompt}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+          <p className="moment-eyebrow">TasteDNA</p>
+          <h3 className="moment-title">Sharpen your TasteDNA — 60 seconds</h3>
+          <p className="moment-sub">
+            A few more questions about tropes, tone, and dealbreakers to make your matches even sharper.
+          </p>
+          <button type="button" className="btn-primary" onClick={() => setshowRefinement(true)}>
+            Sharpen it
+          </button>
+        </div>
+      )}
+
+      {showRefinement && (
+        <TasteRefinement
+          userid={Number(localStorage.getItem("userId")) || 1}
+          onClose={() => setshowRefinement(false)}
+          onSaved={handleRefinementSaved}
+        />
+      )}
 
       <DailyDoubleFeature />
 

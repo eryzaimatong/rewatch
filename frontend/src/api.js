@@ -81,6 +81,22 @@ export async function gettitlepicker(bucket, search, selected) {
   return withMeta(await res.json().catch(() => []), meta);
 }
 
+// Additive "Sharpen your TasteDNA" refinement, offered from the dashboard
+// after onboarding's first result — merges into the existing seed rather
+// than overwriting it (see OnboardingService.refinementRawDelta), so this
+// deliberately does not resend the original 5 favourites.
+export async function refineOnboarding(payload) {
+  const { res, meta } = await safeFetch(`${BASE}/api/movies/onboard/refine`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload)
+  });
+  if (!res) {
+    return withMeta({ ok: false, data: null }, meta);
+  }
+  return withMeta({ ok: res.ok, data: await res.json().catch(() => null) }, meta);
+}
+
 export async function rateMovie(payload) {
   const { res, meta } = await safeFetch(`${BASE}/api/movies/rate`, {
     method: "POST",

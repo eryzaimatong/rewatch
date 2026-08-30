@@ -25,51 +25,15 @@ const revealArchetype = {
   visible: { opacity: 1, scale: 1, transition: { duration: 0.55, ease: [0.34, 1.56, 0.64, 1] } }
 };
 
-const GENRES = [
-  "Drama", "Sci-Fi", "Slice of Life", "Romance", "Thriller", "Anime", "Comedy", "Mystery"
-];
-
-// Matches OnboardingService.TROPE_SENTIMENT's keys (lowercased server-side).
-const TROPES = [
-  "Character Growth", "Slow Burn", "Found Family", "Enemies to Lovers",
-  "Psychological", "Bittersweet Endings", "Hopeful Payoffs", "Comfort Watch"
-];
-
-// Matches OnboardingService.EMOTIONAL_GOAL_SENTIMENT's keys.
-const EMOTIONAL_GOALS = ["Laugh", "Cry", "Think", "Escape", "Relax", "Feel Hope"];
-
-// Matches OnboardingService.DEALBREAKER_SENTIMENT's keys — "Poor CGI" is
-// deliberately absent, there's no trait axis for production quality.
-// "Open Ending" and "Unresolved Ending" route to the identical trait check
-// server-side (Recommender.DEALBREAKER_THRESHOLDS: BITTER >= 0.65 either
-// way) — shown as one chip so it doesn't read as two distinct dealbreakers,
-// but still sends both underlying keys so nothing server-side needs to change.
-const BREAKER_CHIPS = [
-  { label: "Excessive Gore", keys: ["Excessive Gore"] },
-  { label: "Sad Ending", keys: ["Sad Ending"] },
-  { label: "Open / Unresolved Ending", keys: ["Open Ending", "Unresolved Ending"] },
-  { label: "Love Triangle", keys: ["Love Triangle"] },
-  { label: "Jump Scares", keys: ["Jump Scares"] },
-  { label: "Slow Start", keys: ["Slow Start"] },
-  { label: "Animal Death", keys: ["Animal Death"] },
-  { label: "Cheating", keys: ["Cheating"] }
-];
-
 const FAV_TABS = [
   { key: "movie", label: "Movies" },
   { key: "show", label: "Shows" },
   { key: "anime", label: "Anime" }
 ];
 
-const STEP_TITLES = [
-  "Your Comfort Movies", "Your Story DNA", "Your Emotional Palette",
-  "Your Genre Instincts", "Your Dealbreakers & Pace"
-];
-
 const ANALYZING_LINES = [
   "Reading your favorites...",
   "Mapping your Story DNA...",
-  "Weighing what you avoid...",
   "Almost there..."
 ];
 
@@ -134,19 +98,19 @@ function RevealScreen({ archetype, archetypeBlurb, onContinue }) {
   );
 }
 
+// Onboarding used to be a mandatory 5-step wizard (favorites, tropes,
+// emotional goals, genre ratings, dealbreakers/sliders) standing entirely
+// between registration and the first useful screen — measured at 3m12s.
+// Only step 1 was ever actually enforced; steps 2-5 are now offered AFTER
+// a first result exists, as the dismissible "Sharpen your TasteDNA" prompt
+// on the dashboard (see TasteRefinement.jsx), which posts additively to
+// /api/movies/onboard/refine instead of gating entry.
 export default function Onboarding({ onFinish }) {
-  const [step, setstep] = useState(1);
   const [favTab, setfavTab] = useState("movie");
   const [favQuery, setfavQuery] = useState("");
   const [favResults, setfavResults] = useState([]);
   const [favResultsLoading, setfavResultsLoading] = useState(true);
   const [favs, setfavs] = useState([]);
-  const [tropes, settropes] = useState([]);
-  const [emotionalGoals, setemotionalGoals] = useState([]);
-  const [genres, setgenres] = useState({});
-  const [avoid, setavoid] = useState([]);
-  const [pacing, setpacing] = useState(3);
-  const [intensity, setintensity] = useState(4);
   const [err, seterr] = useState("");
   const [submitting, setsubmitting] = useState(false);
   const [analyzing, setanalyzing] = useState(false);
@@ -181,40 +145,6 @@ export default function Onboarding({ onFinish }) {
     );
   }
 
-  function toggletrope(t) {
-    settropes((current) =>
-      current.includes(t) ? current.filter((x) => x !== t) : [...current, t]
-    );
-  }
-
-  function togglegoal(g) {
-    setemotionalGoals((current) =>
-      current.includes(g) ? current.filter((x) => x !== g) : [...current, g]
-    );
-  }
-
-  function setgenrerate(g, val) {
-    setgenres((current) => ({ ...current, [g]: val }));
-  }
-
-  // A real, countable tally of concrete inputs given so far — not a modeled
-  // "confidence" score, which would need the backend to actually compute one
-  // mid-onboarding. This is just what's true: how many discrete choices this
-  // profile is currently built from.
-  const signalsCaptured =
-    favs.length + tropes.length + emotionalGoals.length + avoid.length +
-    Object.values(genres).filter((v) => v !== "Neutral").length;
-
-  function toggleavoidChip(chip) {
-    setavoid((current) => {
-      const hasAny = chip.keys.some((k) => current.includes(k));
-      if (hasAny) {
-        return current.filter((x) => !chip.keys.includes(x));
-      }
-      return [...current, ...chip.keys.filter((k) => !current.includes(k))];
-    });
-  }
-
   async function doSubmit(payload) {
     setsubmitting(true);
     setanalyzing(true);
@@ -245,23 +175,19 @@ export default function Onboarding({ onFinish }) {
     seterr("");
     if (favs.length < 5) {
       seterr("Pick at least 5 favorites so we can seed your starting profile.");
-      setstep(1);
       return;
     }
-    await doSubmit({ userId: userid, favs, genres, avoid, tropes, emotionalGoals, pacing, intensity });
+    await doSubmit({ userId: userid, favs });
   }
 
-  // Submits whatever's actually been entered so far, not a hardcoded blank
-  // slate — previously this discarded any favorites/tropes/genres/etc.
-  // already selected on the current visit, so a user who filled in three
-  // steps and then hit "Skip for now" (visible from step 1 onward) silently
-  // lost all of it with no warning. A genuinely untouched profile (skip
-  // immediately, nothing selected) still reaches the same neutral (all-0.5)
-  // TraitVector server-side as before (see ProfileService) — this only
-  // changes what happens when the user has already given real signal.
+  // Submits whatever's actually been picked so far, not a hardcoded blank
+  // slate — a user who's already selected a few favorites and then hits
+  // "Skip for now" shouldn't lose that signal. A genuinely untouched skip
+  // (nothing picked) still reaches the same neutral (all-0.5) TraitVector
+  // server-side as before (see ProfileService).
   async function skiponboarding() {
     seterr("");
-    await doSubmit({ userId: userid, favs, genres, avoid, tropes, emotionalGoals, pacing, intensity });
+    await doSubmit({ userId: userid, favs });
   }
 
   if (reveal) {
@@ -294,9 +220,7 @@ export default function Onboarding({ onFinish }) {
         <div className="onboard-header-row">
           <div>
             <span className="eyebrow">TasteDNA Onboarding</span>
-            <h1 className="onboard-title">
-              Step {step} of 5: {STEP_TITLES[step - 1]}
-            </h1>
+            <h1 className="onboard-title">Your Comfort Movies</h1>
           </div>
           {/* A brand-new visitor's very first screen was a mandatory five-step
               wizard with no way out — "just let me look around" wasn't an
@@ -307,264 +231,70 @@ export default function Onboarding({ onFinish }) {
           </button>
         </div>
 
-        <div className="onboard-progress">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <div key={n} className={`onboard-progress-segment${n <= step ? " is-complete" : ""}`} />
+        <p className="onboard-intro">
+          Pick at least 5 titles across movies, shows, and anime to seed your starting profile.
+          You can sharpen it further anytime from your dashboard.
+        </p>
+
+        <div className="pill-row" style={{ marginBottom: "var(--sp-2)" }}>
+          {FAV_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`pill${favTab === tab.key ? " active" : ""}`}
+              onClick={() => setfavTab(tab.key)}
+            >
+              {tab.label}
+            </button>
           ))}
         </div>
-        {signalsCaptured > 0 && (
-          <p className="onboard-signal-count">
-            {signalsCaptured} signal{signalsCaptured === 1 ? "" : "s"} captured so far
-          </p>
-        )}
 
-        {step === 1 && (
-          <div>
-            <p className="onboard-intro">
-              Pick at least 5 titles across movies, shows, and anime to seed your starting profile.
-            </p>
+        <input
+          type="text"
+          placeholder={`Search ${FAV_TABS.find((t) => t.key === favTab)?.label.toLowerCase()}...`}
+          value={favQuery}
+          onChange={(e) => setfavQuery(e.target.value)}
+          style={{ marginBottom: "6px" }}
+        />
+        <p style={{ color: "var(--text-faint)", fontSize: "0.76rem", margin: "0 0 var(--sp-2)" }}>
+          Showing the most popular {FAV_PAGE_SIZE} — search for anything else.
+        </p>
 
-            <div className="pill-row" style={{ marginBottom: "var(--sp-2)" }}>
-              {FAV_TABS.map((tab) => (
+        {favResultsLoading ? (
+          <p className="onboard-intro">Loading titles...</p>
+        ) : (
+          <div className="onboard-fav-grid">
+            {favResults.map((t) => {
+              const active = favs.includes(t.title);
+              return (
                 <button
-                  key={tab.key}
+                  key={t.id}
                   type="button"
-                  className={`pill${favTab === tab.key ? " active" : ""}`}
-                  onClick={() => setfavTab(tab.key)}
+                  onClick={() => togglefav(t.title)}
+                  className={`onboard-fav-chip${active ? " active" : ""}`}
+                  aria-pressed={active}
                 >
-                  {tab.label}
+                  <span className="onboard-fav-poster">
+                    <img src={posterThumbUrl(t)} alt="" loading="lazy" onError={handlePosterThumbError} />
+                    {active && <span className="onboard-fav-check" aria-hidden="true">✓</span>}
+                  </span>
+                  <span className="onboard-fav-title">{t.title}</span>
                 </button>
-              ))}
-            </div>
-
-            <input
-              type="text"
-              placeholder={`Search ${FAV_TABS.find((t) => t.key === favTab)?.label.toLowerCase()}...`}
-              value={favQuery}
-              onChange={(e) => setfavQuery(e.target.value)}
-              style={{ marginBottom: "6px" }}
-            />
-            <p style={{ color: "var(--text-faint)", fontSize: "0.76rem", margin: "0 0 var(--sp-2)" }}>
-              Showing the most popular {FAV_PAGE_SIZE} — search for anything else.
-            </p>
-
-            {favResultsLoading ? (
-              <p className="onboard-intro">Loading titles...</p>
-            ) : (
-              <div className="onboard-fav-grid">
-                {favResults.map((t) => {
-                  const active = favs.includes(t.title);
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => togglefav(t.title)}
-                      className={`onboard-fav-chip${active ? " active" : ""}`}
-                      aria-pressed={active}
-                    >
-                      <span className="onboard-fav-poster">
-                        <img src={posterThumbUrl(t)} alt="" loading="lazy" onError={handlePosterThumbError} />
-                        {active && <span className="onboard-fav-check" aria-hidden="true">✓</span>}
-                      </span>
-                      <span className="onboard-fav-title">{t.title}</span>
-                    </button>
-                  );
-                })}
-                {favResults.length === 0 && (
-                  <p style={{ color: "var(--text-faint)" }}>No titles match here yet — try another tab or search.</p>
-                )}
-              </div>
+              );
+            })}
+            {favResults.length === 0 && (
+              <p style={{ color: "var(--text-faint)" }}>No titles match here yet — try another tab or search.</p>
             )}
-
-            <p style={{ color: "var(--text-faint)", fontSize: "0.78rem", marginBottom: "var(--sp-2)" }}>
-              {favs.length} selected — {Math.max(0, 5 - favs.length)} more to go
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (favs.length < 5) {
-                  seterr("Pick at least 5 titles first.");
-                  return;
-                }
-                seterr("");
-                setstep(2);
-              }}
-              className="btn-primary"
-            >
-              Next: Story Tropes →
-            </button>
           </div>
         )}
 
-        {step === 2 && (
-          <div>
-            <p className="onboard-intro">
-              Which storytelling tropes pull you in? Pick as many as apply.
-            </p>
+        <p style={{ color: "var(--text-faint)", fontSize: "0.78rem", marginBottom: "var(--sp-2)" }}>
+          {favs.length} selected — {Math.max(0, 5 - favs.length)} more to go
+        </p>
 
-            <div className="onboard-chip-grid">
-              {TROPES.map((t) => {
-                const active = tropes.includes(t);
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => toggletrope(t)}
-                    className={`onboard-chip${active ? " active" : ""}`}
-                  >
-                    {active ? "✓ " : "+ "} {t}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="onboard-footer">
-              <button type="button" onClick={() => setstep(1)}>
-                ← Back
-              </button>
-              <button type="button" onClick={() => setstep(3)} className="btn-primary">
-                Next: Emotional Goals →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div>
-            <p className="onboard-intro">
-              I want stories that make me... (pick a few)
-            </p>
-
-            <div className="onboard-chip-grid">
-              {EMOTIONAL_GOALS.map((g) => {
-                const active = emotionalGoals.includes(g);
-                return (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => togglegoal(g)}
-                    className={`onboard-chip${active ? " active" : ""}`}
-                  >
-                    {active ? "✓ " : "+ "} {g}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="onboard-footer">
-              <button type="button" onClick={() => setstep(2)}>
-                ← Back
-              </button>
-              <button type="button" onClick={() => setstep(4)} className="btn-primary">
-                Next: Rate Genres →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div>
-            <p className="onboard-intro">
-              Tell us how you feel about each category — this shapes your recommendations.
-              This nudges your TasteDNA; it won't hide titles outright. For a hard no, use Dealbreakers below.
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)", marginBottom: "var(--sp-3)" }}>
-              {GENRES.map((g) => {
-                const current = genres[g] || "Neutral";
-                return (
-                  <div key={g} className="genre-row">
-                    <span>{g}</span>
-                    <div className="genre-rate-group">
-                      {["Love", "Neutral", "Avoid"].map((rate) => (
-                        <button
-                          key={rate}
-                          type="button"
-                          onClick={() => setgenrerate(g, rate)}
-                          className={`genre-rate-button${current === rate ? " active" : ""}`}
-                        >
-                          {rate}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="onboard-footer">
-              <button type="button" onClick={() => setstep(3)}>
-                ← Back
-              </button>
-              <button type="button" onClick={() => setstep(5)} className="btn-primary">
-                Next: Dealbreakers →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 5 && (
-          <div>
-            <p className="onboard-intro">
-              Set pacing, emotional intensity, and hard dealbreakers to finalize your profile.
-            </p>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", marginBottom: "var(--sp-3)" }}>
-              <div className="slider-field">
-                <span className="slider-field-label">
-                  Story Pacing ({pacing === 1 ? "Very Slow" : pacing === 2 ? "Slow Burn" : pacing === 3 ? "Balanced" : pacing === 4 ? "Fast" : "Hyper Fast"})
-                </span>
-                <input
-                  type="range"
-                  min="1"
-                  max="5"
-                  value={pacing}
-                  onChange={(e) => setpacing(Number(e.target.value))}
-                />
-              </div>
-
-              <div className="slider-field">
-                <span className="slider-field-label">
-                  Emotional Intensity ({intensity}/10 — {intensity <= 3 ? "Cozy" : intensity <= 7 ? "Balanced" : "Soul Crushing"})
-                </span>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={intensity}
-                  onChange={(e) => setintensity(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <span className="slider-field-label">Things You Avoid (Hard Constraints)</span>
-            <div className="onboard-chip-grid">
-              {BREAKER_CHIPS.map((chip) => {
-                const active = chip.keys.some((k) => avoid.includes(k));
-                return (
-                  <button
-                    key={chip.label}
-                    type="button"
-                    onClick={() => toggleavoidChip(chip)}
-                    className={`onboard-chip avoid${active ? " active" : ""}`}
-                  >
-                    {active ? "✕ " : "+ "} {chip.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="onboard-footer" style={{ marginTop: "var(--sp-3)" }}>
-              <button type="button" onClick={() => setstep(4)}>
-                ← Back
-              </button>
-              <button type="button" onClick={submitall} className="btn-primary" disabled={submitting}>
-                {submitting ? "Generating..." : "Generate TasteDNA"}
-              </button>
-            </div>
-          </div>
-        )}
+        <button type="button" onClick={submitall} className="btn-primary" disabled={submitting}>
+          {submitting ? "Generating..." : "Generate TasteDNA"}
+        </button>
 
         {err && <p className="status-message status-message--error" style={{ marginTop: "var(--sp-2)" }}>{err}</p>}
       </div>

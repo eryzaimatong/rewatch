@@ -3134,6 +3134,37 @@ input[type="range"] {
   font-size: 0.82rem;
 }
 
+.refinement-prompt {
+  padding-right: 48px;
+}
+
+.refinement-prompt .btn-primary {
+  margin-top: var(--sp-2);
+}
+
+.refinement-prompt-dismiss {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  width: 28px;
+  height: 28px;
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+
+  color: var(--text-faint);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.refinement-prompt-dismiss:hover {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
 .trait-list {
   display: flex;
   flex-direction: column;
