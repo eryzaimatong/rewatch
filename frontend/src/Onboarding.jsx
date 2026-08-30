@@ -157,9 +157,17 @@ export default function Onboarding({ onFinish }) {
 
     setsubmitting(false);
 
-    if (!res || !res.ok) {
+    if (!res) {
       setanalyzing(false);
-      seterr("Could not save your taste profile. Please try again.");
+      seterr("Could not reach Re:Watch. Check your connection and try again.");
+      return;
+    }
+    if (!res.ok) {
+      setanalyzing(false);
+      // A 429's own message carries a real retry timeframe
+      // (RateLimiterService.tooManyRequests) — shown as-is when present.
+      const body = await res.json().catch(() => null);
+      seterr(body?.message || "Could not save your taste profile. Please try again.");
       return;
     }
 

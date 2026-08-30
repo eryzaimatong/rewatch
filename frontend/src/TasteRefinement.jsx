@@ -102,7 +102,10 @@ export default function TasteRefinement({ userid, onClose, onSaved }) {
         ? "That took too long — the server may still be waking up. Please try again."
         : "Could not reach Re:Watch. Check your connection and try again.");
     } else if (meta?.status === 429) {
-      seterr("Too many attempts from your network right now. Please wait a moment and try again.");
+      // The backend's own message now includes a real retry timeframe
+      // (RateLimiterService.tooManyRequests) — that's strictly better than
+      // any fixed copy here, so it's shown as-is rather than reworded.
+      seterr(result.data?.message || "Too many attempts. Please wait a moment and try again.");
     } else if (meta?.status >= 500) {
       const ref = result.data?.correlationId;
       seterr(`Something went wrong on our end. Please try again.${ref ? ` (ref: ${ref})` : ""}`);

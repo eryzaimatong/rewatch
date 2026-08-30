@@ -5,7 +5,7 @@ import useModalA11y from "./useModalA11y";
 import MatchShareCard from "./MatchShareCard";
 import ConfirmDialog from "./ConfirmDialog";
 import { authHeaders } from "./auth";
-import { BASE, rateMovie, deleteRating } from "./api";
+import { BASE, rateMovie, deleteRating, getApiMeta } from "./api";
 import { playConfirm, playChime, playSoftError } from "./sound";
 import { IconTrophy, IconShuffle } from "./Icons";
 import "./App.css";
@@ -356,10 +356,16 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
     };
 
     try {
-      const { ok, data: result } = await rateMovie(payload);
+      const rateResult = await rateMovie(payload);
+      const { ok, data: result } = rateResult;
 
       if (!ok) {
-        seterr("Could not save your rating. Check your connection and try again.");
+        const meta = getApiMeta(rateResult);
+        if (meta?.status === 429) {
+          seterr(result?.message || "Too many ratings submitted. Please wait a moment and try again.");
+        } else {
+          seterr("Could not save your rating. Check your connection and try again.");
+        }
         playSoftError();
         return;
       }

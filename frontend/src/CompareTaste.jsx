@@ -143,7 +143,11 @@ export default function CompareTaste() {
       const body = await res.json().catch(() => null);
       seterr(body?.message || "Could not compare with that profile. Double-check the username and try again.");
     } else if (res && res.status === 429) {
-      seterr("Too many checks from here — try again in a bit.");
+      // The backend's own message now includes a real retry timeframe
+      // (RateLimiterService.tooManyRequests) — shown as-is rather than
+      // reworded into a fixed, timeframe-free string.
+      const body = await res.json().catch(() => null);
+      seterr(body?.message || "Too many checks from here — try again in a bit.");
     } else {
       seterr("Something went wrong. Please try again.");
     }
