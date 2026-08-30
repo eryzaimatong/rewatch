@@ -60,6 +60,27 @@ export async function gettitles() {
   return withMeta(await res.json().catch(() => []), meta);
 }
 
+// Onboarding's favourites picker specifically — a paginated, projected
+// (id/title/poster/type/popularity only) alternative to gettitles(), which
+// ships the full ~6,000-row catalog with every field just to render 60
+// posters. `selected` keeps already-picked titles visible even if a new
+// search/tab wouldn't otherwise surface them (server enforces this, see
+// TitleController.picker).
+export async function gettitlepicker(bucket, search, selected) {
+  const params = new URLSearchParams({ bucket });
+  if (search) {
+    params.set("search", search);
+  }
+  (selected ?? []).forEach((title) => params.append("selected", title));
+  const { res, meta } = await safeFetch(`${BASE}/api/titles/picker?${params.toString()}`, {
+    headers: authHeaders()
+  });
+  if (!res || !res.ok) {
+    return withMeta([], meta);
+  }
+  return withMeta(await res.json().catch(() => []), meta);
+}
+
 export async function rateMovie(payload) {
   const { res, meta } = await safeFetch(`${BASE}/api/movies/rate`, {
     method: "POST",

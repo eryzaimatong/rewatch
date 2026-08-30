@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { authHeaders } from "./auth";
-import { BASE, gettitles, gettastedna } from "./api";
+import { BASE, gettitlepicker, gettastedna } from "./api";
 import { playChime } from "./sound";
-import { FAV_PAGE_SIZE, computeVisibleFavTitles } from "./onboardingUtils";
+import { FAV_PAGE_SIZE } from "./onboardingUtils";
 import "./App.css";
 
 // A staggered reveal for the one moment this whole wizard has been building
@@ -92,12 +92,6 @@ function handlePosterThumbError(event) {
   event.currentTarget.src = FALLBACK_POSTER_THUMB;
 }
 
-function bucketFor(type) {
-  if (type === "movie") return "movie";
-  if (type === "anime") return "anime";
-  return "show";
-}
-
 // A separate component so the cycling-text interval's lifecycle matches this
 // screen's own mount/unmount, not the whole wizard's.
 function AnalyzingScreen() {
@@ -142,9 +136,10 @@ function RevealScreen({ archetype, archetypeBlurb, onContinue }) {
 
 export default function Onboarding({ onFinish }) {
   const [step, setstep] = useState(1);
-  const [catalog, setcatalog] = useState([]);
   const [favTab, setfavTab] = useState("movie");
   const [favQuery, setfavQuery] = useState("");
+  const [favResults, setfavResults] = useState([]);
+  const [favResultsLoading, setfavResultsLoading] = useState(true);
   const [favs, setfavs] = useState([]);
   const [tropes, settropes] = useState([]);
   const [emotionalGoals, setemotionalGoals] = useState([]);
@@ -159,24 +154,26 @@ export default function Onboarding({ onFinish }) {
 
   const userid = localStorage.getItem("userId") || 1;
 
+  // Debounced regardless of branch, same reasoning as MovieFeed's own
+  // search-suggestions effect (see its comment) — keeps this clean of the
+  // set-state-in-effect lint rule without a manual disable, and avoids
+  // firing a request on every keystroke. Re-fetches on tab switch too
+  // (favTab isn't itself debounced, but folding it into the same effect
+  // means a tab click doesn't race a still-pending search fetch). `favs`
+  // is intentionally NOT a dependency — toggling a checkbox shouldn't
+  // re-fetch the page it's already showing; the server only needs to know
+  // the current picks at the moment a new page is requested, to keep them
+  // visible across a tab/search change (see TitlePickerDTO's doc comment).
   useEffect(() => {
-    gettitles().then(setcatalog);
-  }, []);
-
-  const favBuckets = useMemo(() => {
-    const b = { movie: [], anime: [], show: [] };
-    for (const t of catalog) {
-      b[bucketFor(t.type)].push(t);
-    }
-    return b;
-  }, [catalog]);
-
-  // See onboardingUtils.js — capped to a page of well-known titles instead
-  // of rendering a bucket that can run into the thousands at once.
-  const visibleFavTitles = useMemo(
-    () => computeVisibleFavTitles(favBuckets[favTab] || [], favQuery, favs),
-    [favBuckets, favTab, favQuery, favs]
-  );
+    const handle = setTimeout(() => {
+      setfavResultsLoading(true);
+      gettitlepicker(favTab, favQuery, favs).then((results) => {
+        setfavResults(results);
+        setfavResultsLoading(false);
+      });
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [favTab, favQuery]);
 
   function togglefav(title) {
     setfavs((current) =>
@@ -335,7 +332,7 @@ export default function Onboarding({ onFinish }) {
                   className={`pill${favTab === tab.key ? " active" : ""}`}
                   onClick={() => setfavTab(tab.key)}
                 >
-                  {tab.label} ({favBuckets[tab.key]?.length ?? 0})
+                  {tab.label}
                 </button>
               ))}
             </div>
@@ -351,11 +348,11 @@ export default function Onboarding({ onFinish }) {
               Showing the most popular {FAV_PAGE_SIZE} — search for anything else.
             </p>
 
-            {catalog.length === 0 ? (
-              <p className="onboard-intro">Loading the catalog...</p>
+            {favResultsLoading ? (
+              <p className="onboard-intro">Loading titles...</p>
             ) : (
               <div className="onboard-fav-grid">
-                {visibleFavTitles.map((t) => {
+                {favResults.map((t) => {
                   const active = favs.includes(t.title);
                   return (
                     <button
@@ -373,7 +370,7 @@ export default function Onboarding({ onFinish }) {
                     </button>
                   );
                 })}
-                {visibleFavTitles.length === 0 && (
+                {favResults.length === 0 && (
                   <p style={{ color: "var(--text-faint)" }}>No titles match here yet — try another tab or search.</p>
                 )}
               </div>

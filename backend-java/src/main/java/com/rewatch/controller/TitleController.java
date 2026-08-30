@@ -4,10 +4,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.rewatch.dto.MovieDTO;
+import com.rewatch.dto.TitlePickerDTO;
 import com.rewatch.model.Title;
 import com.rewatch.repository.RatingRepository;
 import com.rewatch.repository.TitleRepository;
@@ -44,6 +48,9 @@ public class TitleController {
 
     /** GET /api/titles is the one permitAll route on this controller — same anonymous-abuse reasoning as TmdbController's public routes. */
     private static final int MAX_PUBLIC_REQUESTS_PER_MINUTE = 120;
+
+    /** Must match onboardingUtils.js's FAV_PAGE_SIZE — a page here is exactly a page there. */
+    private static final int FAV_PAGE_SIZE = 60;
 
     private final TitleRepository titleRepository;
     private final Recommender recommender;
@@ -92,6 +99,45 @@ public class TitleController {
     private boolean hasRenderableData(Title t) {
         return t.getSynopsis() != null && !t.getSynopsis().isBlank()
                 && t.getPoster() != null && !t.getPoster().isBlank();
+    }
+
+    /**
+     * Onboarding's favourites picker, specifically — not a general-purpose
+     * replacement for GET /api/titles (MovieFeed's no-personalization
+     * fallback still needs that one's richer fields). Same renderable-data
+     * and well-known-per-bucket-with-thin-bucket-fallback filtering as
+     * getAllTitles above, but pushed into the query and paged to
+     * FAV_PAGE_SIZE instead of shipping all ~6,000 rows for the frontend to
+     * filter down to 60 (see onboardingUtils.js's own FAV_PAGE_SIZE, which
+     * this mirrors so a page here is exactly a page there).
+     *
+     * `selected` — titles the caller already has picked — are always
+     * included in the response even if the page/search would otherwise cut
+     * them off, matching computeVisibleFavTitles' pickedButCutOff behaviour
+     * on the client.
+     */
+    @GetMapping("/picker")
+    public List<TitlePickerDTO> picker(@RequestParam String bucket,
+                                       @RequestParam(defaultValue = "") String search,
+                                       @RequestParam(defaultValue = "") List<String> selected) {
+        String q = search.trim().toLowerCase();
+        PageRequest page = PageRequest.of(0, FAV_PAGE_SIZE);
+
+        Page<Title> wellKnown = titleRepository.findWellKnownForPicker(bucket, MIN_VOTE_COUNT, q, page);
+        List<Title> results = new ArrayList<>(
+                wellKnown.getTotalElements() >= MIN_WELLKNOWN_PER_TYPE
+                        ? wellKnown.getContent()
+                        : titleRepository.findAllForPicker(bucket, q, page).getContent());
+
+        if (!selected.isEmpty()) {
+            Set<String> present = results.stream().map(Title::getTitle).collect(Collectors.toSet());
+            List<String> missing = selected.stream().filter(t -> !present.contains(t)).toList();
+            if (!missing.isEmpty()) {
+                results.addAll(titleRepository.findByTitleIn(missing));
+            }
+        }
+
+        return results.stream().map(TitlePickerDTO::from).toList();
     }
 
     /**
