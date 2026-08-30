@@ -105,10 +105,14 @@ export default async function handler(request) {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      // Crawlers re-fetch per platform, not per click, but this keeps a
-      // burst of re-shares from re-hitting the backend for the same
-      // profile every time.
-      "cache-control": "public, max-age=300, s-maxage=300"
+      // Deliberately no caching, at any layer, at any duration — this
+      // response's content depends on profilePublic, which a user can flip
+      // at any moment. A CDN-cached copy of a since-made-private profile's
+      // real username/archetype (confirmed live: a 5-minute cache here let
+      // exactly that happen) is the one outcome the privacy requirement
+      // above cannot tolerate, so correctness wins over shaving repeat
+      // crawler hits to the backend.
+      "cache-control": "no-store"
     }
   });
 }
