@@ -181,9 +181,7 @@ public class Recommender {
      */
     /** Package-private for direct testing — see RecommenderTest. */
     List<Title> candidatePool(int limit) {
-        List<Title> renderable = titleRepo.findAll().stream()
-                .filter(this::hasRenderableData)
-                .toList();
+        List<Title> renderable = titleRepo.findRenderable();
         List<Title> wellKnown = renderable.stream()
                 .filter(t -> t.getVoteCount() != null && t.getVoteCount() >= MIN_VOTE_COUNT_FOR_RECOMMENDATION)
                 .toList();
@@ -215,11 +213,6 @@ public class Recommender {
                     .toList();
         }
         return out;
-    }
-
-    private boolean hasRenderableData(Title t) {
-        return t.getSynopsis() != null && !t.getSynopsis().isBlank()
-                && t.getPoster() != null && !t.getPoster().isBlank();
     }
 
     /** How many titles the user's dealbreakers are currently hiding from recommend(). */

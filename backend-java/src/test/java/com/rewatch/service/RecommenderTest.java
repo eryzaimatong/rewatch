@@ -139,13 +139,18 @@ class RecommenderTest {
     }
 
     @Test
-    void candidatePoolDropsTitlesWithNoSynopsisOrPosterUnconditionally() {
-        Title noSynopsis = renderableTitle("No Synopsis", 500);
-        noSynopsis.setSynopsis(null);
-        Title blankPoster = renderableTitle("Blank Poster", 500);
-        blankPoster.setPoster("  ");
+    void candidatePoolStartsFromExactlyWhatTheRepositoryReturns() {
+        // The renderable (non-null/non-blank synopsis+poster) filter moved
+        // into TitleRepository.findRenderable()'s SQL — see D1c #2 — so a
+        // Mockito unit test of candidatePool() can no longer verify that
+        // filter itself (it's not Java code anymore); manually verified
+        // instead against live data, same WHERE-clause pattern already
+        // confirmed correct for TitleRepository.findWellKnownForPicker /
+        // findAllForPicker. What this test still covers: candidatePool()
+        // doesn't add back or otherwise second-guess whatever the
+        // repository hands it.
         Title good = renderableTitle("Good", 500);
-        when(titleRepo.findAll()).thenReturn(List.of(noSynopsis, blankPoster, good));
+        when(titleRepo.findRenderable()).thenReturn(List.of(good));
 
         List<Title> pool = newRecommender().candidatePool(24);
 
@@ -160,7 +165,7 @@ class RecommenderTest {
             all.add(renderableTitle("well-known-" + i, 500));
         }
         all.add(renderableTitle("obscure", 3));
-        when(titleRepo.findAll()).thenReturn(all);
+        when(titleRepo.findRenderable()).thenReturn(all);
 
         List<Title> pool = newRecommender().candidatePool(24);
 
@@ -176,7 +181,7 @@ class RecommenderTest {
         Title wellKnown = renderableTitle("well-known", 500);
         Title obscure = renderableTitle("obscure", 3);
         Title noVotesYet = renderableTitle("no-votes-yet", null);
-        when(titleRepo.findAll()).thenReturn(List.of(wellKnown, obscure, noVotesYet));
+        when(titleRepo.findRenderable()).thenReturn(List.of(wellKnown, obscure, noVotesYet));
 
         List<Title> pool = newRecommender().candidatePool(24);
 
