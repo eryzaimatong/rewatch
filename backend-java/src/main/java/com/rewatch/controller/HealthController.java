@@ -28,20 +28,9 @@ public class HealthController {
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> health() {
-        // TEMPORARY: dbPingMs added for the D1a Render-Oregon-to-Neon RTT
-        // measurement (real number requested, not an estimate — free-tier
-        // Render has no SSH/one-off-job access to measure this any other
-        // way). Times conn.isValid(2), which still sends a real round trip
-        // to Neon even over an already-pooled connection. Remove once the
-        // region fix lands and this number is no longer needed.
-        try {
-            long start = System.nanoTime();
-            try (Connection conn = dataSource.getConnection()) {
-                boolean ok = conn.isValid(2);
-                long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-                if (ok) {
-                    return ResponseEntity.ok(Map.of("status", "ok", "db", "up", "dbPingMs", elapsedMs));
-                }
+        try (Connection conn = dataSource.getConnection()) {
+            if (conn.isValid(2)) {
+                return ResponseEntity.ok(Map.of("status", "ok", "db", "up"));
             }
         } catch (Exception e) {
             // fall through to the down response below
