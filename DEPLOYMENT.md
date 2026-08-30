@@ -447,32 +447,40 @@ unverified:
   `Response` objects) caused the *entire* deployment to fail silently —
   Vercel kept serving the last good build with no visible error anywhere
   in this repo, only discoverable via `vercel inspect <deployment-id>
-  --logs`. Given that risk on ship day, the call was to cut the feature
-  entirely rather than debug the edge runtime further under deadline.
-- `frontend/middleware.js` was removed. `frontend/api/og-page.js` and
-  `frontend/api/og-image.js` are left in place, unreachable without the
-  middleware that rewrote crawler requests to them, but otherwise
-  complete and were verified working correctly before the middleware
-  issue forced this call: real per-user title/description confirmed live
-  per-route for a crawler UA (a normal browser got the untouched SPA),
-  privacy correctly collapsed a private/nonexistent profile and a
-  network/cold-backend failure into the identical generic fallback, and
-  a public→private flip took effect on the very next request once a
-  caching bug was caught and fixed. The dynamic `@vercel/og` image itself
-  was never confirmed rendering, since the deployment kept failing before
-  it could be tested cleanly.
+  --logs`. `frontend/middleware.js` was removed as a result.
+- With `middleware.js` gone, the next deploy failed too, and this time
+  the error correctly named the real, independent culprit: *"The Edge
+  Function 'api/og-image' is referencing unsupported modules: @vercel:
+  module"* — `@vercel/og` itself does not bundle for the edge runtime in
+  this project's setup, regardless of middleware. `frontend/api/og-image.js`
+  and the `@vercel/og` dependency were removed too.
+- `frontend/api/og-page.js` (no forbidden imports, doesn't block a
+  deploy on its own) is left in place — unreachable without the
+  middleware that used to rewrite crawler requests to it, but otherwise
+  complete and was verified working correctly before both of the above
+  were found: real per-user title/description confirmed live per-route
+  for a crawler UA (a normal browser got the untouched SPA), privacy
+  correctly collapsed a private/nonexistent profile and a network/cold-
+  backend failure into the identical generic fallback, and a
+  public→private flip took effect on the very next request once a
+  caching bug was caught and fixed.
 - The backend halves — `GET /api/social/{userId}/og-summary` and
   `/username/{username}/og-summary` (see `SocialService.publicOgSummary`)
   — are live and harmless to leave running unauthenticated; nothing
   currently calls them from the frontend.
 
-**Next week:** re-add `middleware.js` (the last hand-rolled, no-package
-version, not the `@vercel/edge` one) on its own, deploy it alone, and
-confirm via the GitHub Deployments API (not just git) that the deployment
-actually succeeded before building anything on top of it again. Then
-verify the dynamic image renders and run it through Facebook's Sharing
-Debugger, Twitter/X's Card Validator, and a real Discord paste, for both
-a public and a private profile.
+**Next week:** the image generator needs rebuilding without `@vercel/og`
+— it's confirmed incompatible with this project's edge function setup,
+not worth re-attempting as-is. Re-add `middleware.js` (the last hand-
+rolled, no-package version) on its own first, deploy it alone, and
+confirm via the GitHub Deployments API (not just git) that the
+deployment actually succeeded before building anything on top of it.
+Then build the image (a different renderer, or a Node.js serverless
+function instead of edge, since `@vercel/og`'s failure here was
+edge-runtime-specific and untested against the Node runtime), and run
+the whole thing through Facebook's Sharing Debugger, Twitter/X's Card
+Validator, and a real Discord paste, for both a public and a private
+profile.
 
 ## Known gaps
 
