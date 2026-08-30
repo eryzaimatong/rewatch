@@ -4,6 +4,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -48,6 +50,13 @@ public class SocialController {
     // notifications and emails at other users.
     private static final int MAX_FOLLOWS_PER_HOUR = 60;
 
+    // Unauthenticated (no login at all, see og-summary below) — generous
+    // enough for real crawler traffic (a link posted to a busy Discord
+    // server re-fetches per platform, not per click) while still bounding a
+    // script that scans userIds/usernames purely to find which profiles are
+    // public.
+    private static final int MAX_OG_SUMMARY_PER_MINUTE = 30;
+
     public SocialController(SocialService socialService, NotificationService notificationService,
                             UserRepository userRepo, AchievementService achievementService,
                             ReviewService reviewService, RateLimiterService rateLimiter) {
@@ -72,6 +81,43 @@ public class SocialController {
                     .body(Map.of("status", "error", "message", "Unknown user " + userId));
         }
         return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * The unauthenticated counterpart to profile() above — built for the
+     * /social/:userId OG link-preview image, fetched by a crawler with no
+     * account and no JWT (see the Vercel edge function). Deliberately not
+     * the same payload as profile(): see SocialService.publicOgSummary for
+     * exactly what's excluded and why. A private or nonexistent profile
+     * both 404 identically, same non-fingerprintable shape profile() uses.
+     */
+    @GetMapping("/{userId}/og-summary")
+    public ResponseEntity<?> ogSummary(@PathVariable Long userId, HttpServletRequest request) {
+        if (!rateLimiter.allow("og-summary:" + SecurityUtil.clientIp(request), MAX_OG_SUMMARY_PER_MINUTE, Duration.ofMinutes(1))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("status", "error", "message", "Too many requests. Please slow down."));
+        }
+        Map<String, Object> summary = socialService.publicOgSummary(userId);
+        if (summary == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", "error", "message", "Unknown user " + userId));
+        }
+        return ResponseEntity.ok(summary);
+    }
+
+    /** Same as ogSummary() above, but by username — for the /compare/:username OG image. */
+    @GetMapping("/username/{username}/og-summary")
+    public ResponseEntity<?> ogSummaryByUsername(@PathVariable String username, HttpServletRequest request) {
+        if (!rateLimiter.allow("og-summary:" + SecurityUtil.clientIp(request), MAX_OG_SUMMARY_PER_MINUTE, Duration.ofMinutes(1))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("status", "error", "message", "Too many requests. Please slow down."));
+        }
+        Map<String, Object> summary = socialService.publicOgSummaryByUsername(username);
+        if (summary == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("status", "error", "message", "Unknown user " + username));
+        }
+        return ResponseEntity.ok(summary);
     }
 
     @PostMapping("/follow/{userId}")

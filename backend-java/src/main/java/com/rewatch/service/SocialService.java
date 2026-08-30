@@ -185,6 +185,45 @@ public class SocialService {
         return res;
     }
 
+    /**
+     * A deliberately small, unauthenticated-safe slice of publicProfile() —
+     * built for the OG link-preview image a crawler (Facebook/Twitter/
+     * Discord bot) fetches with no login at all, so it can never go through
+     * the normal authenticated profile() route. Only username, archetype,
+     * the single most distinctive trait, and a rating count — never bio,
+     * pinned content, follower counts, or the full trait vector. A private
+     * (profilePublic=false) or nonexistent user both return null, exactly
+     * like isProfileVisibleTo's null-caller case treats them identically —
+     * no way to distinguish "doesn't exist" from "exists but private" from
+     * the response shape.
+     */
+    public Map<String, Object> publicOgSummary(Long userId) {
+        return ogSummaryFor(userRepo.findById(userId).orElse(null));
+    }
+
+    public Map<String, Object> publicOgSummaryByUsername(String username) {
+        return ogSummaryFor(userRepo.findByUsername(username));
+    }
+
+    private Map<String, Object> ogSummaryFor(User user) {
+        if (user == null || !user.isProfilePublic()) {
+            return null;
+        }
+        Map<Trait, TraitNode> profile = profileService.currentProfile(user.getId());
+        var archetype = archetypeService.classify(profile);
+        Trait topTrait = profile.entrySet().stream()
+                .max(Comparator.comparingDouble(e -> Math.abs(e.getValue().getVal() - 0.5)))
+                .map(Map.Entry::getKey)
+                .orElse(null);
+
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("username", user.getUsername());
+        res.put("archetype", archetype.archetype());
+        res.put("topTrait", topTrait == null ? null : topTrait.label());
+        res.put("ratingCount", ratingRepo.countByUserId(user.getId()));
+        return res;
+    }
+
     /** Resolves User.pinnedTitleIds into real title cards — never fabricated, just whatever's still in the catalog. */
     private List<Map<String, Object>> pinnedTitles(User user) {
         if (user.getPinnedTitleIds() == null || user.getPinnedTitleIds().isBlank()) {
