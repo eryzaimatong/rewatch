@@ -18,4 +18,16 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Vercel Edge Middleware/Functions, not part of the Vite/browser build —
+    // these run in Vercel's own edge runtime, which exposes standard Web
+    // APIs (fetch, Request/Response, URL) plus `process.env` for project
+    // env vars, not the browser globals above.
+    files: ['middleware.js', 'api/**/*.{js,jsx}'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: { ...globals.browser, process: 'readonly' },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+  },
 ])

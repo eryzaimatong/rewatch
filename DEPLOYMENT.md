@@ -432,6 +432,49 @@ it's the rollback safety net.
 
 C1 is done and verified live.
 
+## Per-route Open Graph previews
+
+`/compare/:username` and `/social/:userId` are the two shareable links the
+viral loop depends on — a link posted to a group chat or Discord needs a
+preview specific to that user, not the generic homepage card every route
+got before this. Since crawlers don't execute JS, the SPA's client-rendered
+`<title>`/meta was never going to reach them; the fix runs entirely at the
+edge, before any of that:
+
+1. `frontend/middleware.js` (Vercel Edge Middleware) matches only those two
+   routes and checks the request's User-Agent against a crawler allowlist
+   (facebookexternalhit, Twitterbot, Discordbot, Slackbot, WhatsApp,
+   LinkedInBot, TelegramBot). A real visitor's browser never matches, and
+   falls straight through to the normal SPA via `next()`.
+2. A matched crawler request is rewritten (URL unchanged, same as any
+   Vercel rewrite) to `frontend/api/og-page.js`, which builds a minimal
+   static HTML document with real per-route `og:title`/`og:description`/
+   `og:image` — fetched from the new unauthenticated
+   `GET /api/social/{userId}/og-summary` (or `/username/{username}/...`
+   for compare) backend endpoint, a deliberately small slice of the profile
+   (username, archetype, top trait, rating count — see
+   `SocialService.publicOgSummary`'s own comment for exactly what's
+   excluded).
+3. `og:image` points at `frontend/api/og-image.jsx`, which renders an
+   actual 1200x630 PNG via `@vercel/og`, porting `shareCard.js`'s existing
+   card design (same gradient, purple accent, footer tagline/wordmark)
+   into the landscape link-preview shape instead of inventing a new look.
+
+Privacy: a private (`profilePublic=false`) profile and a nonexistent one
+both make `og-summary` 404 identically, and `og-page.js` collapses that —
+along with a network error or a timed-out cold backend — into the exact
+same fully generic fallback (the static `/og-image.png`, the homepage
+title/description). No username, archetype, or count ever appears for a
+private profile, and a crawler hitting a cold Render instance gets the
+generic card instead of an error or a hang (a short server-side timeout in
+`og-page.js` guards this, since Render's free tier can take tens of seconds
+to wake and crawlers keep a much shorter fetch budget than that).
+
+UNVERIFIED as of this writing: the actual rendered previews have not yet
+been checked against Facebook's Sharing Debugger, Twitter/X's Card
+Validator, or a real Discord paste — do that after the next deploy, for
+both a public and a private profile.
+
 ## Known gaps
 
 - Email still doesn't actually send on the current deployment, despite the
