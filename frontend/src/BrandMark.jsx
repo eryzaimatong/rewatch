@@ -48,8 +48,8 @@ export default function BrandMark({ size = 26 }) {
       />
       <defs>
         <linearGradient id="brandmark-gradient" x1="0" y1="0" x2="32" y2="32">
-          <stop offset="0%" stopColor="#c084fc" />
-          <stop offset="100%" stopColor="#7c3aed" />
+          <stop offset="0%" stopColor="#7db4ff" />
+          <stop offset="100%" stopColor="#1d4ed8" />
         </linearGradient>
       </defs>
     </svg>

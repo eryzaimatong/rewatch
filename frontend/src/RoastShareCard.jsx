@@ -91,7 +91,7 @@ export default function RoastShareCard({ userId, username, onClose }) {
       c.stroke();
 
       y += 34;
-      c.fillStyle = "#a855f7";
+      c.fillStyle = "#3b82f6";
       c.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
       c.fillText("THE RECEIPTS", CARD_W / 2, y);
 

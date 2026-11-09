@@ -3,7 +3,7 @@
 // Shared by every export-to-PNG flow (TasteProfile's card, Wrapped's card)
 // so the two don't drift out of sync.
 export function drawBrandMark(ctx, cx, cy, r) {
-  ctx.strokeStyle = "#a855f7";
+  ctx.strokeStyle = "#3b82f6";
   ctx.lineWidth = 1.4;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -19,7 +19,7 @@ export function drawBrandMark(ctx, cx, cy, r) {
   }
 
   ctx.globalAlpha = 0.85;
-  ctx.fillStyle = "#a855f7";
+  ctx.fillStyle = "#3b82f6";
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / 10;

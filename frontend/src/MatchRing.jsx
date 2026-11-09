@@ -30,7 +30,7 @@ function colorForScore(score) {
   const t = Math.max(0, Math.min(1, score / 100));
   const lightness = 38 + t * 30; // 38% (dim) -> 68% (bright)
   const saturation = 55 + t * 30; // 55% -> 85%
-  return `hsl(271, ${saturation}%, ${lightness}%)`;
+  return `hsl(217, ${saturation}%, ${lightness}%)`;
 }
 
 export default function MatchRing({ score, size = 44 }) {

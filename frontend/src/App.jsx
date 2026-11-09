@@ -9,9 +9,11 @@ import ErrorBoundary from "./ErrorBoundary";
 import RouteLoading from "./RouteLoading";
 import CommandPalette from "./CommandPalette";
 import { IconSearch } from "./Icons";
+import { IconHome, IconBookmark, IconUsers, IconDna } from "./RailIcons";
 import { getToken, clearSession, applyAccentColor, isAdmin } from "./auth";
 import { applyAccessibilityPrefs } from "./accessibility";
 import "./App.css";
+import "./redesign.css";
 
 // Code-split: everything past the login screen. Login is the one route every
 // signed-out visitor needs on first paint, so it stays a static import; every
@@ -66,8 +68,48 @@ function NavLinks({ linkClassName }) {
   );
 }
 
+// Left icon rail (desktop) — icon-only with a hover label, like the tablet
+// concept in the design board. The text NavLinks above still drive the
+// mobile bottom bar.
+const RAIL_ITEMS = [
+  { to: "/", end: true, label: "Home Feed", Icon: IconHome },
+  { to: "/watchlist", label: "My Watchlist", Icon: IconBookmark },
+  { to: "/community", label: "Community", Icon: IconUsers },
+  { to: "/profile", label: "TasteDNA Profile", Icon: IconDna }
+];
+
+function openPalette() {
+  window.dispatchEvent(new CustomEvent("rewatch:open-command-palette"));
+}
+
+function Rail() {
+  return (
+    <aside className="rail">
+      <NavLink to="/" className="rail-logo" aria-label="Re:Watch home">
+        <BrandMark size={34} />
+      </NavLink>
+      <nav className="rail-nav" aria-label="Primary">
+        <button type="button" className="rail-link" data-label="Search" onClick={openPalette} aria-label="Search titles">
+          <IconSearch />
+        </button>
+        {RAIL_ITEMS.map(({ to, end, label, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            data-label={label}
+            aria-label={label}
+            className={({ isActive }) => `rail-link${isActive ? " active" : ""}`}
+          >
+            <Icon />
+          </NavLink>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
 function AppShell({ onLogout }) {
-  const navLinkClass = ({ isActive }) => `app-nav-link${isActive ? " active" : ""}`;
   const mobileNavLinkClass = ({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`;
   // Keys the CSS entrance animation below (.route-transition, App.css) —
   // every distinct pathname remounts the wrapper div fresh, so switching
@@ -81,6 +123,12 @@ function AppShell({ onLogout }) {
   // prefers-reduced-motion rule, unlike a framer-motion animation, which is
   // JS/WAAPI-driven and that rule doesn't reach.
   const location = useLocation();
+  // Lets CSS drop #root's page-width cap while the rail shell is mounted
+  // (login/legal pages keep the narrow centered layout).
+  useEffect(() => {
+    document.body.classList.add("has-shell");
+    return () => document.body.classList.remove("has-shell");
+  }, []);
   const userid = localStorage.getItem("userId");
   const username = localStorage.getItem("username") || "You";
   // localStorage writes elsewhere (Settings.jsx's upload/remove) don't trigger
@@ -99,46 +147,39 @@ function AppShell({ onLogout }) {
   }, []);
 
   return (
-    <div>
+    <div className="shell">
       {/* Visually hidden until focused — the first Tab stop for a keyboard
-          user, letting them jump past the header/nav straight to the page
-          content instead of tabbing through three nav links every time. */}
+          user, letting them jump past the nav straight to the page content. */}
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
-      <header className="app-header">
-        <NavLink to="/" className="brand-mark">
-          <BrandMark />
-          RE:WATCH
-          <span className="brand-tagline header-tagline">Stories chosen for how you feel.</span>
-        </NavLink>
+      <Rail />
 
-        <nav className="app-nav" aria-label="Primary">
-          <NavLinks linkClassName={navLinkClass} />
-        </nav>
+      <div className="shell-main">
+        <header className="topbar">
+          <NavLink to="/" className="brand-mark topbar-brand">
+            <BrandMark />
+            RE:WATCH
+          </NavLink>
+          <span className="topbar-tagline">Stories chosen for how you feel.</span>
 
-        <div className="app-header-actions" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
-          {/* Was display:none below 860px with no other way to reach title
-              search on mobile at all — not hard to find, not there. Same
-              button, same handler; below 860px it shows a real "Search"
-              label instead of the Ctrl+K hint, which is meaningless on a
-              touchscreen with no physical keyboard. */}
-          <button
-            type="button"
-            className="command-palette-trigger"
-            onClick={() => window.dispatchEvent(new CustomEvent("rewatch:open-command-palette"))}
-            aria-label="Search titles"
-            title="Search titles"
-          >
-            <IconSearch />
-            <span className="command-palette-trigger-label">Search</span>
-            <kbd className="command-palette-trigger-kbd">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K</kbd>
-          </button>
-          <NotificationBell userId={userid} />
-          <AccountMenu userId={userid} username={username} avatarUrl={avatarUrl} onLogout={onLogout} />
-        </div>
-      </header>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="command-palette-trigger"
+              onClick={openPalette}
+              aria-label="Search titles"
+              title="Search titles"
+            >
+              <IconSearch />
+              <span className="command-palette-trigger-label">Search</span>
+              <kbd className="command-palette-trigger-kbd">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K</kbd>
+            </button>
+            <NotificationBell userId={userid} />
+            <AccountMenu userId={userid} username={username} avatarUrl={avatarUrl} onLogout={onLogout} />
+          </div>
+        </header>
 
-      <div id="main-content" tabIndex={-1} style={{ paddingTop: "20px", outline: "none" }}>
+      <div id="main-content" tabIndex={-1} style={{ outline: "none" }}>
         <div key={location.pathname} className="route-transition">
           <Routes>
             <Route path="/" element={<MovieFeed />} />
@@ -158,7 +199,8 @@ function AppShell({ onLogout }) {
         </div>
       </div>
 
-      <Footer />
+        <Footer />
+      </div>
 
       {/* Bottom tab bar — only shown below the mobile breakpoint (see App.css).
           The top nav stays in the DOM for larger viewports; both share the
