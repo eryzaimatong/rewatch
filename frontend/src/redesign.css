@@ -1,0 +1,392 @@
+/* ==========================================================================
+   RE:WATCH — Midnight redesign layer
+   Loaded after App.css. Tokens (navy surfaces, blue primary) live in App.css
+   :root; this file only restyles structure, inspired by the "Inspo" board:
+   cinematic full-bleed hero, glowing pill CTAs, pill-label shelf headings
+   with a rule line, rounded glass-bordered cards, deep indigo atmosphere.
+   ========================================================================== */
+
+body {
+  background:
+    radial-gradient(1100px 600px at 80% -10%, rgba(var(--primary-rgb), 0.28), transparent 60%),
+    radial-gradient(900px 500px at 0% 10%, rgba(var(--glow-rgb), 0.1), transparent 60%),
+    linear-gradient(180deg, #060d26 0%, var(--background) 45%, var(--background-deep) 100%);
+  background-attachment: fixed;
+}
+
+/* ---------- Header: floating capsule nav + glowing pill search ---------- */
+
+.app-header {
+  /* Fades into the page instead of reading as a boxed bar. */
+  background: linear-gradient(180deg, rgba(5, 11, 31, 0.92) 0%, rgba(5, 11, 31, 0.6) 70%, transparent 100%);
+  border-bottom: 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.brand-mark {
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.app-nav {
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(15, 27, 61, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.app-nav-link {
+  border-radius: 999px;
+  padding: 8px 16px;
+  letter-spacing: 0.01em;
+}
+
+.app-nav-link.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  box-shadow: 0 0 18px rgba(var(--primary-rgb), 0.55);
+}
+
+.command-palette-trigger {
+  height: 40px;
+  min-width: 190px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(var(--primary-rgb), 0.65);
+  background: rgba(15, 27, 61, 0.6);
+  box-shadow: 0 0 16px rgba(var(--primary-rgb), 0.22), inset 0 0 12px rgba(var(--primary-rgb), 0.08);
+}
+
+.command-palette-trigger:hover {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 22px rgba(var(--primary-rgb), 0.4);
+}
+
+.command-palette-trigger-label {
+  display: inline;
+}
+
+.command-palette-trigger-kbd {
+  margin-left: auto;
+  border-radius: 999px;
+}
+
+/* ---------- Buttons: pill-shaped primaries with a glow ---------- */
+
+.btn-primary {
+  border-radius: 999px;
+  box-shadow: 0 0 22px rgba(var(--primary-rgb), 0.4);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 34px rgba(var(--primary-rgb), 0.6);
+}
+
+/* ---------- Cinematic hero (Tonight's Pick) ---------- */
+
+.cinema-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(420px, 62vh, 640px);
+  margin-bottom: var(--sp-5);
+  border: 1px solid var(--border-strong);
+  border-radius: 32px;
+  background: var(--surface);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(var(--primary-rgb), 0.08),
+    0 0 60px rgba(var(--primary-rgb), 0.12);
+  animation: rewatch-hero-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cinema-hero-art {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 70% 25%;
+  filter: saturate(1.05) contrast(1.05);
+}
+
+/* Navy wash: solid on the text side, clear on the art side, deep at the
+   base — keeps the title legible over any backdrop. */
+.cinema-hero-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(5, 11, 31, 0.96) 0%, rgba(5, 11, 31, 0.78) 38%, rgba(5, 11, 31, 0.1) 78%),
+    linear-gradient(0deg, rgba(5, 11, 31, 0.95) 0%, transparent 45%),
+    radial-gradient(600px 300px at 0% 100%, rgba(var(--primary-rgb), 0.35), transparent 70%);
+}
+
+.cinema-hero-body {
+  width: min(640px, 100%);
+  padding: clamp(24px, 5vw, 56px);
+  text-align: left;
+}
+
+.cinema-hero-eyebrow {
+  display: inline-block;
+  margin: 0 0 14px;
+  padding: 6px 14px;
+  border: 1px solid rgba(var(--primary-rgb), 0.5);
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), 0.16);
+  color: var(--primary-light);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.cinema-hero-title {
+  margin: 0 0 14px;
+  color: #fff;
+  font-size: clamp(2.4rem, 7vw, 5rem);
+  font-style: italic;
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow: 0 6px 40px rgba(var(--primary-rgb), 0.45);
+  overflow-wrap: anywhere;
+}
+
+.cinema-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cinema-hero-meta > span {
+  padding: 0 12px;
+  border-left: 1px solid var(--border-strong);
+}
+
+.cinema-hero-meta > span:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.cinema-hero-match {
+  color: var(--glow);
+}
+
+.cinema-hero-synopsis {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0 0 22px;
+  color: #c5d2f0;
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.cinema-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cinema-cta,
+.cinema-ghost {
+  min-height: 48px;
+  padding: 0 26px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cinema-cta {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary) 60%, var(--glow));
+  box-shadow: 0 0 28px rgba(var(--primary-rgb), 0.6), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.cinema-cta:hover {
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary) 60%, var(--glow));
+  box-shadow: 0 0 40px rgba(var(--primary-rgb), 0.85), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.cinema-ghost {
+  border: 1.5px solid rgba(var(--primary-light-rgb), 0.55);
+  color: #fff;
+  background: rgba(5, 11, 31, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.cinema-ghost:hover {
+  background: rgba(var(--primary-rgb), 0.25);
+}
+
+.cinema-save.is-saved {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* ---------- Greeting / mood-search panel: quieter glass ---------- */
+
+.feed-hero {
+  border-color: var(--border-strong);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 85% 10%, rgba(var(--primary-rgb), 0.22), transparent 40%),
+    linear-gradient(135deg, rgba(11, 21, 48, 0.9), rgba(6, 13, 34, 0.9));
+}
+
+.feed-hero input[type="text"] {
+  border: 1.5px solid rgba(var(--primary-rgb), 0.55);
+  background: rgba(5, 11, 31, 0.6);
+  box-shadow: 0 0 18px rgba(var(--primary-rgb), 0.18);
+}
+
+/* ---------- Shelves: pill label + rule line (see "Actor List :" in inspo) ---------- */
+
+.shelf-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: var(--sp-2);
+}
+
+.shelf-pill {
+  flex: 0 0 auto;
+  padding: 8px 20px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.45);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shelf-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--primary-light-rgb), 0.7), transparent);
+}
+
+.shelf-title {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
+
+/* Desktop shelves scroll sideways like a streaming carousel. */
+.recommendation-grid.shelf-row {
+  display: flex;
+  gap: 22px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 6px 4px 18px;
+  margin: 0 -4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--primary-rgb), 0.5) transparent;
+}
+
+.recommendation-grid.shelf-row > .recommendation-card {
+  flex: 0 0 min(290px, 78vw);
+  scroll-snap-align: start;
+}
+
+/* ---------- Cards: rounded, glass-bordered ---------- */
+
+.recommendation-card {
+  border: 1.5px solid rgba(var(--primary-rgb), 0.28);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(15, 27, 61, 0.92), rgba(8, 16, 40, 0.95));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.recommendation-card:hover {
+  border-color: rgba(var(--primary-light-rgb), 0.7);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 32px rgba(var(--primary-rgb), 0.3);
+}
+
+.recommendation-poster {
+  margin: 10px 10px 0;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+/* ---------- Chips & pills ---------- */
+
+.pill.active,
+.chip.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  box-shadow: 0 0 14px rgba(var(--primary-rgb), 0.4);
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 899px) {
+  .cinema-hero {
+    min-height: 520px;
+    border-radius: 24px;
+  }
+
+  .cinema-hero-shade {
+    background:
+      linear-gradient(0deg, rgba(5, 11, 31, 0.98) 8%, rgba(5, 11, 31, 0.55) 55%, rgba(5, 11, 31, 0.15) 100%),
+      radial-gradient(500px 260px at 0% 100%, rgba(var(--primary-rgb), 0.35), transparent 70%);
+  }
+
+  .cinema-hero-actions .cinema-cta {
+    flex: 1 1 100%;
+  }
+
+  .mobile-bottom-nav {
+    background: rgba(5, 11, 31, 0.92);
+    border-top: 1px solid var(--border-strong);
+  }
+}
+
+@media (max-width: 859px) {
+  .command-palette-trigger {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding-left: var(--sp-2);
+    padding-right: var(--sp-2);
+    gap: 8px;
+  }
+
+  .command-palette-trigger-label,
+  .command-palette-trigger-kbd {
+    display: none;
+  }
+
+  .command-palette-trigger {
+    min-width: 44px;
+    padding: 0 12px;
+  }
+}

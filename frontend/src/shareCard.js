@@ -118,17 +118,17 @@ export const CARD_H = 960;
 export function drawCardFrame(ctx, eyebrowText) {
   const grad = ctx.createLinearGradient(0, 0, CARD_W, CARD_H);
   grad.addColorStop(0, "#1f2029");
-  grad.addColorStop(1, "#14151a");
+  grad.addColorStop(1, "#0b1530");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
-  ctx.strokeStyle = "rgba(168,85,247,0.5)";
+  ctx.strokeStyle = "rgba(59,130,246,0.5)";
   ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, CARD_W - 2, CARD_H - 2);
 
   drawBrandMark(ctx, CARD_W / 2, 56, 16);
 
   ctx.textAlign = "center";
-  ctx.fillStyle = "#a855f7";
+  ctx.fillStyle = "#3b82f6";
   ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
   ctx.fillText(eyebrowText, CARD_W / 2, 100);
 }
@@ -141,7 +141,7 @@ export function drawCardFooter(ctx) {
   ctx.fillStyle = "#71717a";
   ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
   ctx.fillText("Stories chosen for how you feel.", CARD_W / 2, CARD_H - 56);
-  ctx.fillStyle = "#a855f7";
+  ctx.fillStyle = "#3b82f6";
   ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
   ctx.fillText("RE:WATCH", CARD_W / 2, CARD_H - 36);
 }

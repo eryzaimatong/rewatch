@@ -59,7 +59,7 @@ function ShareCardModal({
 
         <TraitRadar
           traits={radarTraits}
-          primary={{ label: "Your TasteDNA", color: "#a855f7", values: radarValues, confidences: radarConfidences }}
+          primary={{ label: "Your TasteDNA", color: "#3b82f6", values: radarValues, confidences: radarConfidences }}
           size={220}
         />
 
@@ -361,7 +361,7 @@ export default function TasteProfile() {
             <TraitRadar
               svgId="profile-radar-svg"
               traits={radarTraits}
-              primary={{ label: "Your TasteDNA", color: "#a855f7", values: radarValues, confidences: radarConfidences }}
+              primary={{ label: "Your TasteDNA", color: "#3b82f6", values: radarValues, confidences: radarConfidences }}
               size={360}
               className="taste-panel-radar"
             />

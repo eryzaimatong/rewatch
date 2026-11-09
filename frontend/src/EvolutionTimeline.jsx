@@ -19,7 +19,7 @@ import { BASE } from "./api";
  * screen — see `assignment` below.
  */
 
-const LINE_COLORS = ["#a855f7", "#d95926", "#199e70"];
+const LINE_COLORS = ["#3b82f6", "#d95926", "#199e70"];
 const MAX_LINES = 3;
 
 const W = 640;

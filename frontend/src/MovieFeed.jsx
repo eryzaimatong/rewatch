@@ -13,7 +13,7 @@ import { IconEye, IconFlame, IconShuffle, IconFilmCheck } from "./Icons";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-const FALLBACK_POSTER = "https://placehold.co/500x750/191a21/a855f7?text=Re:Watch";
+const FALLBACK_POSTER = "https://placehold.co/500x750/0b1530/3b82f6?text=Re:Watch";
 
 // Set once, permanently — either the user dismisses the prompt outright or
 // completes the refinement itself. Either way, a returning user shouldn't
@@ -244,6 +244,17 @@ function normalizeMovie(item, index) {
       item?.original_language ??
       null,
   };
+}
+
+// Wide art for the cinematic hero — falls back to the poster when a title has
+// no backdrop, so the hero never renders an empty frame.
+function getBackdropUrl(movie) {
+  if (typeof movie.backdropPath === "string" && movie.backdropPath.trim()) {
+    if (movie.backdropPath.startsWith("http")) return movie.backdropPath;
+    const path = movie.backdropPath.startsWith("/") ? movie.backdropPath : `/${movie.backdropPath}`;
+    return `https://image.tmdb.org/t/p/w1280${path}`;
+  }
+  return getPosterUrl(movie);
 }
 
 function getPosterUrl(movie) {
@@ -909,13 +920,16 @@ export default function MovieFeed() {
 
     return (
       <div style={{ marginBottom: "var(--sp-5)" }}>
+        <div className="shelf-head">
+          <span className="shelf-pill">{eyebrow}</span>
+          <span className="shelf-rule" aria-hidden="true" />
+        </div>
         <div style={{ marginBottom: "var(--sp-2)" }}>
-          <p className="section-eyebrow">{eyebrow}</p>
-          <h2 style={{ fontSize: "1.4rem", margin: "0 0 4px 0" }}>{title}</h2>
+          <h2 className="shelf-title">{title}</h2>
           <p style={{ margin: 0, fontSize: "0.82rem" }}>{subtitle}</p>
         </div>
 
-        <div className="recommendation-grid">
+        <div className="recommendation-grid shelf-row">
           {items.map((movie, index) => {
             const isSaved = Boolean(saveditemsbymovieid[String(movie.id)]);
             const watchStatus = movie.titleId ? watchstatusbymovieid[String(movie.titleId)] : undefined;
@@ -1076,6 +1090,51 @@ export default function MovieFeed() {
 
   return (
     <main className="movie-feed">
+      {movies.length > 0 && (
+        <section className="cinema-hero" aria-label="Tonight's pick">
+          <img
+            src={getBackdropUrl(movies[0])}
+            alt=""
+            aria-hidden="true"
+            className="cinema-hero-art"
+            onError={handlePosterError}
+          />
+          <div className="cinema-hero-shade" aria-hidden="true" />
+          <div className="cinema-hero-body">
+            <p className="cinema-hero-eyebrow">Tonight's Pick</p>
+            <h2 className="cinema-hero-title">{movies[0].title}</h2>
+            <p className="cinema-hero-meta">
+              {movies[0].matchScore != null && (
+                <span className="cinema-hero-match"><span className="mono">{Math.round(movies[0].matchScore)}%</span> match</span>
+              )}
+              {movies[0].year && <span>{movies[0].year}</span>}
+              {movies[0].genres.slice(0, 3).map((g) => (
+                <span key={g}>{g}</span>
+              ))}
+            </p>
+            <p className="cinema-hero-synopsis">
+              {movies[0].synopsis || "No synopsis is available for this title yet."}
+            </p>
+            <div className="cinema-hero-actions">
+              <button type="button" className="cinema-cta" onClick={() => handleTrailer(movies[0])}>
+                <span aria-hidden="true">▶</span> Watch trailer
+              </button>
+              <button type="button" className="cinema-ghost" onClick={() => handleDetails(movies[0])}>
+                Why this?
+              </button>
+              <button
+                type="button"
+                className={`cinema-ghost cinema-save ${saveditemsbymovieid[String(movies[0].id)] ? "is-saved" : ""}`}
+                onClick={() => handleSave(movies[0])}
+                aria-label={saveditemsbymovieid[String(movies[0].id)] ? "Saved to watchlist" : "Save to watchlist"}
+              >
+                {saveditemsbymovieid[String(movies[0].id)] ? "✓ Saved" : "+ Save"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="feed-hero" style={{ textAlign: "center" }}>
         <p className="hero-eyebrow">
           TONIGHT'S STORY MATCH
@@ -1203,44 +1262,6 @@ export default function MovieFeed() {
           </div>
         )}
 
-        {movies.length > 0 && (
-          <div className="tonight-pick-card">
-            <img
-              src={getPosterUrl(movies[0])}
-              alt=""
-              aria-hidden="true"
-              className="tonight-pick-backdrop"
-              onError={handlePosterError}
-            />
-            <div className="tonight-pick-overlay">
-              <div className="tonight-pick-body">
-                <p className="section-eyebrow" style={{ textAlign: "left" }}>Tonight's Pick</p>
-                <h2>{movies[0].title}</h2>
-                <p className="movie-synopsis">
-                  {movies[0].synopsis || "No synopsis is available for this title yet."}
-                </p>
-                <div className="movie-actions">
-                  <button type="button" className="trailer-button" onClick={() => handleTrailer(movies[0])}>
-                    <span aria-hidden="true">▶</span> Watch trailer
-                  </button>
-                  <button type="button" className="details-button" onClick={() => handleDetails(movies[0])}>
-                    Why this?
-                  </button>
-                  <button
-                    type="button"
-                    className={`tonight-pick-save-button ${saveditemsbymovieid[String(movies[0].id)] ? "is-saved" : ""}`}
-                    onClick={() => handleSave(movies[0])}
-                  >
-                    {saveditemsbymovieid[String(movies[0].id)] ? "✓ Saved" : "+ Save"}
-                  </button>
-                </div>
-              </div>
-              <div className="tonight-pick-ring">
-                <MatchRing score={movies[0].matchScore} size={56} />
-              </div>
-            </div>
-          </div>
-        )}
       </section>
 
       {!refinementDismissed && (

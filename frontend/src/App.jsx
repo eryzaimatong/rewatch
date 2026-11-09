@@ -12,6 +12,7 @@ import { IconSearch } from "./Icons";
 import { getToken, clearSession, applyAccentColor, isAdmin } from "./auth";
 import { applyAccessibilityPrefs } from "./accessibility";
 import "./App.css";
+import "./redesign.css";
 
 // Code-split: everything past the login screen. Login is the one route every
 // signed-out visitor needs on first paint, so it stays a static import; every
