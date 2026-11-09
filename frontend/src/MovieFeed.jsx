@@ -5,6 +5,7 @@ import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
 import TasteRefinement from "./TasteRefinement";
 import DailyDoubleFeature from "./DailyDoubleFeature";
+import { CinemaHero, TitleStrip, SpotlightWheel } from "./Cinema";
 import MatchRing from "./MatchRing";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -1091,48 +1092,25 @@ export default function MovieFeed() {
   return (
     <main className="movie-feed">
       {movies.length > 0 && (
-        <section className="cinema-hero" aria-label="Tonight's pick">
-          <img
-            src={getBackdropUrl(movies[0])}
-            alt=""
-            aria-hidden="true"
-            className="cinema-hero-art"
-            onError={handlePosterError}
-          />
-          <div className="cinema-hero-shade" aria-hidden="true" />
-          <div className="cinema-hero-body">
-            <p className="cinema-hero-eyebrow">Tonight's Pick</p>
-            <h2 className="cinema-hero-title">{movies[0].title}</h2>
-            <p className="cinema-hero-meta">
-              {movies[0].matchScore != null && (
-                <span className="cinema-hero-match"><span className="mono">{Math.round(movies[0].matchScore)}%</span> match</span>
-              )}
-              {movies[0].year && <span>{movies[0].year}</span>}
-              {movies[0].genres.slice(0, 3).map((g) => (
-                <span key={g}>{g}</span>
-              ))}
-            </p>
-            <p className="cinema-hero-synopsis">
-              {movies[0].synopsis || "No synopsis is available for this title yet."}
-            </p>
-            <div className="cinema-hero-actions">
-              <button type="button" className="cinema-cta" onClick={() => handleTrailer(movies[0])}>
-                <span aria-hidden="true">▶</span> Watch trailer
-              </button>
-              <button type="button" className="cinema-ghost" onClick={() => handleDetails(movies[0])}>
-                Why this?
-              </button>
-              <button
-                type="button"
-                className={`cinema-ghost cinema-save ${saveditemsbymovieid[String(movies[0].id)] ? "is-saved" : ""}`}
-                onClick={() => handleSave(movies[0])}
-                aria-label={saveditemsbymovieid[String(movies[0].id)] ? "Saved to watchlist" : "Save to watchlist"}
-              >
-                {saveditemsbymovieid[String(movies[0].id)] ? "✓ Saved" : "+ Save"}
-              </button>
-            </div>
-          </div>
-        </section>
+        <CinemaHero
+          movies={movies}
+          backdropOf={getBackdropUrl}
+          posterOf={getPosterUrl}
+          onPosterError={handlePosterError}
+          onTrailer={handleTrailer}
+          onDetails={handleDetails}
+          onSave={handleSave}
+          isSaved={(m) => Boolean(saveditemsbymovieid[String(m.id)])}
+        />
+      )}
+
+      {movies.length > 1 && (
+        <TitleStrip
+          movies={movies.slice(1)}
+          backdropOf={getBackdropUrl}
+          onPosterError={handlePosterError}
+          onDetails={handleDetails}
+        />
       )}
 
       <section className="feed-hero" style={{ textAlign: "center" }}>
@@ -1263,6 +1241,16 @@ export default function MovieFeed() {
         )}
 
       </section>
+
+      {movies.length >= 3 && (
+        <SpotlightWheel
+          movies={movies.length >= 8 ? movies.slice(3) : movies}
+          posterOf={getPosterUrl}
+          onPosterError={handlePosterError}
+          onTrailer={handleTrailer}
+          onDetails={handleDetails}
+        />
+      )}
 
       {!refinementDismissed && (
         <div className="moment-card refinement-prompt">
