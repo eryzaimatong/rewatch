@@ -19,8 +19,8 @@ import "./App.css";
 // accentColor javadoc). Swatch hexes mirror what App.css defines for each
 // [data-accent] value.
 const ACCENT_OPTIONS = [
-  { key: "purple", label: "Purple", swatch: "#a855f7" },
-  { key: "blue", label: "Blue", swatch: "#3b82f6" },
+  { key: "purple", label: "Midnight", swatch: "#3b82f6" },
+  { key: "blue", label: "Sky", swatch: "#38bdf8" },
   { key: "orange", label: "Orange", swatch: "#f97316" },
   { key: "emerald", label: "Emerald", swatch: "#10b981" }
 ];
@@ -28,7 +28,7 @@ const ACCENT_OPTIONS = [
 // A skin for your own /social/:id page only — see User.profileTheme. Swatch
 // gradients mirror what App.css's [data-profile-theme] overrides actually paint.
 const PROFILE_THEME_OPTIONS = [
-  { key: "cinema", label: "Cinema", swatch: "linear-gradient(135deg, #14151a, #7e22ce)" },
+  { key: "cinema", label: "Cinema", swatch: "linear-gradient(135deg, #0b1530, #1d4ed8)" },
   { key: "vhs", label: "VHS", swatch: "linear-gradient(135deg, #1a1425, #be185d)" },
   { key: "dreamy", label: "Dreamy", swatch: "linear-gradient(135deg, #2e1a47, #f0abfc)" },
   { key: "midnight", label: "Midnight", swatch: "linear-gradient(135deg, #020617, #1d4ed8)" },
@@ -799,7 +799,7 @@ export default function Settings() {
         <section className="feed-section">
           <p className="section-eyebrow">Appearance</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
-            Personalizes buttons, links, and active chips. Your TasteDNA chart stays purple either way.
+            Personalizes buttons, links, and active chips. Your TasteDNA chart stays blue either way.
           </p>
           <div className="accent-swatch-row">
             {ACCENT_OPTIONS.map((opt) => (

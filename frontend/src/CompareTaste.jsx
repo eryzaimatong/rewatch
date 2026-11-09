@@ -33,7 +33,7 @@ const SAMPLE_VALUES = {
 };
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
-const FALLBACK_POSTER = "https://placehold.co/200x300/191a21/a855f7?text=Re:Watch";
+const FALLBACK_POSTER = "https://placehold.co/200x300/0b1530/3b82f6?text=Re:Watch";
 
 function posterUrl(path) {
   if (!path) return FALLBACK_POSTER;
@@ -200,7 +200,7 @@ export default function CompareTaste() {
         c.stroke();
 
         y += 34;
-        c.fillStyle = "#a855f7";
+        c.fillStyle = "#3b82f6";
         c.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
         c.fillText("WHAT YOU SHARE", CARD_W / 2, y);
 
@@ -259,7 +259,7 @@ export default function CompareTaste() {
                   </p>
                   <TraitRadar
                     traits={SAMPLE_TRAITS}
-                    primary={{ label: "Cozy Nostalgic", color: "#a855f7", values: SAMPLE_VALUES }}
+                    primary={{ label: "Cozy Nostalgic", color: "#3b82f6", values: SAMPLE_VALUES }}
                     size={220}
                   />
                   <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "8px" }}>

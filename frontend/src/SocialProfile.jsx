@@ -23,7 +23,7 @@ function toMatchPercent(cosine) {
 }
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
-const FALLBACK_POSTER = "https://placehold.co/200x300/191a21/a855f7?text=Re:Watch";
+const FALLBACK_POSTER = "https://placehold.co/200x300/0b1530/3b82f6?text=Re:Watch";
 
 const TRAIT_ORDER = [
   "nostalgia", "family", "growth", "comfort", "pacing",
@@ -96,16 +96,16 @@ export default function SocialProfile() {
 
     const grad = ctx.createLinearGradient(0, 0, cardW, cardH);
     grad.addColorStop(0, "#1f2029");
-    grad.addColorStop(1, "#14151a");
+    grad.addColorStop(1, "#0b1530");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, cardW, cardH);
-    ctx.strokeStyle = "rgba(168,85,247,0.5)";
+    ctx.strokeStyle = "rgba(59,130,246,0.5)";
     ctx.lineWidth = 2;
     ctx.strokeRect(1, 1, cardW - 2, cardH - 2);
 
     drawBrandMark(ctx, cardW / 2, 56, 16);
     ctx.textAlign = "center";
-    ctx.fillStyle = "#a855f7";
+    ctx.fillStyle = "#3b82f6";
     ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText("RE:WATCH CURATED SHELF", cardW / 2, 100);
 
@@ -144,7 +144,7 @@ export default function SocialProfile() {
     ctx.fillStyle = "#71717a";
     ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
-    ctx.fillStyle = "#a855f7";
+    ctx.fillStyle = "#3b82f6";
     ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
 
@@ -358,7 +358,7 @@ export default function SocialProfile() {
 
         <TraitRadar
           traits={radarTraits}
-          primary={{ label: profile.username, color: "#a855f7", values: radarValues }}
+          primary={{ label: profile.username, color: "#3b82f6", values: radarValues }}
           secondary={canCompare ? { label: "You", color: COMPARE_COLOR, values: myValues } : undefined}
           size={280}
         />
