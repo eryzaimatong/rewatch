@@ -55,7 +55,7 @@ function StarPicker({ value, onChange }) {
           style={{
             background: "none", border: "none", padding: "2px", cursor: "pointer",
             fontSize: "1.3rem", lineHeight: 1,
-            color: value >= n ? "var(--primary-light, #c4b5fd)" : "var(--text-faint)"
+            color: value >= n ? "var(--primary-light, #d6c9f5)" : "var(--text-faint)"
           }}
         >
           {value >= n ? "★" : "☆"}
@@ -182,11 +182,11 @@ export default function CompareTaste() {
       c.font = "bold 64px 'Plus Jakarta Sans', sans-serif";
       c.fillText(`${result.compatibilityPercent}%`, CARD_W / 2, startY);
 
-      c.fillStyle = "#71717a";
+      c.fillStyle = "#93a0be";
       c.font = "14px 'Plus Jakarta Sans', sans-serif";
       c.fillText(`compatible with @${result.targetUsername}`, CARD_W / 2, startY + 30);
 
-      c.fillStyle = "#e4e4e7";
+      c.fillStyle = "#dfe8fb";
       c.font = "bold 22px 'Plus Jakarta Sans', sans-serif";
       let y = wrapText(c, result.headline, CARD_W / 2, startY + 90, CARD_W - 100, 30);
 
@@ -205,7 +205,7 @@ export default function CompareTaste() {
         c.fillText("WHAT YOU SHARE", CARD_W / 2, y);
 
         y += 32;
-        c.fillStyle = "#e4e4e7";
+        c.fillStyle = "#dfe8fb";
         c.font = "16px 'Plus Jakarta Sans', sans-serif";
         result.sharedTraits.forEach((label) => {
           c.fillText(label, CARD_W / 2, y);
@@ -260,7 +260,7 @@ export default function CompareTaste() {
                   <TraitRadar
                     traits={SAMPLE_TRAITS}
                     primary={{ label: "Cozy Nostalgic", color: "#45c5b4", values: SAMPLE_VALUES }}
-                    size={220}
+                    size={340}
                   />
                   <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "8px" }}>
                     "You gravitate toward warmth, memory, and low-anxiety worlds."

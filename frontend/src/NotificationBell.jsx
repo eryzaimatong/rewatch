@@ -113,7 +113,7 @@ export default function NotificationBell({ userId }) {
         ref={triggerRef}
         className="notification-bell"
         onClick={togglepanel}
-        aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
+        aria-label={unread > 0 ? `${unread > 9 ? "9+" : unread} unread notifications` : "Notifications"}
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path

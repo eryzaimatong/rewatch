@@ -55,7 +55,7 @@ function MiniCard({ movie, onOpen, action }) {
         </div>
       </button>
       <div className="mini-card-body">
-        <h4>{movie.title}</h4>
+        <h3>{movie.title}</h3>
         {action}
       </div>
     </article>
@@ -618,6 +618,7 @@ export default function Dashboard() {
 
                 <div className="auth-field" style={{ marginBottom: "10px" }}>
                   <select
+                    aria-label={`Move ${item.title} to a shelf`}
                     value={item.folderId ?? ""}
                     onChange={(e) => moveitem(item.id, e.target.value ? Number(e.target.value) : null)}
                     style={{ fontSize: "0.78rem", padding: "8px 10px" }}

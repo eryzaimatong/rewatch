@@ -30,9 +30,9 @@ const TRAIT_ORDER = [
   "hope", "bitter", "humor", "romance", "intensity"
 ];
 
-// Matches the validated pair in TraitRadar.jsx: purple (primary) vs
-// --cyan (#0284c7, secondary) — same color MovieModal uses for its own/movie
-// comparison radar, kept consistent across every "your DNA vs X" chart.
+// Matches the pair in TraitRadar.jsx: Teal (primary) vs --cyan (Periwinkle,
+// secondary) — the same color MovieModal uses for its comparison radar, kept
+// consistent across every "your DNA vs X" chart.
 const COMPARE_COLOR = "var(--cyan)";
 
 // Below this, a profile is still mostly the neutral 0.5 default (see
@@ -56,6 +56,7 @@ export default function SocialProfile() {
   const [myProfile, setmyProfile] = useState(null);
   const [loading, setloading] = useState(true);
   const [err, seterr] = useState("");
+  const [loaderror, setloaderror] = useState(false);
   const [followBusy, setfollowBusy] = useState(false);
   const [showblockconfirm, setshowblockconfirm] = useState(false);
   const [showreport, setshowreport] = useState(false);
@@ -201,6 +202,11 @@ export default function SocialProfile() {
 
     if (profileRes && profileRes.ok) {
       setprofile(await profileRes.json());
+    } else if (!profileRes || profileRes.status >= 500 || profileRes.status === 429) {
+      // A dead connection or a server error is not "no such person" — saying
+      // so would send someone to doubt a perfectly good link.
+      seterr("Couldn't load this profile right now. Check your connection and try again.");
+      setloaderror(true);
     } else {
       seterr("Could not find that profile.");
     }
@@ -269,7 +275,15 @@ export default function SocialProfile() {
   }
 
   if (!profile) {
-    return <div className="feed-state">{err || "Profile not found."}</div>;
+    return (
+      <div className="social-profile-page page-shell--wide">
+        {loaderror ? (
+          <ErrorState title="Couldn't load this profile" message={err} onRetry={() => { setloaderror(false); seterr(""); setloading(true); load(); }} />
+        ) : (
+          <EmptyState mood="lost" headingLevel={1} title="Profile not found" message={err || "That profile doesn't exist, or it isn't public."} />
+        )}
+      </div>
+    );
   }
 
   const radarTraits = TRAIT_ORDER.map((key) => ({ key, label: profile.traits?.[key]?.label || key }));
@@ -284,12 +298,12 @@ export default function SocialProfile() {
   }
 
   return (
-    <div className="social-profile-page" data-profile-theme={profile.profileTheme || "cinema"}>
+    <div className="social-profile-page page-shell--wide" data-profile-theme={profile.profileTheme || "cinema"}>
       <section className="feed-section">
         <div className="social-profile-header">
           <Avatar username={profile.username} avatarUrl={profile.avatarUrl} avatarFrame={profile.avatarFrame} large size={64} />
           <div>
-            <h2 style={{ margin: 0 }}>{profile.username}</h2>
+            <h1 className="social-profile-name">{profile.username}</h1>
             {profile.nickname && <p className="social-profile-nickname">{profile.nickname}</p>}
             {profile.bio && <p className="social-profile-bio">{profile.bio}</p>}
             {profile.profileSong && (
@@ -342,7 +356,7 @@ export default function SocialProfile() {
                 <button
                   type="button"
                   className="auth-toggle-link"
-                  style={{ fontSize: "0.76rem", background: "none", border: "none", color: "#f87171" }}
+                  style={{ fontSize: "0.76rem", background: "none", border: "none", color: "var(--danger)" }}
                   onClick={() => setshowblockconfirm(true)}
                 >
                   Block
@@ -360,7 +374,7 @@ export default function SocialProfile() {
           traits={radarTraits}
           primary={{ label: profile.username, color: "#45c5b4", values: radarValues }}
           secondary={canCompare ? { label: "You", color: COMPARE_COLOR, values: myValues } : undefined}
-          size={280}
+          size={440}
         />
         {!profile.isSelf && !canCompare && (
           <p style={{ color: "var(--text-faint)", fontSize: "0.78rem", marginTop: "8px" }}>
@@ -384,7 +398,7 @@ export default function SocialProfile() {
                       <div className="poster-gradient" />
                     </div>
                     <div className="mini-card-body">
-                      <h4>{t.title}</h4>
+                      <h3>{t.title}</h3>
                     </div>
                   </article>
                 ))}
@@ -454,7 +468,7 @@ export default function SocialProfile() {
                       <div className="poster-gradient" />
                     </div>
                     <div className="mini-card-body">
-                      <h4>{item.title}</h4>
+                      <h3>{item.title}</h3>
                       {list.collaborative && item.addedByUsername && (
                         <p style={{ margin: "2px 0 0", fontSize: "0.68rem", color: "var(--text-faint)" }}>
                           added by @{item.addedByUsername}
@@ -502,7 +516,7 @@ export default function SocialProfile() {
         {reviewserr ? (
           <ErrorState message={reviewserr} onRetry={load} />
         ) : reviews.length === 0 ? (
-          <EmptyState message="No reviews written yet." />
+          <EmptyState compact mood="loading" message="No reviews written yet." />
         ) : (
           <div className="activity-feed">
             {reviews.map((r) => (

@@ -13,6 +13,7 @@ export default function NotFound() {
       <div className="page-panel">
         <EmptyState
           mood="lost"
+          headingLevel={1}
           title="Page not found"
           message="There's nothing here — the link might be broken, or the page may have moved."
           action={

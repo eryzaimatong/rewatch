@@ -1317,3 +1317,506 @@ a.btn-primary {
 @media (max-width: 899px) {
   .feed-heading-row { flex-direction: column; align-items: flex-start !important; }
 }
+
+/* ==========================================================================
+   Real-data hardening (found by driving the real backend)
+   ========================================================================== */
+
+/* Hero without a backdrop: blurred glow + crisp poster card */
+.cx-hero-stage[data-art="poster"] .cx-hero-art {
+  width: 100%;
+  object-position: center;
+  filter: blur(46px) saturate(1.25) brightness(0.55);
+  transform: scale(1.4);
+}
+
+.cx-hero-poster {
+  position: absolute;
+  right: clamp(56px, 9vw, 150px);
+  top: 50%;
+  z-index: 0;
+  height: min(78%, 560px);
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border: 1px solid rgba(184, 230, 213, 0.28);
+  border-radius: 26px;
+  background: var(--surface-soft);
+  box-shadow: 0 40px 90px rgba(4, 9, 22, 0.65), 0 0 0 6px rgba(184, 230, 213, 0.06);
+  transform: translateY(-50%) rotate(2.5deg);
+}
+
+.cx-hero-stage[data-art="poster"] .cx-hero-shade {
+  background:
+    linear-gradient(90deg, var(--background) 0%, rgba(16, 27, 53, 0.94) 30%, rgba(16, 27, 53, 0.35) 62%, rgba(16, 27, 53, 0.1) 100%),
+    linear-gradient(0deg, rgba(16, 27, 53, 0.9), transparent 40%);
+}
+
+/* Why-it-fits cards */
+.cx-trait { display: flex; flex-direction: column; gap: 8px; padding: 22px; min-height: 230px; flex-basis: clamp(240px, 21vw, 290px); }
+.cx-trait-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cx-trait-kind { color: var(--teal); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.cx-trait.is-tension .cx-trait-kind { color: var(--cyan); }
+.cx-trait-value { position: static; padding: 4px 12px; border-radius: 999px; color: var(--text); background: rgba(var(--primary-rgb), 0.18); font-size: 0.82rem; font-weight: 700; }
+.cx-trait.is-tension .cx-trait-value { background: rgba(var(--cyan-rgb), 0.2); }
+.cx-trait h3 { margin: 6px 0 0; font-size: 1.25rem; letter-spacing: -0.03em; }
+.cx-trait p { margin: 0; color: var(--text-muted); font-size: 0.86rem; line-height: 1.5; }
+
+.cx-meters { display: grid; gap: 8px; margin-top: auto; padding-top: 14px; }
+.cx-meter { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 10px; color: var(--text-faint); font-size: 0.72rem; font-weight: 600; }
+.cx-meter i { position: relative; display: block; height: 6px; border-radius: 999px; background: rgba(184, 230, 213, 0.14); }
+.cx-meter i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--v); border-radius: inherit; background: var(--teal); }
+.cx-meter.is-story i::after { background: var(--cyan); }
+
+/* Thumbnail strip: portrait cards when there's no landscape art */
+.cx-thumb.is-poster { flex-basis: clamp(150px, 13vw, 190px); }
+.cx-thumb.is-poster .cx-thumb-frame { aspect-ratio: 2 / 3; border-radius: 22px; }
+
+/* Shelves: exactly four cards across on desktop (no clipped fifth), horizontal
+   scroll below that. */
+.recommendation-grid.shelf-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, calc((100% - 66px) / 4));
+  gap: 22px;
+  align-items: stretch;
+}
+
+.recommendation-grid.shelf-row > .recommendation-card { flex: none; }
+
+/* Cards: body stretches so the actions line up across a row */
+.recommendation-card { display: flex; flex-direction: column; }
+.recommendation-body { flex: 1; min-height: 0; }
+.recommendation-body .movie-actions { margin-top: auto; padding-top: 18px; }
+.recommendation-body .fit-panel { margin-top: 16px; margin-bottom: 0; }
+.movie-synopsis {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* "Why this fits" rows: label left, value right */
+.fit-panel li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 10px 7px 28px; border-radius: 10px; background: rgba(184, 230, 213, 0.05); }
+.fit-panel li::before { left: 10px; top: 7px; }
+.contribution-label { min-width: 0; }
+.contribution-value { flex: 0 0 auto; font-family: var(--font-mono); font-size: 0.74rem; font-weight: 700; }
+.contribution-row.is-driver .contribution-value { color: var(--mint); }
+.contribution-row.is-tension .contribution-value { color: var(--coral); }
+
+@media (max-width: 899px) {
+  /* Poster-mode hero on phones/tablets: poster on top, copy below — stacked in
+     normal flow so the two can never overlap at any width. */
+  .cx-hero-stage[data-art="poster"] {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    min-height: 0;
+    padding-top: 28px;
+  }
+  .cx-hero-stage[data-art="poster"] .cx-hero-poster {
+    position: relative;
+    right: auto;
+    top: auto;
+    align-self: center;
+    height: clamp(260px, 42vh, 400px);
+    margin: 0 auto 8px;
+    transform: rotate(2deg);
+  }
+  .cx-hero-stage[data-art="poster"] .cx-hero-art { height: 100%; }
+  .cx-hero-stage[data-art="poster"] .cx-hero-copy { padding-top: 16px; }
+  .cx-hero-stage[data-art="poster"] .cx-tab { top: 18%; }
+  .recommendation-grid.shelf-row { grid-auto-columns: min(78vw, 290px); }
+}
+
+/* ==========================================================================
+   PAGE SYSTEM — wider pages, section cards, page heroes
+   ========================================================================== */
+
+.page-shell--wide { max-width: 1180px; padding: 0; margin: var(--sp-2) auto var(--sp-6); }
+
+.taste-card {
+  padding: clamp(20px, 2.6vw, 32px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(4, 9, 22, 0.35);
+}
+
+/* ---------- TasteDNA profile ---------- */
+
+.taste-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-3);
+  padding: clamp(24px, 4vw, 52px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(560px 320px at 92% 30%, rgba(var(--primary-rgb), 0.2), transparent 70%),
+    radial-gradient(420px 280px at 0% 0%, rgba(var(--cyan-rgb), 0.12), transparent 70%),
+    var(--surface);
+  box-shadow: 0 30px 80px rgba(4, 9, 22, 0.4);
+}
+
+.taste-hero h1 { margin: 0 0 14px; font-size: clamp(1.4rem, 2.4vw, 1.9rem); color: var(--text-muted); font-weight: 600; letter-spacing: -0.02em; }
+
+.taste-archetype {
+  margin: 0 0 8px;
+  color: var(--mint);
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.taste-hero-blurb { max-width: 54ch; margin: 0 0 14px; color: #cbd6ee; font-size: 1.02rem; }
+
+.taste-confidence {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.taste-panel-intro { margin: 8px 0 22px; color: var(--text-faint); font-size: 0.86rem; }
+.taste-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.taste-actions button { min-height: 48px; padding: 0 22px; border-radius: 14px; }
+.taste-hero-ree { width: clamp(130px, 14vw, 190px); height: auto; }
+
+.taste-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); margin-bottom: var(--sp-3); }
+.taste-radar-card { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.taste-radar-card .taste-panel-radar { width: 100%; max-width: 440px; height: auto; margin: 0 auto; }
+.taste-section-title { margin: 0 0 var(--sp-2); font-size: 1.3rem; letter-spacing: -0.03em; }
+.taste-trait-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0 !important; }
+.taste-footer { display: flex; justify-content: flex-end; margin-top: var(--sp-3); }
+
+.trait-card { border-radius: 20px; background: var(--surface-soft); }
+.trait-bar-fill { background: linear-gradient(90deg, var(--primary-dark), var(--teal)); border-radius: 999px; }
+.trait-bar-track { border-radius: 999px; }
+.trait-percent { font-family: var(--font-mono); font-weight: 700; color: var(--mint); }
+
+@media (max-width: 899px) {
+  .taste-hero { grid-template-columns: 1fr; text-align: left; }
+  .taste-hero-ree { order: -1; width: 120px; }
+  .taste-grid { grid-template-columns: 1fr; }
+  .taste-trait-grid { grid-template-columns: 1fr; }
+  .taste-actions button { flex: 1 1 100%; }
+}
+
+.taste-evolve-card .timeline-card { padding: 0; border: 0; background: none; box-shadow: none; }
+.taste-radar-card .taste-panel-radar { max-width: 600px; }
+
+.taste-panel-radar .radar-axis-label { font-size: 0.9rem; font-weight: 600; }
+
+/* Compact empty state: Ree beside the message, for lists inside a page */
+.empty-state-copy { display: contents; }
+.empty-state--compact {
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  padding: 20px 24px;
+  text-align: left;
+}
+.empty-state--compact .empty-state-copy { display: block; }
+.empty-state--compact .state-ree { margin: 0; }
+.empty-state--compact p { margin: 0; max-width: 60ch; }
+@media (max-width: 560px) {
+  .empty-state--compact { flex-direction: column; text-align: center; }
+}
+
+/* ---------- Settings: grouped, with side navigation ---------- */
+
+.settings-page {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-areas: "head head" "nav body";
+  gap: var(--sp-3) var(--sp-4);
+  align-items: start;
+}
+
+.settings-head { grid-area: head; }
+.settings-head h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -0.045em; }
+.settings-nav { grid-area: nav; position: sticky; top: 92px; display: grid; gap: 6px; margin: 0; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); box-shadow: none; }
+.settings-body { grid-area: body; margin: 0; padding: clamp(20px, 3vw, 36px); }
+
+.settings-nav-item {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+}
+.settings-nav-item span { color: var(--text); font-size: 0.95rem; font-weight: 700; }
+.settings-nav-item small { color: var(--text-faint); font-size: 0.74rem; font-weight: 500; }
+.settings-nav-item:hover { background: rgba(var(--primary-rgb), 0.1); transform: none; }
+.settings-nav-item.is-active { background: rgba(var(--primary-rgb), 0.16); box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), 0.45); }
+.settings-nav-item.is-active span { color: var(--mint); }
+
+/* Only the active group's sections are shown */
+.settings-page[data-active="profile"] .settings-body section[data-group]:not([data-group="profile"]),
+.settings-page[data-active="account"] .settings-body section[data-group]:not([data-group="account"]),
+.settings-page[data-active="look"] .settings-body section[data-group]:not([data-group="look"]),
+.settings-page[data-active="privacy"] .settings-body section[data-group]:not([data-group="privacy"]),
+.settings-page[data-active="taste"] .settings-body section[data-group]:not([data-group="taste"]) { display: none; }
+
+.settings-body .feed-section { padding: 0 0 var(--sp-3); margin-bottom: var(--sp-3); border-bottom: 1px solid var(--border); }
+.settings-body .feed-section:last-of-type { border-bottom: 0; }
+
+@media (max-width: 899px) {
+  .settings-page { grid-template-columns: 1fr; grid-template-areas: "head" "nav" "body"; }
+  .settings-nav { position: static; display: flex; overflow-x: auto; gap: 6px; padding: 8px; }
+  .settings-nav-item { flex: 0 0 auto; padding: 10px 16px; }
+  .settings-nav-item small { display: none; }
+}
+
+/* ---------- Community: search + matches + collections | activity ---------- */
+
+.community-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
+  padding-top: var(--sp-2);
+}
+
+.community-page > .feed-section { margin: 0; padding: clamp(20px, 2.4vw, 30px); border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface); }
+.community-page > .feed-section:nth-of-type(4) { grid-column: 2; grid-row: 1 / span 3; position: sticky; top: 92px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.community-page h2 { margin: 0 0 6px; font-size: 1.55rem; letter-spacing: -0.04em; }
+.community-page .section-eyebrow + h2 + p { margin: 0 0 var(--sp-2); color: var(--text-muted); font-size: 0.9rem; }
+
+.dna-match-card {
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  background: var(--surface-soft);
+}
+
+.dna-match-card:hover { border-color: rgba(var(--primary-rgb), 0.55); }
+
+@media (max-width: 1000px) {
+  .community-page { grid-template-columns: 1fr; }
+  .community-page > .feed-section:nth-of-type(4) { grid-column: 1; grid-row: auto; position: static; max-height: none; }
+}
+
+/* ---------- Achievements / Wrapped: wide, three-up ---------- */
+
+.achievement-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.achievement-card { border-radius: 20px; background: var(--surface-soft); }
+.achievement-card.is-unlocked { border-color: rgba(var(--primary-rgb), 0.6); background: linear-gradient(160deg, rgba(var(--primary-rgb), 0.16), var(--surface-soft)); }
+@media (max-width: 1000px) { .achievement-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .achievement-grid { grid-template-columns: 1fr; } }
+
+.wrapped-month-picker { border-radius: 999px; }
+
+/* Reset the global `nav span` pill rule inside the settings nav */
+.settings-nav .settings-nav-item span,
+.settings-nav .settings-nav-item small {
+  display: block;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+}
+.community-page .section-eyebrow + h2 { margin-bottom: 10px; }
+
+/* ---------- Page hero (Achievements, Wrapped, …) ---------- */
+
+.page-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: clamp(20px, 3vw, 34px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(420px 240px at 95% 40%, rgba(var(--primary-rgb), 0.18), transparent 70%),
+    var(--surface-soft);
+}
+
+.page-hero h1 { margin: 0 0 10px; font-size: clamp(1.9rem, 4vw, 3rem); letter-spacing: -0.05em; }
+.page-hero-sub { margin: 10px 0 0; color: var(--text-muted); font-size: 0.92rem; }
+.page-hero-ree { width: clamp(88px, 10vw, 120px); height: auto; }
+.page-hero-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.page-hero-meter { height: 8px; max-width: 420px; border-radius: 999px; background: rgba(184, 230, 213, 0.14); overflow: hidden; }
+.page-hero-meter i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary-dark), var(--teal), var(--mint)); }
+
+.page-panel .feed-section { margin-bottom: var(--sp-4); }
+.page-panel .section-eyebrow { margin-bottom: 12px; }
+
+@media (max-width: 640px) {
+  .page-hero { grid-template-columns: 1fr; }
+  .page-hero-ree { display: none; }
+}
+
+/* Visually hidden but available to screen readers (page-level h1s) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Locked achievements: dimmed by surface, never by opacity (opacity drops text below AA contrast) */
+.achievement-card:not(.is-unlocked) { background: rgba(10, 18, 38, 0.5); border-style: dashed; }
+.achievement-card:not(.is-unlocked) .achievement-badge { filter: grayscale(0.6); }
+.settings-nav-item.is-active small { color: var(--text-muted); }
+
+/* ---------- Touch: 44px hit areas without changing the visual design ---------- */
+@media (pointer: coarse) {
+  .app-footer a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; }
+  .auth-eye-toggle { min-width: 44px; min-height: 44px; }
+  .auth-toggle-link { display: inline-flex; align-items: center; min-height: 44px; }
+  .topbar-brand { display: inline-flex; align-items: center; min-height: 44px; }
+  .cx-dot { position: relative; }
+  .cx-dot::after { content: ""; position: absolute; inset: -17px -9px; }
+  .timeline-legend-chip { min-height: 36px; padding: 0 14px; }
+  .refinement-prompt-dismiss { min-width: 44px; min-height: 44px; }
+  .pill, .chip { min-height: 40px; }
+  .mood-card { min-height: 44px; }
+}
+
+/* Single-card auth pages (forgot / reset password): one centred column, not the
+   sign-in split stage. */
+.auth-shell:not(:has(> .auth-stage)) {
+  grid-template-columns: minmax(0, 460px);
+  justify-content: center;
+  min-height: 80vh;
+}
+.auth-shell:not(:has(> .auth-stage)) .auth-card-logo { display: block; }
+
+/* ---------- Public profile (what a friend sees) ---------- */
+
+.social-profile-page { padding-top: var(--sp-2); }
+
+.social-profile-page > .feed-section:first-child {
+  margin-bottom: var(--sp-3);
+  padding: clamp(22px, 3.4vw, 40px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(520px 300px at 92% 12%, rgba(var(--primary-rgb), 0.18), transparent 70%),
+    var(--surface);
+  box-shadow: 0 30px 80px rgba(4, 9, 22, 0.4);
+}
+
+.social-profile-name { margin: 0; font-size: clamp(1.9rem, 4vw, 3rem); letter-spacing: -0.05em; line-height: 1; }
+.social-profile-header { gap: var(--sp-3); align-items: flex-start; flex-wrap: wrap; }
+
+.share-card-badge {
+  display: inline-block;
+  margin: 10px 0 12px;
+  padding: 7px 16px;
+  border: 1px solid rgba(var(--primary-rgb), 0.45);
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), 0.14);
+  color: var(--mint);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.social-profile-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.social-profile-counts > span { padding: 5px 14px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; }
+.social-profile-counts .mono { color: var(--text); font-weight: 700; }
+
+.social-profile-page > .feed-section { margin-bottom: var(--sp-3); }
+.social-profile-page .mini-card { border-radius: 20px; }
+
+/* ---------- Dialogs: never clip the top of a tall dialog ---------- */
+
+.modal-overlay {
+  overflow-y: auto;
+  align-items: flex-start;       /* start at the top…            */
+  padding: clamp(12px, 4vh, 40px) var(--sp-2);
+}
+
+.modal-card {
+  margin: auto;                  /* …but centre when it is short */
+  max-height: none;              /* the overlay scrolls, not the card */
+  border-color: var(--border-strong);
+  border-radius: var(--r-lg);
+  background: rgba(22, 35, 63, 0.94);
+  min-height: 0;
+}
+
+.modal-card--narrow { max-width: 460px; }
+
+.modal-close,
+.modal-share-trigger { border-radius: 50%; }
+
+.modal-tab { border-radius: 999px; }
+.modal-tab.active { background: var(--primary); color: var(--on-primary); }
+.modal-header { align-items: flex-start; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-fan-item,
+  .cx-card,
+  .mood-card,
+  .cx-thumb-frame { transition: none; }
+  .ree, .cx-hero-poster { transition: none; }
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  padding: 14px 20px;
+  border: 1px solid rgba(240, 138, 155, 0.5);
+  border-radius: var(--r-md);
+  background: rgba(240, 138, 155, 0.09);
+}
+.offline-banner p { flex: 1; margin: 0; color: var(--text); font-size: 0.92rem; }
+@media (max-width: 640px) { .offline-banner { flex-wrap: wrap; } .offline-banner .btn-primary { width: 100%; } }
+
+/* Radar labels may spill a little into the card padding on phones */
+.radar-figure svg { overflow: visible; }
+
+/* Bottom tab bar: icon over label, no pill borders (global `nav span` rule reset) */
+.mobile-bottom-nav .mobile-nav-link span {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+.mobile-bottom-nav { justify-content: space-around; }
+.mobile-nav-link { gap: 4px; }
+
+/* Settings tabs on phones: left-aligned, one line each */
+.settings-nav .settings-nav-item span,
+.settings-nav .settings-nav-item small { margin: 0; text-align: left; }
+.settings-nav-item { text-align: left; justify-items: start; white-space: nowrap; }
+
+@media (max-width: 899px) {
+  .page-shell--wide > .page-panel { padding: 14px; }
+  .page-shell--wide .page-hero { padding: 18px; }
+}
+
+.inline-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+.inline-error .status-message { margin: 0; }
