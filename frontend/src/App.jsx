@@ -1,6 +1,8 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Login from "./Login";
+import GuestHome from "./GuestHome";
+import { NightStart, NightRoom } from "./Night";
 import Footer from "./Footer";
 import BrandMark, { Logo } from "./BrandMark";
 import NotificationBell from "./NotificationBell";
@@ -244,9 +246,19 @@ function Root() {
               visitor with no account can open a shared link and use it cold. See
               CompatibilityController's own doc comment for the backend half. */}
           <Route path="/compare/:username" element={<main id="main-content"><CompareTaste /></main>} />
+          {/* Public: a friend opens a shared Movie Night link with no account. */}
+          <Route path="/night" element={<NightStart />} />
+          <Route path="/night/:code" element={<NightRoom />} />
           <Route path="/reset-password" element={<main id="main-content"><ResetPassword /></main>} />
           <Route path="/privacy" element={<main id="main-content"><PrivacyPolicy /></main>} />
           <Route path="/terms" element={<main id="main-content"><TermsOfService /></main>} />
+          {/* Signed-out visitors land on the try-before-you-sign-up home;
+              the form itself lives at /login. */}
+          <Route path="/" element={logged ? <AuthenticatedApp onLogout={dologout} /> : <GuestHome />} />
+          <Route
+            path="/login"
+            element={logged ? <Navigate to="/" replace /> : <main id="main-content"><Login onLogin={handlelogin} /></main>}
+          />
           <Route
             path="/*"
             element={logged ? <AuthenticatedApp onLogout={dologout} /> : <main id="main-content"><Login onLogin={handlelogin} /></main>}

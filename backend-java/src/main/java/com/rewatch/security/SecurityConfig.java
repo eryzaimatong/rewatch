@@ -95,6 +95,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/social/*/og-summary",
                         "/api/social/username/*/og-summary")
                     .permitAll()
+                // Movie Night — a friend opens a shared link with no account.
+                // NightController documents the abuse bounds.
+                .requestMatchers(HttpMethod.GET, "/api/nights/questions", "/api/nights/*").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/nights", "/api/nights/*/join").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

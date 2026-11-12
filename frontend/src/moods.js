@@ -13,3 +13,27 @@ export const MOODS = [
   { key: "calm", name: "Calm", blurb: "For softer rhythms and a deep breath.", vibe: "Comfort", ring: "#bfdded", tint: "191,221,237", chips: ["#b8e6d5", "#bfdded"] }
 ];
 
+
+// Which of Ree's poses reacts to each mood the visitor picks.
+export const MOOD_REE_POSE = {
+  happy: "excited",
+  melancholic: "sad",
+  romantic: "lovestory",
+  mysterious: "detective",
+  adventurous: "cinema",
+  calm: "sleepy"
+};
+
+// Ree reacts to what is on screen: the pick's genre decides her pose.
+export function poseForGenres(genres = []) {
+  const g = genres.join(" ").toLowerCase();
+  if (/romance|love/.test(g)) return "lovestory";
+  if (/mystery|thriller|crime|noir/.test(g)) return "detective";
+  if (/horror/.test(g)) return "surprised";
+  if (/comedy|family|animation/.test(g)) return "excited";
+  if (/documentary|history/.test(g)) return "thinking";
+  if (/drama/.test(g)) return "curious";
+  if (/fantasy|science|sci-fi|adventure|action/.test(g)) return "cinema";
+  return "default";
+}
+
