@@ -1,15 +1,15 @@
-import Rey from "./Rey";
+import Ree from "./Ree";
 
 /**
  * Shared error-state shell — same .feed-state shell as EmptyState, but reads
- * as "something broke" rather than "nothing here yet" (title + Rey in his
+ * as "something broke" rather than "nothing here yet" (title + Ree in her
  * error mood + a retry action). Consolidates what MovieFeed.jsx and
  * Dashboard.jsx each hand-rolled slightly differently.
  */
 export default function ErrorState({ title = "Something went off-script.", message, onRetry }) {
   return (
     <div className="feed-state feed-error">
-      <Rey mood="error" size={56} />
+      <Ree mood="error" size={132} className="state-ree" />
       <h3>{title}</h3>
       {message && <p>{message}</p>}
       {onRetry && (

@@ -7,7 +7,7 @@
 // shell, JS/CSS bundles, images) get stale-while-revalidate — instant from
 // cache on repeat visits, refreshed in the background, and available at all
 // if the network drops mid-session.
-const CACHE_NAME = "rewatch-shell-v1";
+const CACHE_NAME = "rewatch-shell-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {

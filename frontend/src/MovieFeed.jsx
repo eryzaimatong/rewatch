@@ -5,7 +5,9 @@ import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
 import TasteRefinement from "./TasteRefinement";
 import DailyDoubleFeature from "./DailyDoubleFeature";
-import { CinemaHero, TitleStrip, SpotlightWheel } from "./Cinema";
+import { CinemaHero, TitleStrip, SpotlightWheel, MoodPicker, MoodResult } from "./Cinema";
+import { MOODS } from "./moods";
+import Ree, { ReeSays } from "./Ree";
 import MatchRing from "./MatchRing";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
@@ -14,7 +16,7 @@ import { IconEye, IconFlame, IconShuffle, IconFilmCheck } from "./Icons";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-const FALLBACK_POSTER = "https://placehold.co/500x750/0b1530/3b82f6?text=Re:Watch";
+const FALLBACK_POSTER = "https://placehold.co/500x750/16233f/45c5b4?text=Re:Watch";
 
 // Set once, permanently — either the user dismisses the prompt outright or
 // completes the refinement itself. Either way, a returning user shouldn't
@@ -895,6 +897,25 @@ export default function MovieFeed() {
   // second genre/language pass), which both duplicated the server's work
   // and was the literal mechanism behind "every filter combo returns zero":
   // two filters compounding on an already-narrow, already-ranked slice.
+  // The mood picker is a friendlier front for the vibe/genre filters the
+  // recommendation API already understands (see MOODS in Cinema.jsx). The
+  // active mood is derived from those two filters, never stored separately,
+  // so a reload or the "clear filters" action can't leave them out of sync.
+  const activeMood =
+    MOODS.find((m) =>
+      m.vibe ? vibe === m.vibe && genrefilter === "All" : genrefilter === m.genre && vibe === "All"
+    ) ?? null;
+
+  function pickMood(m) {
+    if (activeMood?.key === m.key) {
+      setvibe("All");
+      setgenrefilter("All");
+      return;
+    }
+    setvibe(m.vibe ?? "All");
+    setgenrefilter(m.genre ?? "All");
+  }
+
   const visiblemovies = movies;
 
   const shortlist = visiblemovies.slice(0, 4);
@@ -1113,55 +1134,57 @@ export default function MovieFeed() {
         />
       )}
 
-      <section className="feed-hero" style={{ textAlign: "center" }}>
-        <p className="hero-eyebrow">
-          TONIGHT'S STORY MATCH
-        </p>
+      <section
+        className="feed-hero mood-room"
+        data-mood={activeMood?.key ?? "none"}
+        aria-labelledby="mood-heading"
+      >
+        <div className="mood-room-top">
+          <ReeSays pose="default" className="mood-room-says">
+            {moodline || `Good evening, ${username}.`}
+            {hook ? <span className="mood-room-hook"> “{hook}”</span> : null}
+          </ReeSays>
 
-        {streak && streak.current > 0 && (
-          <div
-            className={`streak-badge${streak.activeToday ? "" : " streak-badge--at-risk"}`}
-            title={
-              streak.activeToday
-                ? `Longest streak: ${streak.longest} day${streak.longest === 1 ? "" : "s"}`
-                : "Rate something today to keep it alive"
-            }
-          >
-            {/* One text run, not three — .streak-badge is a flex container with
-                a `gap`, which applies between EVERY direct child box including
-                anonymous ones a bare text node forms. Splitting "2-day streak"
-                into separate nodes inserted a visible gap inside the number
-                itself; nesting the mono span one level deeper avoids it. */}
-            <IconFlame /> <span><span className="mono">{streak.current}</span>-day streak</span>
-            {!streak.activeToday && <span className="streak-badge-nudge">rate something today</span>}
-          </div>
-        )}
-        <h1 style={{
-          fontSize: "clamp(2.2rem, 5.5vw, 3.4rem)",
-          fontWeight: "var(--fw-hero)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1.05,
-          margin: "6px 0"
-        }}>
-          {moodline || `Good evening, ${username}.`}
-        </h1>
-        <p className="hero-description">
-          "{hook}"
-        </p>
+          {streak && streak.current > 0 && (
+            <div
+              className={`streak-badge${streak.activeToday ? "" : " streak-badge--at-risk"}`}
+              title={
+                streak.activeToday
+                  ? `Longest streak: ${streak.longest} day${streak.longest === 1 ? "" : "s"}`
+                  : "Rate something today to keep it alive"
+              }
+            >
+              {/* One text run, not three — .streak-badge is a flex container with
+                  a `gap`, which applies between EVERY direct child box including
+                  anonymous ones a bare text node forms. Nesting the mono span one
+                  level deeper avoids a visible gap inside the number itself. */}
+              <IconFlame /> <span><span className="mono">{streak.current}</span>-day streak</span>
+              {!streak.activeToday && <span className="streak-badge-nudge">rate something today</span>}
+            </div>
+          )}
+        </div>
 
-        <div style={{ position: "relative", maxWidth: "600px", margin: "var(--sp-3) auto" }}>
+        <p className="hero-eyebrow">Mood discovery</p>
+        <h1 id="mood-heading" className="mood-room-title">How do you want to feel tonight?</h1>
+        <p className="hero-description">Start with a feeling, not a genre.</p>
+
+        <MoodPicker activeKey={activeMood?.key} onPick={pickMood} />
+        <MoodResult mood={activeMood} movie={movies[0]} onOpen={handleDetails} />
+
+        <div className="mood-search">
           <div style={{ display: "flex", gap: "10px" }}>
             <input
               type="text"
-              placeholder="e.g. something comforting after exams..."
+              placeholder="Or describe it — something comforting after exams..."
               value={query}
               onChange={(e) => setquery(e.target.value)}
               onFocus={() => setshowsuggestions(true)}
               onBlur={() => setTimeout(() => setshowsuggestions(false), 150)}
               onKeyDown={(e) => e.key === "Enter" && dosearch()}
-              style={{ flex: 1, borderRadius: "24px", margin: 0 }}
+              aria-label="Describe what you feel like watching"
+              className="mood-search-input"
             />
-            <button onClick={() => dosearch()} className="btn-primary" style={{ borderRadius: "24px" }}>
+            <button onClick={() => dosearch()} className="btn-primary mood-search-go">
               Search
             </button>
           </div>
@@ -1254,6 +1277,7 @@ export default function MovieFeed() {
 
       {!refinementDismissed && (
         <div className="moment-card refinement-prompt">
+          <Ree pose="curious" size={96} className="refinement-ree" />
           <button
             type="button"
             className="refinement-prompt-dismiss"

@@ -12,11 +12,12 @@ export default function NotFound() {
     <div className="page-shell">
       <div className="page-panel">
         <EmptyState
+          mood="lost"
           title="Page not found"
           message="There's nothing here — the link might be broken, or the page may have moved."
           action={
             <Link to="/" className="btn-primary" style={{ display: "inline-block", marginTop: "var(--sp-2)" }}>
-              Back to Home Feed
+              Back to home
             </Link>
           }
         />

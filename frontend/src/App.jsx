@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import Login from "./Login";
 import Footer from "./Footer";
-import BrandMark from "./BrandMark";
+import BrandMark, { Logo } from "./BrandMark";
 import NotificationBell from "./NotificationBell";
 import AccountMenu from "./AccountMenu";
 import ErrorBoundary from "./ErrorBoundary";
@@ -13,7 +13,7 @@ import { IconHome, IconBookmark, IconUsers, IconDna } from "./RailIcons";
 import { getToken, clearSession, applyAccentColor, isAdmin } from "./auth";
 import { applyAccessibilityPrefs } from "./accessibility";
 import "./App.css";
-import "./redesign.css";
+import "./brand.css";
 
 // Code-split: everything past the login screen. Login is the one route every
 // signed-out visitor needs on first paint, so it stays a static import; every
@@ -43,39 +43,13 @@ const AdminReports = lazy(() => import("./AdminReports"));
 applyAccentColor(localStorage.getItem("accentColor"));
 applyAccessibilityPrefs();
 
-// The four core destinations someone reaches for every session. Everything
-// periodic or administrative (Wrapped, Achievements, Settings) lives in
-// AccountMenu's dropdown instead — a flat list mixing "where I live" with
-// "things I check once a month" is what made the old 7-item nav feel bloated,
-// especially on the mobile bottom bar, where 7 cramped text labels were
-// barely legible.
-function NavLinks({ linkClassName }) {
-  return (
-    <>
-      <NavLink to="/" end className={linkClassName}>
-        Home Feed
-      </NavLink>
-      <NavLink to="/watchlist" className={linkClassName}>
-        My Watchlist
-      </NavLink>
-      <NavLink to="/community" className={linkClassName}>
-        Community
-      </NavLink>
-      <NavLink to="/profile" className={linkClassName}>
-        TasteDNA Profile
-      </NavLink>
-    </>
-  );
-}
-
 // Left icon rail (desktop) — icon-only with a hover label, like the tablet
-// concept in the design board. The text NavLinks above still drive the
-// mobile bottom bar.
+// concept in the design board. The mobile bottom bar reuses the same items.
 const RAIL_ITEMS = [
-  { to: "/", end: true, label: "Home Feed", Icon: IconHome },
-  { to: "/watchlist", label: "My Watchlist", Icon: IconBookmark },
-  { to: "/community", label: "Community", Icon: IconUsers },
-  { to: "/profile", label: "TasteDNA Profile", Icon: IconDna }
+  { to: "/", end: true, label: "Home Feed", short: "Home", Icon: IconHome },
+  { to: "/watchlist", label: "My Watchlist", short: "Watchlist", Icon: IconBookmark },
+  { to: "/community", label: "Community", short: "Community", Icon: IconUsers },
+  { to: "/profile", label: "TasteDNA Profile", short: "TasteDNA", Icon: IconDna }
 ];
 
 function openPalette() {
@@ -86,7 +60,7 @@ function Rail() {
   return (
     <aside className="rail">
       <NavLink to="/" className="rail-logo" aria-label="Re:Watch home">
-        <BrandMark size={34} />
+        <BrandMark size={30} />
       </NavLink>
       <nav className="rail-nav" aria-label="Primary">
         <button type="button" className="rail-link" data-label="Search" onClick={openPalette} aria-label="Search titles">
@@ -110,8 +84,7 @@ function Rail() {
 }
 
 function AppShell({ onLogout }) {
-  const mobileNavLinkClass = ({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`;
-  // Keys the CSS entrance animation below (.route-transition, App.css) —
+    // Keys the CSS entrance animation below (.route-transition, App.css) —
   // every distinct pathname remounts the wrapper div fresh, so switching
   // tabs reads as a real screen change instead of an abrupt content swap.
   // Plain CSS @keyframes rather than framer-motion here on purpose: App.jsx
@@ -156,9 +129,8 @@ function AppShell({ onLogout }) {
 
       <div className="shell-main">
         <header className="topbar">
-          <NavLink to="/" className="brand-mark topbar-brand">
-            <BrandMark />
-            RE:WATCH
+          <NavLink to="/" className="topbar-brand" aria-label="Re:Watch home">
+            <Logo size={26} />
           </NavLink>
           <span className="topbar-tagline">Stories chosen for how you feel.</span>
 
@@ -204,9 +176,20 @@ function AppShell({ onLogout }) {
 
       {/* Bottom tab bar — only shown below the mobile breakpoint (see App.css).
           The top nav stays in the DOM for larger viewports; both share the
-          same NavLink active-state logic via NavLinks above. */}
+          same RAIL_ITEMS (icon + short label) above. */}
       <nav className="mobile-bottom-nav" aria-label="Primary">
-        <NavLinks linkClassName={mobileNavLinkClass} />
+        {RAIL_ITEMS.map(({ to, end, label, short, Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            aria-label={label}
+            className={({ isActive }) => `mobile-nav-link${isActive ? " active" : ""}`}
+          >
+            <Icon />
+            <span>{short}</span>
+          </NavLink>
+        ))}
       </nav>
 
       <CommandPalette />

@@ -1,5 +1,8 @@
 import { useState } from "react";
 import MatchRing from "./MatchRing";
+import Ree, { ReeSays } from "./Ree";
+import { MOOD_POSES } from "./reeAssets";
+import { MOODS } from "./moods";
 import { IconPlay, IconArrowRight, IconChevron } from "./RailIcons";
 
 /**
@@ -86,9 +89,10 @@ export function CinemaHero({ movies, backdropOf, posterOf, onPosterError, onTrai
               {movie.synopsis || "No synopsis is available for this title yet."}
             </p>
             {drivers.length > 0 && (
-              <p className="cx-because">
-                <span>Fits you because</span> {drivers.slice(0, 2).map((d) => d.label).join(" · ")}
-              </p>
+              <ReeSays pose="thinking" className="cx-ree-take">
+                <strong>Ree’s take:</strong> it pulls you in through{" "}
+                {drivers.slice(0, 2).map((d) => d.label.toLowerCase()).join(" and ")}.
+              </ReeSays>
             )}
             <div className="cx-actions">
               <button type="button" className="cx-cta" onClick={() => onTrailer(movie)}>
@@ -199,16 +203,6 @@ export function SpotlightWheel({ movies, posterOf, onPosterError, onTrailer, onD
       <div className="cx-wheel-stage">
         <div className="cx-dial" aria-hidden="true">
           <div className="cx-dial-rim" />
-          <svg className="cx-dial-text" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMax meet">
-            <defs>
-              <path id="cx-arc" d="M 100 500 A 400 400 0 0 1 900 500" />
-            </defs>
-            <text>
-              <textPath href="#cx-arc" startOffset="50%" textAnchor="middle">
-                RE:WATCH · STORIES CHOSEN FOR HOW YOU FEEL
-              </textPath>
-            </text>
-          </svg>
         </div>
 
         <div className="cx-medallion cx-medallion-l" aria-label={`${Math.round(current.matchScore ?? 0)} percent match`}>
@@ -250,9 +244,62 @@ export function SpotlightWheel({ movies, posterOf, onPosterError, onTrailer, onD
       </div>
 
       <p className="cx-wheel-caption" aria-live="polite">
+        <span className="cx-wheel-kicker">Stories chosen for how you feel</span>
         <strong>{current.title}</strong>
         <span>{[current.year, ...current.genres.slice(0, 2)].filter(Boolean).join(" · ")}</span>
       </p>
     </section>
+  );
+}
+
+export function MoodPicker({ activeKey, onPick }) {
+  return (
+    <div className="mood-picker" role="group" aria-label="How do you want to feel tonight?">
+      {MOODS.map((m) => {
+        const active = activeKey === m.key;
+        return (
+          <button
+            key={m.key}
+            type="button"
+            className={`mood-card${active ? " is-active" : ""}`}
+            aria-pressed={active}
+            onClick={() => onPick(m)}
+            style={{ "--mood-ring": m.ring, "--mood-tint": m.tint }}
+          >
+            <span className="mood-card-photo">
+              <img src={MOOD_POSES[m.key]} alt="" aria-hidden="true" loading="lazy" width="394" height="383" />
+              {active && <span className="mood-card-check" aria-hidden="true">✓</span>}
+            </span>
+            <span className="mood-card-name">{m.name}</span>
+            <span className="mood-card-blurb">{m.blurb}</span>
+            <span className="mood-card-chips" aria-hidden="true">
+              {m.chips.map((c) => (
+                <i key={c} style={{ background: c }} />
+              ))}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** "Your quiet escape: Perfect Days" — the board's mood-result card. */
+export function MoodResult({ mood, movie, onOpen }) {
+  if (!mood || !movie) return null;
+  return (
+    <div className="mood-result" role="status" aria-live="polite">
+      <Ree mood="search" size={72} className="mood-result-ree" />
+      <div>
+        <p className="mood-result-kicker">Your {mood.name.toLowerCase()} pick</p>
+        <h3>{movie.title}</h3>
+        <p className="mood-result-meta">
+          {[movie.year, ...movie.genres.slice(0, 3)].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <button type="button" className="mood-result-open" onClick={() => onOpen(movie)}>
+        See why it fits
+      </button>
+    </div>
   );
 }
