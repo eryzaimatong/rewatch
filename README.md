@@ -30,11 +30,15 @@ Choosing what to watch has turned into scrolling. Recommendation systems optimis
 
 Re:Watch asks a different question — not *"what genre do you like?"* but ***"how do you want to feel?"*** Every title gets an emotional fingerprint, every person gets a **Taste DNA**, and every match score comes with the reasons that produced it.
 
-Meet **Ree**, the app's chameleon companion. Ree shows up where she has something to say — onboarding, mood picking, empty and error states — and never as decoration.
+Meet **Ree**, the app's chameleon companion. Ree is a living part of the page, not a sticker: she floats and breathes, looks toward your cursor, hops when poked, changes pose to match the story on screen (a mystery gets her detective hat), and dozes off if you leave her alone. She shows up where she has something to say — the hero, mood picking, onboarding, empty and error states.
 
 ## Screenshots
 
 <table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/16-try-first.png" alt="Signed-out home: pick a mood and Ree returns real picks, no account needed" /><br /><sub><b>Try it first.</b> No sign-up wall: pick a mood, get real picks. An account is only asked for when you want to keep something.</sub></td>
+    <td width="50%"><img src="docs/screenshots/17-movie-night.png" alt="Movie Night results: three titles chosen fairly for a group, with a fit bar per person" /><br /><sub><b>Movie Night.</b> Friends open one link, answer five questions, and Ree picks three everyone can say yes to.</sub></td>
+  </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/05-mood-picker.png" alt="Mood picker: six feelings, each with its own Ree" /><br /><sub><b>Start with a feeling, not a genre.</b> Six moods drive the recommendation filters.</sub></td>
     <td width="50%"><img src="docs/screenshots/07-match-explained.png" alt="A match explained: radar chart comparing your taste to the title, with the drivers behind the score" /><br /><sub><b>Every match explains itself.</b> Your Taste DNA vs. the story, trait by trait.</sub></td>
@@ -77,6 +81,8 @@ Meet **Ree**, the app's chameleon companion. Ree shows up where she has somethin
 
 ## Features
 
+- **Try before you sign up** — the signed-out home lets anyone pick a mood and see real recommendations immediately; the sign-up prompt only appears when they try to save something.
+- **Movie Night** — a no-account, shareable group pick. Each friend answers five quick mood questions on their own phone; titles are scored per person and ranked by *mean minus spread*, so agreement beats one enthusiastic veto. Nights hold up to 8 people and expire after 24 hours.
 - **Mood discovery** — pick how you want to feel, or describe it in plain language ("something comforting after exams"). Natural-language queries are parsed into the same filters; there is no LLM in the recommendation path.
 - **Taste DNA** — ten storytelling traits (pacing, found family, bittersweet drama, humour…) per person, rebuilt by replaying your rating log rather than mutating a number in place.
 - **Explainable matches** — each score is the sum of per-trait contributions, so the "why this fits" breakdown always adds up to the number shown.
@@ -86,8 +92,6 @@ Meet **Ree**, the app's chameleon companion. Ree shows up where she has somethin
 - **Watchlist** — saved titles, custom shelves, watch status; shelves can be made public and followed.
 - **Playful extras** — "Roast my taste", achievements, rating streaks, a Ctrl+K command palette.
 - **Accessible & installable** — keyboard-first, screen-reader friendly, WCAG 2.1 AA checked with axe-core, reduced-motion and high-contrast options, installable as a PWA.
-
-Planned, not built yet: *Watch Together*.
 
 ## Tech stack
 

@@ -221,11 +221,42 @@ async function main() {
   // Desktop, signed out
   {
     const { context, page } = await newContext(browser, { width: 1440, height: 900 });
-    await page.goto(APP);
+    await page.goto(APP + "/login");
     await page.waitForSelector(".auth-card");
     await settle(page);
     await snap(page, "01-sign-in");
     await context.close();
+  }
+
+  // Desktop, signed out: the try-before-you-sign-up front door
+  {
+    const { context, page } = await newContext(browser, { width: 1440, height: 1000 });
+    await page.goto(APP);
+    await page.waitForSelector(".guest-hero");
+    await settle(page, 1800);
+    await page.locator(".mood-card", { hasText: "Romantic" }).click();
+    await page.waitForSelector(".guest-pick");
+    await settle(page, 2200);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.setViewportSize({ width: 1440, height: 1300 });
+    await snap(page, "16-try-first");
+    await context.close();
+  }
+
+  // Movie Night: two friends answer, the group gets three fair picks
+  {
+    const host = await call("POST", "/api/nights", { body: { name: "Mira", answers: [0, 1, 0, 0, 0] } });
+    const code = host.data?.code;
+    if (code) {
+      await call("POST", `/api/nights/${code}/join`, { body: { name: "Jun", answers: [0, 0, 1, 0, 0] } });
+      const { context, page } = await newContext(browser, { width: 1440, height: 1100 });
+      await page.addInitScript(([c, id]) => localStorage.setItem(`rewatch:night:${c}`, JSON.stringify({ id, name: "Mira" })), [code, host.data.memberId]);
+      await page.goto(`${APP}/night/${code}`);
+      await page.waitForSelector(".night-pick");
+      await settle(page, 2200);
+      await snap(page, "17-movie-night");
+      await context.close();
+    }
   }
 
   // Desktop, brand-new account -> onboarding

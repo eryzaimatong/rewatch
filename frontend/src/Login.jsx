@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { login, register, getApiMeta } from "./api";
 import { saveSession } from "./auth";
 import { Logo } from "./BrandMark";
@@ -23,7 +23,8 @@ export default function Login({ onLogin }) {
   const [password, setpassword] = useState("");
   const [confirmpassword, setconfirmpassword] = useState("");
   const [showpassword, setshowpassword] = useState(false);
-  const [isreg, setisreg] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [isreg, setisreg] = useState(searchParams.get("mode") === "register");
   const [errmsg, seterrmsg] = useState("");
   const [okmsg, setokmsg] = useState("");
   // "ready" | "loading" | "error" — same status enum WakingState.jsx already
@@ -125,6 +126,7 @@ export default function Login({ onLogin }) {
     <div className="auth-shell">
       <aside className="auth-stage" aria-label="Meet Ree">
         <Logo size={34} className="auth-stage-logo" />
+        <Link to="/" className="auth-back">← Try Ree first, no account</Link>
         <div className="auth-stage-ree">
           <Ree variant="canonical" size={420} className="auth-stage-ree-img" />
         </div>

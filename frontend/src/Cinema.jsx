@@ -2,7 +2,7 @@ import { useState } from "react";
 import MatchRing from "./MatchRing";
 import Ree, { ReeSays } from "./Ree";
 import { MOOD_POSES } from "./reeAssets";
-import { MOODS } from "./moods";
+import { MOODS, poseForGenres } from "./moods";
 import { IconPlay, IconArrowRight, IconChevron } from "./RailIcons";
 
 /**
@@ -80,6 +80,8 @@ export function CinemaHero({ movies, backdropOf, posterOf, onPosterError, onTrai
               onError={onPosterError}
             />
           )}
+
+          <Ree pose={poseForGenres(movie.genres)} size={230} className="cx-hero-ree" />
 
           <div className="cx-hero-copy">
             <p className="cx-eyebrow">

@@ -180,6 +180,11 @@ public class Recommender {
      * (the same pool size {@link #mmrRerank} already draws from).
      */
     /** Package-private for direct testing — see RecommenderTest. */
+    /** Well-known, renderable titles for Movie Night's group scoring. */
+    public List<Title> nightCandidates() {
+        return candidatePool(30);
+    }
+
     List<Title> candidatePool(int limit) {
         List<Title> renderable = titleRepo.findRenderable();
         List<Title> wellKnown = renderable.stream()

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus, heroSearch, getApiMeta } from "./api";
 import { authHeaders } from "./auth";
 import MovieModal from "./MovieModal";
@@ -1178,7 +1179,7 @@ export default function MovieFeed() {
 
         <p className="hero-eyebrow">Mood discovery</p>
         <h2 id="mood-heading" className="mood-room-title">How do you want to feel tonight?</h2>
-        <p className="hero-description">Start with a feeling, not a genre.</p>
+        <p className="hero-description">Start with a feeling, not a genre. Deciding with friends? <Link to="/night" className="night-link">Start a Movie Night</Link>.</p>
 
         <MoodPicker activeKey={activeMood?.key} onPick={pickMood} />
         <MoodResult mood={activeMood} movie={movies[0]} onOpen={handleDetails} />
