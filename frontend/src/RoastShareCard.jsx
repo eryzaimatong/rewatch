@@ -74,7 +74,7 @@ export default function RoastShareCard({ userId, username, onClose }) {
 
     drawVerticallyCentered(ctx, 140, CARD_H - 100, (c, startY) => {
       c.textAlign = "center";
-      c.fillStyle = "#71717a";
+      c.fillStyle = "#93a0be";
       c.font = "13px 'Plus Jakarta Sans', sans-serif";
       c.fillText(`@${username}`, CARD_W / 2, startY);
 
@@ -96,7 +96,7 @@ export default function RoastShareCard({ userId, username, onClose }) {
       c.fillText("THE RECEIPTS", CARD_W / 2, y);
 
       y += 34;
-      c.fillStyle = "#e4e4e7";
+      c.fillStyle = "#dfe8fb";
       c.font = "16px 'Plus Jakarta Sans', sans-serif";
       roast.receipts.forEach((line) => {
         y = wrapText(c, line, CARD_W / 2, y, CARD_W - 120, 24);

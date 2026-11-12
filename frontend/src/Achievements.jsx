@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAchievements } from "./api";
+import Ree from "./Ree";
 import "./App.css";
 
 const CATEGORY_LABELS = {
@@ -53,25 +54,29 @@ export default function Achievements() {
   const [loading, setloading] = useState(true);
   const [err, seterr] = useState("");
 
-  useEffect(() => {
-    async function load() {
-      setloading(true);
-      const res = await getAchievements(userid);
-      if (res) {
-        setsummary(res);
-      } else {
-        seterr("Could not load your achievements right now.");
-      }
-      setloading(false);
+  async function load() {
+    setloading(true);
+    seterr("");
+    const res = await getAchievements(userid);
+    if (res) {
+      setsummary(res);
+    } else {
+      seterr("Could not load your achievements right now.");
     }
+    setloading(false);
+  }
+
+  useEffect(() => {
+    // Initial fetch on mount / user change; `load` only touches this component's own state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
     load();
   }, [userid]);
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--wide">
       <div className="page-panel taste-panel">
-        <div className="taste-panel-head">
-          <div>
+        <div className="page-hero">
+          <div className="page-hero-copy">
             <span className="eyebrow">Achievements</span>
             <h1>
               {summary
@@ -80,7 +85,21 @@ export default function Achievements() {
                   </>
                 : "Your Milestones"}
             </h1>
+            {summary && summary.totalCount > 0 && (
+              <div
+                className="page-hero-meter"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={summary.totalCount}
+                aria-valuenow={summary.unlockedCount}
+                aria-label="Achievements unlocked"
+              >
+                <i style={{ width: `${Math.round((summary.unlockedCount / summary.totalCount) * 100)}%` }} />
+              </div>
+            )}
+            <p className="page-hero-sub">Little things you do, noticed. Ree keeps count.</p>
           </div>
+          <Ree pose="celebrating" size={120} className="page-hero-ree" />
         </div>
 
         {loading && (
@@ -90,7 +109,12 @@ export default function Achievements() {
           </div>
         )}
 
-        {err && <p className="status-message status-message--error">{err}</p>}
+        {err && (
+          <div className="inline-error">
+            <p className="status-message status-message--error">{err}</p>
+            <button type="button" onClick={load}>Try again</button>
+          </div>
+        )}
 
         {!loading && summary && groupByCategory(summary.achievements).map(([category, items]) => (
           <section key={category} className="feed-section">

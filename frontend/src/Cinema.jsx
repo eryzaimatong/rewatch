@@ -54,11 +54,16 @@ export function CinemaHero({ movies, backdropOf, posterOf, onPosterError, onTrai
     ...tensions.map((t) => ({ ...t, kind: "tension" }))
   ];
   const saved = isSaved(movie);
+  // Catalog titles carry a poster but usually no landscape backdrop. A tiny
+  // portrait poster stretched over a wide banner is blurry and mis-cropped, so
+  // without a backdrop the poster becomes a crisp card over its own blurred
+  // glow — the way a streaming app handles it.
+  const hasBackdrop = Boolean(movie.backdropPath);
 
   return (
     <>
       <section className="cx-hero" aria-label="Tonight's picks" aria-roledescription="carousel">
-        <div className="cx-hero-stage" key={movie.id}>
+        <div className="cx-hero-stage" key={movie.id} data-art={hasBackdrop ? "backdrop" : "poster"}>
           <img
             src={backdropOf(movie)}
             alt=""
@@ -67,6 +72,14 @@ export function CinemaHero({ movies, backdropOf, posterOf, onPosterError, onTrai
             onError={onPosterError}
           />
           <div className="cx-hero-shade" aria-hidden="true" />
+          {!hasBackdrop && (
+            <img
+              src={posterOf(movie)}
+              alt={`${movie.title} poster`}
+              className="cx-hero-poster"
+              onError={onPosterError}
+            />
+          )}
 
           <div className="cx-hero-copy">
             <p className="cx-eyebrow">
@@ -137,19 +150,31 @@ export function CinemaHero({ movies, backdropOf, posterOf, onPosterError, onTrai
 
       {traitCards.length > 0 && (
         <section className="cx-section" aria-label="Story traits">
-          <SectionHead label="Story traits :" />
+          <SectionHead label="Why it fits you" />
           <div className="cx-scroll">
             {traitCards.map((t) => (
               <article key={`${t.kind}-${t.trait}`} className={`cx-card cx-trait is-${t.kind}`}>
-                <div className="cx-trait-art">
-                  <img src={posterOf(movie)} alt="" aria-hidden="true" loading="lazy" onError={onPosterError} />
+                <header className="cx-trait-head">
+                  <span className="cx-trait-kind">{t.kind === "driver" ? "Pulls you in" : "Pushes back"}</span>
                   <span className="cx-trait-value mono">
                     {t.contribution > 0 ? "+" : ""}
                     {t.contribution.toFixed(1)}
                   </span>
-                </div>
+                </header>
                 <h3>{t.label}</h3>
-                <p>{t.kind === "driver" ? "Pulls you toward it" : "Pushes against your taste"}</p>
+                <p>{t.text ? `${t.text[0].toUpperCase()}${t.text.slice(1)}.` : t.kind === "driver" ? "A strong match for your taste." : "Not quite your usual."}</p>
+                {typeof t.userVal === "number" && typeof t.movieVal === "number" && (
+                  <div className="cx-meters" role="img" aria-label={`You ${Math.round(t.userVal * 100)} percent, this story ${Math.round(t.movieVal * 100)} percent`}>
+                    <div className="cx-meter">
+                      <span>You</span>
+                      <i style={{ "--v": `${Math.round(t.userVal * 100)}%` }} />
+                    </div>
+                    <div className="cx-meter is-story">
+                      <span>This story</span>
+                      <i style={{ "--v": `${Math.round(t.movieVal * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -167,7 +192,12 @@ export function TitleStrip({ movies, backdropOf, onPosterError, onDetails, label
       <SectionHead label={label} />
       <div className="cx-scroll cx-strip">
         {items.map((m, n) => (
-          <button key={m.id} type="button" className="cx-thumb" onClick={() => onDetails(m)}>
+          <button
+            key={m.id}
+            type="button"
+            className={`cx-thumb${m.backdropPath ? "" : " is-poster"}`}
+            onClick={() => onDetails(m)}
+          >
             <span className="cx-thumb-frame">
               <img src={backdropOf(m)} alt="" loading="lazy" onError={onPosterError} />
               <span className="cx-thumb-play" aria-hidden="true"><IconPlay /></span>
@@ -205,10 +235,10 @@ export function SpotlightWheel({ movies, posterOf, onPosterError, onTrailer, onD
           <div className="cx-dial-rim" />
         </div>
 
-        <div className="cx-medallion cx-medallion-l" aria-label={`${Math.round(current.matchScore ?? 0)} percent match`}>
+        <div className="cx-medallion cx-medallion-l" role="group" aria-label={`${Math.round(current.matchScore ?? 0)} percent match`}>
           <MatchRing score={current.matchScore} size={64} />
         </div>
-        <div className="cx-medallion cx-medallion-r" aria-label={`Released ${current.year ?? "unknown"}`}>
+        <div className="cx-medallion cx-medallion-r" role="group" aria-label={`Released ${current.year ?? "unknown"}`}>
           <span className="mono">{current.year ?? "—"}</span>
         </div>
 

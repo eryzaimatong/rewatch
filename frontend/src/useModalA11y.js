@@ -14,6 +14,30 @@ const FOCUSABLE_SELECTOR =
 // AND the movie detail view behind it in one keypress.
 const openModals = [];
 
+// Reference-counted body scroll lock. The old code saved "whatever overflow
+// was set when I mounted" and restored it on unmount, which breaks as soon
+// as two modals overlap and close in a different order than they opened:
+// the second one "restores" the first one's `hidden`, and the page is stuck
+// unscrollable for good. Counting holders means the original value comes
+// back exactly once — when the LAST holder lets go — whatever the order.
+let scrollLockCount = 0;
+let overflowBeforeLock = "";
+
+export function lockBodyScroll() {
+  if (scrollLockCount === 0) {
+    overflowBeforeLock = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  scrollLockCount += 1;
+}
+
+export function unlockBodyScroll() {
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = overflowBeforeLock;
+  }
+}
+
 /**
  * Everything a modal needs to not be a keyboard/screen-reader trap: Escape
  * closes it, Tab cycles only within it, the background can't scroll behind
@@ -34,17 +58,18 @@ export default function useModalA11y(onClose) {
   useEffect(() => {
     triggerElementRef.current = document.activeElement;
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockBodyScroll();
 
     const container = containerRef.current;
     openModals.push(container);
 
     const focusable = container?.querySelectorAll(FOCUSABLE_SELECTOR);
+    // preventScroll: a tall dialog must open scrolled to its TOP, not jump to
+    // wherever the first focusable control happens to sit.
     if (focusable && focusable.length > 0) {
-      focusable[0].focus();
+      focusable[0].focus({ preventScroll: true });
     } else {
-      container?.focus();
+      container?.focus({ preventScroll: true });
     }
 
     function handleKeydown(e) {
@@ -90,7 +115,7 @@ export default function useModalA11y(onClose) {
         openModals.splice(idx, 1);
       }
       document.removeEventListener("keydown", handleKeydown);
-      document.body.style.overflow = previousOverflow;
+      unlockBodyScroll();
       // Restore focus to whatever opened the modal — a sighted mouse user
       // never notices this, but a keyboard user would otherwise land back
       // at the top of the document.

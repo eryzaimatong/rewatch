@@ -84,7 +84,7 @@ export default function AdminReports() {
         {!loading && err && <ErrorState message={err} onRetry={load} />}
 
         {!loading && !err && reports && reports.length === 0 && (
-          <EmptyState title="Nothing open" message="No unresolved reports right now." />
+          <EmptyState mood="success" title="Nothing open" message="No unresolved reports right now." />
         )}
 
         {!loading && !err && reports && reports.length > 0 && (

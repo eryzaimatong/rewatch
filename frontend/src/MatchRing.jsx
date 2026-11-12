@@ -57,6 +57,7 @@ export default function MatchRing({ score, size = 44 }) {
       className="match-ring"
       style={{ width: size, height: size }}
       title={`${clamped}% match`}
+      role="img"
       aria-label={`${clamped} percent match`}
     >
       <svg width={size} height={size} viewBox="0 0 36 36" aria-hidden="true">

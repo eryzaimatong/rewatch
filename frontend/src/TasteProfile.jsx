@@ -4,6 +4,7 @@ import EvolutionTimeline from "./EvolutionTimeline";
 import BrandMark from "./BrandMark";
 import RoastShareCard from "./RoastShareCard";
 import useModalA11y from "./useModalA11y";
+import Ree from "./Ree";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import {
@@ -60,7 +61,7 @@ function ShareCardModal({
         <TraitRadar
           traits={radarTraits}
           primary={{ label: "Your TasteDNA", color: "#45c5b4", values: radarValues, confidences: radarConfidences }}
-          size={220}
+          size={340}
         />
 
         <div className="share-card-traits">
@@ -118,6 +119,7 @@ const FALLBACK_LABELS = {
 
 export default function TasteProfile() {
   const [traits, settraits] = useState({});
+  const [offline, setoffline] = useState(false);
   const [archetype, setarchetype] = useState("Emotional Storyteller");
   const [archetypeBlurb, setarchetypeBlurb] = useState("You enjoy balanced storytelling across multiple emotional tones.");
   const [meanConfidence, setmeanConfidence] = useState(0.1);
@@ -143,6 +145,7 @@ export default function TasteProfile() {
   async function loadprofile() {
     setloading(true);
     seterr("");
+    setoffline(false);
 
     const res = await fetch(`${BASE}/api/tastedna/profile/` + userid, { headers: authHeaders() }).catch(() => null);
 
@@ -158,7 +161,8 @@ export default function TasteProfile() {
       return;
     }
 
-    seterr("Could not reach the server — showing a sample profile instead.");
+    seterr("Couldn't reach Re:Watch, so this is a blank starting profile — not your real one.");
+    setoffline(true);
     const backup = {
       comfort: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.comfort },
       family: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.family },
@@ -290,15 +294,45 @@ export default function TasteProfile() {
   }
 
   return (
-    <div className="page-shell">
-      <div className="page-panel taste-panel">
-        <div className="taste-panel-head">
-          <div>
-            <span className="eyebrow">Evolving TasteDNA</span>
-            <h1>{username}'s Storytelling Vector</h1>
-          </div>
+    <div className="page-shell page-shell--wide taste-page">
+      {offline && (
+        <div className="offline-banner" role="alert">
+          <Ree mood="error" size={64} />
+          <p>{err}</p>
+          <button type="button" className="btn-primary" onClick={loadprofile}>Try again</button>
+        </div>
+      )}
+      <header className="taste-hero">
+        <div className="taste-hero-copy">
+          <span className="eyebrow">Evolving TasteDNA</span>
+          <h1>{username}'s storytelling vector</h1>
+          <p className="taste-archetype">{archetype}</p>
+          <p className="taste-hero-blurb">{archetypeBlurb}</p>
+          {/* Below 40% (this app's own "Signal Forming" achievement threshold —
+              see AchievementService.CONFIDENCE_TIERS), a raw percentage reads as
+              a broken number ("Confidence 11%") rather than useful context. A
+              real count of what's actually been logged says the same true thing
+              without needing the reader to know what "confidence" measures. */}
+          <p className="taste-confidence">
+            {meanConfidence < 0.4 ? (
+              <>Still forming — <span className="mono">{ratingCount}</span> rated so far</>
+            ) : (
+              <><span className="mono">{Math.round(meanConfidence * 100)}%</span> TasteDNA confidence</>
+            )}
+          </p>
+          <p className="taste-panel-intro">
+            {personalized
+              ? "Your TasteDNA evolves from every rating you submit."
+              : "This is your starting profile — rate a few titles and it will start to move."}
+          </p>
 
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <div className="taste-actions">
+            <button type="button" onClick={() => setshowcard(true)} className="btn-primary">
+              Export taste card
+            </button>
+            <button type="button" onClick={() => setshowroast(true)}>
+              Roast my taste
+            </button>
             <button
               type="button"
               onClick={async () => {
@@ -311,75 +345,53 @@ export default function TasteProfile() {
                   seterr("Could not copy the link.");
                 }
               }}
-              className="btn-block"
             >
-              {compareLinkCopied ? "Link copied" : "Compare With a Friend"}
-            </button>
-            <button type="button" onClick={() => setshowroast(true)} className="btn-block">
-              Roast My Taste
-            </button>
-            <button type="button" onClick={() => setshowcard(true)} className="btn-primary">
-              Export Taste Card
+              {compareLinkCopied ? "Link copied ✓" : "Compare with a friend"}
             </button>
           </div>
         </div>
+        <Ree pose="curious" size={190} className="taste-hero-ree" />
+      </header>
 
-        <p className="taste-panel-intro">
-          {personalized
-            ? "Your TasteDNA evolves from every rating you submit."
-            : "This is your starting profile — rate a few titles and it will start to move."}
-        </p>
-
-        <div className="archetype-banner">
-          <div className="archetype-banner-row">
-            <span className="archetype-label">Active Archetype: {archetype}</span>
-            {/* Below 40% (this app's own "Signal Forming" achievement threshold —
-                see AchievementService.CONFIDENCE_TIERS), a raw percentage reads as
-                a broken number ("Confidence 11%") rather than useful context. A
-                real count of what's actually been logged says the same true thing
-                without needing the reader to know what "confidence" measures. */}
-            {meanConfidence < 0.4 ? (
-              <span className="archetype-confidence">
-                Still forming — <span className="mono">{ratingCount}</span> rated so far
-              </span>
-            ) : (
-              <span className="archetype-confidence"><span className="mono">{Math.round(meanConfidence * 100)}%</span> TasteDNA confidence</span>
-            )}
-          </div>
-          <p className="archetype-blurb">{archetypeBlurb}</p>
+      {loading && (
+        <div className="feed-state feed-state--radar">
+          <div className="loading-orb" />
+          <p>Loading your trait nodes...</p>
         </div>
+      )}
 
-        {loading && (
-          <div className="feed-state feed-state--radar">
-            <div className="loading-orb" />
-            <p>Loading your trait nodes...</p>
+      {!loading && (
+        <>
+          <div className="taste-grid">
+            <section className="taste-card taste-radar-card" aria-label="Taste radar">
+              <TraitRadar
+                svgId="profile-radar-svg"
+                traits={radarTraits}
+                primary={{ label: "Your TasteDNA", color: "#45c5b4", values: radarValues, confidences: radarConfidences }}
+                size={560}
+                className="taste-panel-radar"
+              />
+              <button
+                type="button"
+                className="pill radar-detail-toggle"
+                onClick={() => setadvancedRadar((v) => !v)}
+              >
+                {advancedRadar ? "Show 6-axis summary" : "Show all 10 axes"}
+              </button>
+            </section>
+
+            <section className="taste-card taste-evolve-card" aria-label="How your taste evolved">
+              <EvolutionTimeline
+                userId={userid}
+                allTraits={TRAIT_ORDER.map((key) => ({ key, label: traits[key]?.label || FALLBACK_LABELS[key] }))}
+                defaultKeys={topthree.map((t) => t.key)}
+              />
+            </section>
           </div>
-        )}
 
-        {!loading && (
-          <>
-            <TraitRadar
-              svgId="profile-radar-svg"
-              traits={radarTraits}
-              primary={{ label: "Your TasteDNA", color: "#45c5b4", values: radarValues, confidences: radarConfidences }}
-              size={360}
-              className="taste-panel-radar"
-            />
-            <button
-              type="button"
-              className="pill radar-detail-toggle"
-              onClick={() => setadvancedRadar((v) => !v)}
-            >
-              {advancedRadar ? "Show 6-axis summary" : "Show all 10 axes"}
-            </button>
-
-            <EvolutionTimeline
-              userId={userid}
-              allTraits={TRAIT_ORDER.map((key) => ({ key, label: traits[key]?.label || FALLBACK_LABELS[key] }))}
-              defaultKeys={topthree.map((t) => t.key)}
-            />
-
-            <div className="trait-list" style={{ marginTop: "var(--sp-3)" }}>
+          <section className="taste-card taste-traits-card" aria-label="Every trait">
+            <h2 className="taste-section-title">Every trait, in detail</h2>
+            <div className="trait-list taste-trait-grid">
               {list.map((item) => {
                 const p = getpercent(item.node);
                 const conf = item.node ? Math.round(item.node.conf * 100) : 10;
@@ -408,17 +420,17 @@ export default function TasteProfile() {
                 );
               })}
             </div>
-          </>
-        )}
+          </section>
+        </>
+      )}
 
-        {err && <p className="status-message status-message--error">{err}</p>}
-        {msg && <p className="status-message status-message--success">{msg}</p>}
+      {err && !offline && <p className="status-message status-message--error">{err}</p>}
+      {msg && <p className="status-message status-message--success">{msg}</p>}
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button type="button" onClick={syncall} className="btn-primary" disabled={recalculating}>
-            {recalculating ? "Rebuilding..." : "Rebuild My TasteDNA"}
-          </button>
-        </div>
+      <div className="taste-footer">
+        <button type="button" onClick={syncall} className="btn-primary" disabled={recalculating}>
+          {recalculating ? "Rebuilding..." : "Rebuild my TasteDNA"}
+        </button>
       </div>
 
       {showcard && (

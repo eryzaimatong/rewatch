@@ -74,7 +74,33 @@ function resizeImageToDataUrl(file) {
   });
 }
 
+const SETTINGS_GROUPS = [
+  { key: "profile", label: "Profile", hint: "How others see you" },
+  { key: "account", label: "Account", hint: "Email, password, deletion" },
+  { key: "look", label: "Appearance", hint: "Accent, motion, accessibility" },
+  { key: "privacy", label: "Privacy", hint: "Visibility, emails, blocks" },
+  { key: "taste", label: "TasteDNA", hint: "Your taste profile" }
+];
+
 export default function Settings() {
+  const [group, setgroup] = useState(() => {
+    const fromHash = window.location.hash.replace("#", "");
+    return SETTINGS_GROUPS.some((g) => g.key === fromHash) ? fromHash : "profile";
+  });
+  // Keep the visible group in step with the URL hash (links like
+  // /settings#privacy, and browser back/forward within the page).
+  useEffect(() => {
+    function onHashChange() {
+      const h = window.location.hash.replace("#", "");
+      if (SETTINGS_GROUPS.some((g) => g.key === h)) setgroup(h);
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+  function pickGroup(key) {
+    setgroup(key);
+    window.history.replaceState(null, "", `#${key}`);
+  }
   const userid = Number(localStorage.getItem("userId")) || 1;
 
   const [currentpassword, setcurrentpassword] = useState("");
@@ -510,12 +536,28 @@ export default function Settings() {
   }
 
   return (
-    <div className="page-shell">
-      <div className="page-panel taste-panel">
+    <div className="page-shell page-shell--wide settings-page" data-active={group}>
+      <header className="settings-head">
         <span className="eyebrow">Account</span>
         <h1>Settings</h1>
+      </header>
+      <nav className="settings-nav" aria-label="Settings sections">
+        {SETTINGS_GROUPS.map((g) => (
+          <button
+            key={g.key}
+            type="button"
+            className={`settings-nav-item${group === g.key ? " is-active" : ""}`}
+            aria-current={group === g.key ? "page" : undefined}
+            onClick={() => pickGroup(g.key)}
+          >
+            <span>{g.label}</span>
+            <small>{g.hint}</small>
+          </button>
+        ))}
+      </nav>
+      <div className="page-panel taste-panel settings-body">
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Nickname</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             An expressive line shown under your @{username} on your profile — purely for personality, not used for login or search.
@@ -536,7 +578,7 @@ export default function Settings() {
           {nicknamemsg && <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--text-faint)" }}>{nicknamemsg}</p>}
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Bio</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             A short line about you, shown on your profile.
@@ -558,7 +600,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Profile song</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Whatever represents your current cinematic era. Just text — no music service is connected.
@@ -579,7 +621,7 @@ export default function Settings() {
           {songmsg && <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--text-faint)" }}>{songmsg}</p>}
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Profile picture</p>
           {avatarerr && <div className="status-message status-message--error">{avatarerr}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
@@ -616,7 +658,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Avatar frames</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Collectible rings unlocked by real milestones — rate more, build up your TasteDNA confidence, or grow your network to earn one.
@@ -642,7 +684,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Pinned content</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Feature up to 4 titles you've actually rated, one written review, and one of your own lists at the top of your profile.
@@ -678,6 +720,7 @@ export default function Settings() {
             <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>No written reviews yet.</p>
           ) : (
             <select
+              aria-label="Pinned review"
               value={pinnedratingid ?? ""}
               onChange={(e) => setpinnedratingid(e.target.value ? Number(e.target.value) : null)}
               style={{ marginBottom: "var(--sp-2)" }}
@@ -694,6 +737,7 @@ export default function Settings() {
             <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>You haven't made a list yet.</p>
           ) : (
             <select
+              aria-label="Pinned list"
               value={pinnedfolderid ?? ""}
               onChange={(e) => setpinnedfolderid(e.target.value ? Number(e.target.value) : null)}
               style={{ marginBottom: "var(--sp-2)" }}
@@ -713,7 +757,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="account">
           <p className="section-eyebrow">Recovery email</p>
           {!emailloading && hasNoRecoveryEmail && (
             <p className="status-message status-message--error" style={{ marginBottom: "10px" }}>
@@ -755,7 +799,7 @@ export default function Settings() {
           </form>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="account">
           <p className="section-eyebrow">Change password</p>
           {pwerr && <div className="status-message status-message--error">{pwerr}</div>}
           {pwmsg && <div className="status-message status-message--success">{pwmsg}</div>}
@@ -796,7 +840,7 @@ export default function Settings() {
 
         <InstallAppButton />
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="look">
           <p className="section-eyebrow">Appearance</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Personalizes buttons, links, and active chips. Your TasteDNA chart stays teal either way.
@@ -819,7 +863,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Profile theme</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             A skin for your own profile page — what visitors see when they land on it. Doesn't change the rest of the app.
@@ -842,7 +886,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="look">
           <p className="section-eyebrow">Accessibility</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Applies on this device only — not synced to your account.
@@ -908,7 +952,7 @@ export default function Settings() {
           </div>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="taste">
           <p className="section-eyebrow">TasteDNA</p>
           <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Redo the 5-step onboarding to reset your starting point. Your rating history isn't touched —
@@ -919,7 +963,7 @@ export default function Settings() {
           </button>
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="privacy">
           <p className="section-eyebrow">Profile visibility</p>
           {visibilityloading ? (
             <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
@@ -943,7 +987,7 @@ export default function Settings() {
           )}
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="privacy">
           <p className="section-eyebrow">Email notifications</p>
           {emailnotifsloading ? (
             <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
@@ -967,7 +1011,7 @@ export default function Settings() {
           )}
         </section>
 
-        <section className="feed-section">
+        <section className="feed-section" data-group="privacy">
           <p className="section-eyebrow">Blocked users</p>
           {blockedloading ? (
             <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
@@ -993,8 +1037,8 @@ export default function Settings() {
           )}
         </section>
 
-        <section className="feed-section">
-          <p className="section-eyebrow" style={{ color: "#f87171" }}>Danger zone</p>
+        <section className="feed-section" data-group="account">
+          <p className="section-eyebrow" style={{ color: "var(--danger)" }}>Danger zone</p>
           {delerr && <div className="status-message status-message--error">{delerr}</div>}
           <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>
             Deleting your account permanently removes your ratings, watchlist, taste profile,
@@ -1011,7 +1055,7 @@ export default function Settings() {
           />
 
           <button type="button" className="btn-block" onClick={requestdelete} disabled={delloading}
-                  style={{ borderColor: "#f87171", color: "#f87171" }}>
+                  style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
             {delloading ? "Deleting..." : "Delete Account"}
           </button>
         </section>

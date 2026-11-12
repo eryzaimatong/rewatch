@@ -262,7 +262,7 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
                 strokeWidth="1"
               >
                 <title>
-                  {`${m.title}${m.stars ? ` (${m.stars}★)` : ""}${topTrait ? ` — ${topTrait.label} ${topTrait.delta >= 0 ? "+" : ""}${Math.round(topTrait.delta * 100)}%` : ""}`}
+                  {`${m.title}${m.stars ? ` (${m.stars}★)` : ""}${topTrait ? ` — ${topTrait.label}${Math.round(topTrait.delta * 100) !== 0 ? ` ${topTrait.delta >= 0 ? "+" : ""}${Math.round(topTrait.delta * 100)}%` : ""}` : ""}`}
                 </title>
               </path>
             );
@@ -312,7 +312,10 @@ export default function EvolutionTimeline({ userId, allTraits, defaultKeys }) {
                 </span>
                 {topTrait && (
                   <span>
-                    {topTrait.label} <span className="mono">{topTrait.delta >= 0 ? "+" : ""}{Math.round(topTrait.delta * 100)}%</span>
+                    {topTrait.label}{" "}
+                    {Math.round(topTrait.delta * 100) !== 0 && (
+                      <span className="mono">{topTrait.delta >= 0 ? "+" : ""}{Math.round(topTrait.delta * 100)}%</span>
+                    )}
                   </span>
                 )}
               </div>

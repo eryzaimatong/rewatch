@@ -187,7 +187,8 @@ export default function Community() {
   }
 
   return (
-    <div>
+    <div className="community-page page-shell--wide">
+      <h1 className="sr-only">Community</h1>
       <section className="feed-section">
         <p className="section-eyebrow">Find people</p>
         <h2>Search by Username</h2>
@@ -205,7 +206,7 @@ export default function Community() {
         </form>
 
         {searched && !searchloading && searchresults.length === 0 && (
-          <EmptyState message="No one found with that username. Not sure of the exact spelling? Similar TasteDNA and Collections below can surface people without needing one." />
+          <EmptyState compact mood="lost" message="No one found with that username. Not sure of the exact spelling? Similar TasteDNA and Collections below can surface people without needing one." />
         )}
 
         {searchresults.length > 0 && (
@@ -229,7 +230,7 @@ export default function Community() {
         ) : matcheserr ? (
           <ErrorState message={matcheserr} onRetry={loadPeople} />
         ) : matches.length === 0 ? (
-          <EmptyState message="Rate a few more titles to unlock DNA matches — at least 3 ratings are needed to compare shapes meaningfully." />
+          <EmptyState compact mood="loading" message="Rate a few more titles to unlock DNA matches — at least 3 ratings are needed to compare shapes meaningfully." />
         ) : (
           <div className="dna-match-grid">
             {matches.map((m) => (
@@ -253,7 +254,7 @@ export default function Community() {
         ) : collectionserr ? (
           <ErrorState message={collectionserr} onRetry={loadCollections} />
         ) : collections.length === 0 ? (
-          <EmptyState message="No public collections yet — be the first: make a watchlist shelf public from your Watchlist page." />
+          <EmptyState compact mood="trailer" message="No public collections yet — be the first: make a watchlist shelf public from your Watchlist page." />
         ) : (
           <div className="trait-list">
             {collections.map((c) => (
@@ -294,7 +295,7 @@ export default function Community() {
         ) : feederr ? (
           <ErrorState message={feederr} onRetry={loadPeople} />
         ) : feed.length === 0 ? (
-          <EmptyState message="Follow someone from their public profile to see what they're watching here." />
+          <EmptyState compact mood="search" message="Follow someone from their public profile to see what they're watching here." />
         ) : (
           <div className="activity-feed">
             {feed.map((item) => (

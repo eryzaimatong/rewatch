@@ -60,7 +60,7 @@
 
   --text: #f3f6ff;
   --text-muted: #a9b6d3;
-  --text-faint: #7d8bab;
+  --text-faint: #93a0be;
 
   /* Interactive hue = Teal. Text ON a teal fill is Midnight Navy (7:1),
      never white (2.3:1). Every [data-accent] override redefines the whole
@@ -1835,7 +1835,10 @@ input[type="range"] {
    page unmounts immediately, which is a smaller, lower-risk change than
    coordinating an overlapping exit+enter. */
 .route-transition {
-  animation: route-transition-in 220ms ease-out both;
+  /* `backwards`, not `both`: a forwards-filling transform animation keeps this
+     element a containing block for position: fixed descendants (every modal)
+     even after it has finished. */
+  animation: route-transition-in 220ms ease-out backwards;
 }
 
 @keyframes route-transition-in {
@@ -1845,7 +1848,12 @@ input[type="range"] {
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    /* `none`, not translateY(0): with animation-fill-mode: both the final
+       keyframe stays applied forever, and ANY transform on an ancestor makes
+       it the containing block for position: fixed descendants — every modal
+       in the app (they render inside this wrapper) was being positioned
+       against the page content instead of the viewport. */
+    transform: none;
   }
 }
 
@@ -3325,7 +3333,6 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--background);
-  opacity: 0.6;
 }
 
 .achievement-card.is-unlocked {
@@ -4109,7 +4116,7 @@ input[type="range"] {
 }
 
 .timeline-legend-chip.active {
-  color: #fff;
+  color: #0d1830;
   border-color: transparent;
 }
 
