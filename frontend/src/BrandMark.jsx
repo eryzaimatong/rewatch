@@ -1,57 +1,34 @@
+import markUrl from "./assets/brand/rewatch-mark.svg";
+
+// Intrinsic size of the brand file (185.629 × 166.541). Both dimensions are
+// always set together from this ratio so the mark can never be stretched.
+const RATIO = 185.629 / 166.541;
+
 /**
- * The RE:WATCH mark: a film-frame aperture with a small radar polygon at its
- * center, tying the logo directly to the TasteDNA visualization elsewhere in
- * the app — the same decagon shape that draws in on the profile page and the
- * movie modal shows up here at a glance, in miniature.
+ * The Re:Watch mark — a swirl that reads as a play button and ends in Ree's
+ * spiral tail. `size` is the HEIGHT in px; width follows the brand ratio.
  */
-export default function BrandMark({ size = 26 }) {
+export default function BrandMark({ size = 28, className = "", ...rest }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
+    <img
+      src={markUrl}
+      alt=""
       aria-hidden="true"
-      className="brand-mark-svg"
-    >
-      <circle cx="16" cy="16" r="14.5" stroke="url(#brandmark-gradient)" strokeWidth="1.6" />
-      {/* Aperture blades */}
-      {Array.from({ length: 6 }, (_, i) => {
-        const angle = (i * 60 * Math.PI) / 180;
-        const x1 = 16 + 11 * Math.cos(angle);
-        const y1 = 16 + 11 * Math.sin(angle);
-        const x2 = 16 + 14.5 * Math.cos(angle);
-        const y2 = 16 + 14.5 * Math.sin(angle);
-        return (
-          <line
-            key={i}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke="url(#brandmark-gradient)"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            opacity="0.55"
-          />
-        );
-      })}
-      {/* Inner radar polygon (decagon, echoing TraitRadar) */}
-      <polygon
-        points={Array.from({ length: 10 }, (_, i) => {
-          const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 10;
-          const r = i % 2 === 0 ? 8 : 5.5;
-          return `${(16 + r * Math.cos(angle)).toFixed(1)},${(16 + r * Math.sin(angle)).toFixed(1)}`;
-        }).join(" ")}
-        fill="url(#brandmark-gradient)"
-        fillOpacity="0.85"
-      />
-      <defs>
-        <linearGradient id="brandmark-gradient" x1="0" y1="0" x2="32" y2="32">
-          <stop offset="0%" stopColor="#7db4ff" />
-          <stop offset="100%" stopColor="#1d4ed8" />
-        </linearGradient>
-      </defs>
-    </svg>
+      width={Math.round(size * RATIO)}
+      height={size}
+      className={`brand-mark-img ${className}`}
+      draggable={false}
+      {...rest}
+    />
+  );
+}
+
+/** Mark + "Re:Watch" wordmark (Inter 700, as on the board's logo lockup). */
+export function Logo({ size = 28, className = "" }) {
+  return (
+    <span className={`brand-logo ${className}`} style={{ "--logo-size": `${size}px` }}>
+      <BrandMark size={size} />
+      <span className="brand-logo-word">Re:Watch</span>
+    </span>
   );
 }

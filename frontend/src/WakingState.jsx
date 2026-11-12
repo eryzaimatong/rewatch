@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Rey from "./Rey";
+import Ree from "./Ree";
 
 const STAGE_2_AT_MS = 5_000;
 const STAGE_3_AT_MS = 20_000;
@@ -73,7 +73,7 @@ export default function WakingState({
     const timedOut = errorKind === "timeout";
     return (
       <div className="feed-state feed-error" role="alert">
-        <Rey mood="error" size={56} />
+        <Ree mood="error" size={132} className="state-ree" />
         <h3>{timedOut ? "That took a while." : "Couldn't reach Re:Watch."}</h3>
         <p>
           {timedOut
@@ -107,7 +107,7 @@ export default function WakingState({
       aria-live="polite"
       style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--sp-2)" }}
     >
-      <Rey mood="loading" size={56} />
+      <Ree mood="loading" size={132} className="state-ree" />
       <div className="loading-orb" />
       <p style={{ color: "var(--text-muted)", minHeight: "1.5em" }}>{message}</p>
       {stage >= 3 && children}

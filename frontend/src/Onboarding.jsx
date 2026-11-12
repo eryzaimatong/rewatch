@@ -1,3 +1,5 @@
+import Ree from "./Ree";
+import { Logo } from "./BrandMark";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { authHeaders } from "./auth";
@@ -33,9 +35,24 @@ const FAV_TABS = [
 
 const ANALYZING_LINES = [
   "Reading your favorites...",
-  "Mapping your Story DNA...",
+  "Connecting your story dots...",
   "Almost there..."
 ];
+
+// Shared top strip for all three onboarding moments — the board's
+// "YOUR TASTE, YOUR WAY · 1 OF 3" header.
+function OnboardHeader({ step }) {
+  return (
+    <div className="onboard-topbar">
+      <Logo size={26} />
+      <p className="onboard-stepper">
+        <span>Your taste, your way</span>
+        <span aria-hidden="true">·</span>
+        <span className="mono">{step} of 3</span>
+      </p>
+    </div>
+  );
+}
 
 const TMDB_POSTER_THUMB_BASE = "https://image.tmdb.org/t/p/w154";
 // A plain color swatch, not a placehold.co URL — placehold.co treats a
@@ -70,8 +87,11 @@ function AnalyzingScreen() {
 
   return (
     <div className="onboard-analyzing">
+      <OnboardHeader step={2} />
+      <Ree mood="loading" size={200} className="onboard-ree" />
+      <h2 className="onboard-analyzing-title">Connecting your story dots...</h2>
       <div className="loading-orb onboard-analyzing-orb" />
-      <p className="onboard-analyzing-text">{ANALYZING_LINES[lineIdx]}</p>
+      <p className="onboard-analyzing-text" role="status">{ANALYZING_LINES[lineIdx]}</p>
     </div>
   );
 }
@@ -87,7 +107,10 @@ function RevealScreen({ archetype, archetypeBlurb, onContinue }) {
 
   return (
     <motion.div className="onboard-reveal" variants={revealParent} initial="hidden" animate="visible">
-      <motion.span className="onboard-reveal-mark" variants={revealItem} aria-hidden="true" />
+      <OnboardHeader step={3} />
+      <motion.div variants={revealItem} className="onboard-reveal-ree">
+        <Ree mood="success" size={190} className="onboard-ree" />
+      </motion.div>
       <motion.p className="onboard-reveal-kicker" variants={revealItem}>You are...</motion.p>
       <motion.h2 className="onboard-reveal-archetype" variants={revealArchetype}>{archetype}</motion.h2>
       <motion.p className="onboard-reveal-blurb" variants={revealItem}>{archetypeBlurb}</motion.p>
@@ -225,24 +248,18 @@ export default function Onboarding({ onFinish }) {
   return (
     <div className="onboard-shell">
       <div className="page-panel onboard-panel">
+        <OnboardHeader step={1} />
+
         <div className="onboard-header-row">
           <div>
-            <span className="eyebrow">TasteDNA Onboarding</span>
-            <h1 className="onboard-title">Your Comfort Movies</h1>
+            <h1 className="onboard-title">Hi, I’m Ree. What moves you?</h1>
+            <p className="onboard-intro">
+              Pick at least 5 stories you’ve loved — movies, shows, anime. I’ll read the rest
+              and start your Taste DNA. You can sharpen it anytime.
+            </p>
           </div>
-          {/* A brand-new visitor's very first screen was a mandatory five-step
-              wizard with no way out — "just let me look around" wasn't an
-              option. Skipping seeds a neutral profile (see skiponboarding's
-              comment) rather than blocking entry entirely. */}
-          <button type="button" className="onboard-skip-link" onClick={skiponboarding} disabled={submitting}>
-            Skip for now →
-          </button>
+          <Ree pose="curious" size={132} className="onboard-header-ree" />
         </div>
-
-        <p className="onboard-intro">
-          Pick at least 5 titles across movies, shows, and anime to seed your starting profile.
-          You can sharpen it further anytime from your dashboard.
-        </p>
 
         <div className="pill-row" style={{ marginBottom: "var(--sp-2)" }}>
           {FAV_TABS.map((tab) => (
@@ -297,13 +314,30 @@ export default function Onboarding({ onFinish }) {
           </div>
         )}
 
-        <p style={{ color: "var(--text-faint)", fontSize: "0.78rem", marginBottom: "var(--sp-2)" }}>
-          {favs.length} selected — {Math.max(0, 5 - favs.length)} more to go
-        </p>
+        <div className="onboard-progress" role="status" aria-live="polite">
+          <div className="onboard-progress-bar" aria-hidden="true">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <span key={i} className={i < favs.length ? "is-filled" : ""} />
+            ))}
+          </div>
+          <p>
+            <span className="mono">{favs.length}</span> selected —{" "}
+            {favs.length >= 5 ? "Ree’s ready when you are." : `${5 - favs.length} more to go`}
+          </p>
+        </div>
 
-        <button type="button" onClick={submitall} className="btn-primary" disabled={submitting}>
-          {submitting ? "Generating..." : "Generate TasteDNA"}
-        </button>
+        <div className="onboard-actions">
+          <button type="button" onClick={submitall} className="btn-primary" disabled={submitting}>
+            {submitting ? "Generating..." : "Find my story"}
+          </button>
+          {/* A brand-new visitor's very first screen was a mandatory five-step
+              wizard with no way out — "just let me look around" wasn't an
+              option. Skipping seeds a neutral profile (see skiponboarding's
+              comment) rather than blocking entry entirely. */}
+          <button type="button" className="onboard-skip-link" onClick={skiponboarding} disabled={submitting}>
+            Skip for now →
+          </button>
+        </div>
 
         {err && <p className="status-message status-message--error" style={{ marginTop: "var(--sp-2)" }}>{err}</p>}
       </div>

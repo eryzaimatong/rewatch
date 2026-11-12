@@ -9,7 +9,7 @@ import EmptyState from "./EmptyState";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
-const FALLBACK_POSTER = "https://placehold.co/200x300/0b1530/3b82f6?text=Re:Watch";
+const FALLBACK_POSTER = "https://placehold.co/200x300/16233f/45c5b4?text=Re:Watch";
 
 function poster(path) {
   if (!path) return FALLBACK_POSTER;
@@ -147,7 +147,7 @@ export default function Wrapped() {
         if (img) {
           c.drawImage(img, x, y, posterW, posterH);
         } else {
-          c.fillStyle = "#14234a";
+          c.fillStyle = "#223459";
           c.fillRect(x, y, posterW, posterH);
         }
         c.restore();

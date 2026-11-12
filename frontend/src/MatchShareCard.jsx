@@ -16,7 +16,7 @@ function shareLinkFor() {
 }
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
-const FALLBACK_POSTER = "https://placehold.co/500x750/0b1530/3b82f6?text=Re:Watch";
+const FALLBACK_POSTER = "https://placehold.co/500x750/16233f/45c5b4?text=Re:Watch";
 
 function posterUrlFor(movie) {
   if (typeof movie.posterUrl === "string" && movie.posterUrl.startsWith("http")) {
@@ -92,7 +92,7 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     if (posterImg) {
       ctx.drawImage(posterImg, posterX, posterY, posterW, posterH);
     } else {
-      ctx.fillStyle = "#14234a";
+      ctx.fillStyle = "#223459";
       ctx.fillRect(posterX, posterY, posterW, posterH);
     }
     // A subtle bottom gradient so the match badge (drawn next, overlapping
@@ -111,10 +111,10 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     const badgeR = 46;
     ctx.beginPath();
     ctx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI * 2);
-    ctx.fillStyle = "#0b1530";
+    ctx.fillStyle = "#16233f";
     ctx.fill();
     ctx.lineWidth = 4;
-    ctx.strokeStyle = "#3b82f6";
+    ctx.strokeStyle = "#45c5b4";
     ctx.stroke();
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffffff";
