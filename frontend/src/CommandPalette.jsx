@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useModalA11y from "./useModalA11y";
 import "./App.css";
@@ -26,17 +26,46 @@ function score(command, query) {
 /**
  * Cmd/Ctrl+K anywhere in the authenticated app. Keyboard-first navigation
  * is table stakes for a product that wants to read as genuinely engineered
- * rather than merely styled — the single fastest signal of that to anyone
- * who's used Linear, Raycast, or Vercel's dashboard.
+ * rather than merely styled.
+ *
+ * Split in two on purpose: this shell is mounted for the whole session and
+ * only owns the open/closed state and the global shortcut. The dialog (and
+ * with it useModalA11y's focus trap and body scroll lock) exists ONLY while
+ * open. It used to be one component calling useModalA11y unconditionally, so
+ * the scroll lock engaged on first paint and never released — every signed-in
+ * page was unscrollable.
  */
 export default function CommandPalette() {
   const [open, setopen] = useState(false);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setopen((v) => !v);
+      }
+    }
+    function onOpenRequest() {
+      setopen(true);
+    }
+    // The header's visible trigger button (App.jsx) fires this instead of
+    // lifting open-state up a level — mouse users get a discoverable way in.
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("rewatch:open-command-palette", onOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("rewatch:open-command-palette", onOpenRequest);
+    };
+  }, []);
+
+  return open ? <PaletteDialog onClose={() => setopen(false)} /> : null;
+}
+
+function PaletteDialog({ onClose }) {
   const [query, setquery] = useState("");
   const [activeIndex, setactiveIndex] = useState(0);
-  const inputRef = useRef(null);
   const navigate = useNavigate();
-
-  const modalRef = useModalA11y(() => setopen(false));
+  const modalRef = useModalA11y(onClose);
 
   const results = query.trim()
     ? COMMANDS
@@ -46,43 +75,6 @@ export default function CommandPalette() {
         .map((r) => r.c)
     : COMMANDS;
 
-  // The single entry point for opening — resets query/selection right where
-  // the open happens (the keydown and custom-event handlers below) rather
-  // than in a second effect watching `open`, which would just be state
-  // reacting to state for no external reason.
-  function openPalette() {
-    setquery("");
-    setactiveIndex(0);
-    setopen(true);
-    // Focus needs a tick — the input doesn't exist in the DOM until this
-    // same render commits, same reasoning as every other modal-mount focus
-    // call in this app.
-    setTimeout(() => inputRef.current?.focus(), 0);
-  }
-
-  useEffect(() => {
-    function onKeyDown(e) {
-      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
-      if (isCmdK) {
-        e.preventDefault();
-        setopen((v) => {
-          if (!v) openPalette();
-          return !v;
-        });
-      }
-    }
-    // The header's visible trigger button (App.jsx) fires this instead of
-    // lifting open-state up a level — keeps this component self-contained
-    // (it owns its own keyboard shortcut already) while still giving mouse
-    // users a discoverable, non-keyboard way in.
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("rewatch:open-command-palette", openPalette);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("rewatch:open-command-palette", openPalette);
-    };
-  }, []);
-
   function onQueryChange(value) {
     setquery(value);
     setactiveIndex(0);
@@ -91,7 +83,7 @@ export default function CommandPalette() {
   function select(command) {
     if (!command) return;
     navigate(command.path);
-    setopen(false);
+    onClose();
   }
 
   function onKeyDown(e) {
@@ -107,15 +99,11 @@ export default function CommandPalette() {
     }
   }
 
-  if (!open) {
-    return null;
-  }
-
   return (
     <div
       className="command-palette-overlay"
       onClick={(e) => {
-        if (e.target === e.currentTarget) setopen(false);
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
@@ -127,10 +115,10 @@ export default function CommandPalette() {
         tabIndex={-1}
       >
         <input
-          ref={inputRef}
           type="text"
           className="command-palette-input"
           placeholder="Jump to..."
+          aria-label="Jump to a page"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={onKeyDown}

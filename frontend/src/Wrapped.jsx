@@ -6,6 +6,7 @@ import {
   loadImage, shareOrDownloadBlob
 } from "./shareCard";
 import EmptyState from "./EmptyState";
+import Ree from "./Ree";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
@@ -172,7 +173,7 @@ export default function Wrapped() {
       c.fillText(s.label, 36, y);
 
       c.textAlign = "right";
-      c.fillStyle = s.delta >= 0 ? "#4ade80" : "#f87171"; // mirrors --success/--danger — Canvas can't resolve CSS vars
+      c.fillStyle = s.delta >= 0 ? "#7fe0be" : "#f08a9b"; // mirrors --success/--danger — Canvas can't resolve CSS vars
       c.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
       c.fillText(shiftLabel(s), CARD_W - 36, y);
       c.textAlign = "left";
@@ -194,15 +195,17 @@ export default function Wrapped() {
   }
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-shell--wide">
       <div className="page-panel taste-panel">
-        <div className="taste-panel-head">
-          <div>
+        <div className="page-hero">
+          <div className="page-hero-copy">
             <span className="eyebrow">Monthly Wrapped</span>
             <h1>{summary ? summary.period : "Your Recap"}</h1>
+            <p className="page-hero-sub">Your month in taste — what moved, what stayed.</p>
           </div>
+          <Ree pose="cinema" size={120} className="page-hero-ree" />
 
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div className="page-hero-actions">
             <input
               type="month"
               value={month}
@@ -226,10 +229,15 @@ export default function Wrapped() {
           </div>
         )}
 
-        {err && <p className="status-message status-message--error">{err}</p>}
+        {err && (
+          <div className="inline-error">
+            <p className="status-message status-message--error">{err}</p>
+            <button type="button" onClick={() => load(month)}>Try again</button>
+          </div>
+        )}
 
         {!loading && summary && !summary.hasData && (
-          <EmptyState message={`No ratings yet in ${summary.period} — rate a few titles and this will fill in.`} />
+          <EmptyState mood="welcome" message={`No ratings yet in ${summary.period} — rate a few titles and this will fill in.`} />
         )}
 
         {!loading && summary && summary.hasData && (
@@ -245,7 +253,7 @@ export default function Wrapped() {
             {summary.topShifts.length > 0 && (
               <div className="moment-card">
                 <p className="moment-eyebrow">Biggest Shift This Month</p>
-                <h3 className="moment-title">{summary.topShifts[0].label}</h3>
+                <h2 className="moment-title">{summary.topShifts[0].label}</h2>
                 <p className="moment-sub">
                   <span className="mono">{pct(summary.topShifts[0].startVal)}% → {pct(summary.topShifts[0].endVal)}%</span>
                   {" "}({shiftLabel(summary.topShifts[0])})
@@ -283,7 +291,7 @@ export default function Wrapped() {
                         <img src={poster(r.poster)} alt={`${r.title} poster`} loading="lazy" />
                       </div>
                       <div className="mini-card-body">
-                        <h4>{r.title}</h4>
+                        <h3>{r.title}</h3>
                         <span style={{ fontSize: "0.76rem", color: "var(--gold)" }}>
                           {"★".repeat(r.overall || 0)}
                         </span>

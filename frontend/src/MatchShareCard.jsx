@@ -120,7 +120,7 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 26px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText(`${roundedScore}%`, badgeCx, badgeCy + 4);
-    ctx.fillStyle = "#a1a1aa";
+    ctx.fillStyle = "#a9b6d3";
     ctx.font = "9px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText("MATCH", badgeCx, badgeCy + 18);
 
@@ -132,7 +132,7 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     ctx.fillText(titleLine, CARD_W / 2, y);
 
     y += 24;
-    ctx.fillStyle = "#71717a";
+    ctx.fillStyle = "#93a0be";
     ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText(movie.year || "", CARD_W / 2, y);
 
@@ -145,13 +145,13 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     ctx.stroke();
 
     y += 32;
-    ctx.fillStyle = "#71717a";
+    ctx.fillStyle = "#93a0be";
     ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
     ctx.fillText(`WHY IT MATCHES ${username.toUpperCase()}`, CARD_W / 2, y);
 
     y += 30;
     topDrivers.forEach((d) => {
-      ctx.fillStyle = "#e4e4e7";
+      ctx.fillStyle = "#dfe8fb";
       ctx.font = "15px 'Plus Jakarta Sans', sans-serif";
       ctx.fillText(d, CARD_W / 2, y);
       y += 26;

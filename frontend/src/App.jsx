@@ -139,7 +139,6 @@ function AppShell({ onLogout }) {
               type="button"
               className="command-palette-trigger"
               onClick={openPalette}
-              aria-label="Search titles"
               title="Search titles"
             >
               <IconSearch />
@@ -151,7 +150,7 @@ function AppShell({ onLogout }) {
           </div>
         </header>
 
-      <div id="main-content" tabIndex={-1} style={{ outline: "none" }}>
+      <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
         <div key={location.pathname} className="route-transition">
           <Routes>
             <Route path="/" element={<MovieFeed />} />
@@ -169,7 +168,7 @@ function AppShell({ onLogout }) {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
-      </div>
+      </main>
 
         <Footer />
       </div>
@@ -209,7 +208,11 @@ function AuthenticatedApp({ onLogout }) {
 
   if (!onboarded) {
     const userid = Number(localStorage.getItem("userId")) || 1;
-    return <Onboarding userid={userid} onFinish={finishonboard} />;
+    return (
+      <main id="main-content">
+        <Onboarding userid={userid} onFinish={finishonboard} />
+      </main>
+    );
   }
 
   return <AppShell onLogout={onLogout} />;
@@ -236,17 +239,17 @@ function Root() {
           {/* Reachable regardless of login state — a still-logged-in user clicking
               an old reset-password email link should also land here, not get
               shunted back into the app. */}
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/forgot-password" element={<main id="main-content"><ForgotPassword /></main>} />
           {/* Public on purpose — the whole point of the compatibility check is a
               visitor with no account can open a shared link and use it cold. See
               CompatibilityController's own doc comment for the backend half. */}
-          <Route path="/compare/:username" element={<CompareTaste />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/compare/:username" element={<main id="main-content"><CompareTaste /></main>} />
+          <Route path="/reset-password" element={<main id="main-content"><ResetPassword /></main>} />
+          <Route path="/privacy" element={<main id="main-content"><PrivacyPolicy /></main>} />
+          <Route path="/terms" element={<main id="main-content"><TermsOfService /></main>} />
           <Route
             path="/*"
-            element={logged ? <AuthenticatedApp onLogout={dologout} /> : <Login onLogin={handlelogin} />}
+            element={logged ? <AuthenticatedApp onLogout={dologout} /> : <main id="main-content"><Login onLogin={handlelogin} /></main>}
           />
         </Routes>
       </Suspense>

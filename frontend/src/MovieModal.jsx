@@ -10,10 +10,9 @@ import { playConfirm, playChime, playSoftError } from "./sound";
 import { IconTrophy, IconShuffle } from "./Icons";
 import "./App.css";
 
-// Matches the validated pair in TraitRadar.jsx: purple (user) vs --cyan
-// (#0284c7, this title) clears CVD/contrast/lightness at --pairs all against
-// the app's dark surface. The old #38bdf8 sky blue looked right but failed
-// the dark-mode lightness band — swapped for the validated step.
+// Matches the pair used by TraitRadar.jsx: Teal (user) vs --cyan, which is
+// Periwinkle in the Ree palette (this title). The secondary series is also
+// drawn dashed, so the two never rely on hue alone to be told apart.
 const MOVIE_COLOR = "var(--cyan)";
 
 // value/label deliberately differ for one entry — "Cinematic Score" is the
@@ -573,7 +572,7 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
                   traits={radarTraits}
                   primary={{ label: "Your TasteDNA", color: "#45c5b4", values: userValues }}
                   secondary={{ label: movie.title, color: MOVIE_COLOR, values: movieValues }}
-                  size={300}
+                  size={380}
                 />
 
                 {(explanation.drivers?.length > 0 || explanation.tensions?.length > 0) && (
@@ -723,11 +722,19 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
                 >
                   <span className="shift-toast-icon">✦</span>
                   <span className="shift-toast-text">
-                    Your TasteDNA just moved — <strong>{topshift.label}</strong>{" "}
-                    <span className="mono">
-                      {topshift.delta >= 0 ? "+" : ""}
-                      {Math.round(topshift.delta * 100)}%
-                    </span>
+                    {Math.round(topshift.delta * 100) === 0 ? (
+                      // A real but sub-1% nudge: "+0%" reads as a bug, and
+                      // claiming it "moved" overstates it — say what's true.
+                      <>Your TasteDNA just got sharper — <strong>{topshift.label}</strong></>
+                    ) : (
+                      <>
+                        Your TasteDNA just moved — <strong>{topshift.label}</strong>{" "}
+                        <span className="mono">
+                          {topshift.delta >= 0 ? "+" : ""}
+                          {Math.round(topshift.delta * 100)}%
+                        </span>
+                      </>
+                    )}
                   </span>
                 </motion.div>
               )}

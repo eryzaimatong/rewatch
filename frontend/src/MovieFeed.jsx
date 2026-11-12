@@ -630,8 +630,16 @@ export default function MovieFeed() {
     // The backend derives the personalizing id from the JWT (see TmdbController),
     // not a query param — a permitAll route that trusted `?userId=` would let
     // anyone read anyone's personalized feed without logging in.
-    const res = await fetch(`${BASE}/api/movies/popular?${params.toString()}`, { headers: authHeaders() }).catch(() => null);
-    if (!res || !res.ok) {
+    // Unlike a genuinely empty result, a network failure or a 5xx must NOT be
+    // swallowed into `null`: loadData's fallbacks would then run against the same
+    // dead server, find nothing, and tell the visitor "we searched every
+    // universe" — an honest-sounding lie about a connection problem. Throwing
+    // lets loadData's catch show the real error with a working Try again.
+    const res = await fetch(`${BASE}/api/movies/popular?${params.toString()}`, { headers: authHeaders() });
+    if (!res.ok) {
+      if (res.status >= 500 || res.status === 429) {
+        throw new Error(`popular feed failed: ${res.status}`);
+      }
       return null;
     }
     const data = await res.json().catch(() => null);
@@ -1008,6 +1016,7 @@ export default function MovieFeed() {
                     {movie.titleId && watchStatus === "WATCHED" && (
                       <span
                         className="save-icon-button is-watched"
+                        role="img"
                         title="Watched"
                         aria-label={`${movie.title}: watched`}
                       >
@@ -1111,7 +1120,8 @@ export default function MovieFeed() {
   }
 
   return (
-    <main className="movie-feed">
+    <div className="movie-feed">
+      <h1 className="sr-only">Your Re:Watch home</h1>
       {movies.length > 0 && (
         <CinemaHero
           movies={movies}
@@ -1142,7 +1152,9 @@ export default function MovieFeed() {
         <div className="mood-room-top">
           <ReeSays pose="default" className="mood-room-says">
             {moodline || `Good evening, ${username}.`}
-            {hook ? <span className="mood-room-hook"> “{hook}”</span> : null}
+            {/* The backend's two cold-start lines say nearly the same thing;
+                only show the hook when the greeting doesn't already cover it. */}
+            {hook && !moodline ? <span className="mood-room-hook"> “{hook}”</span> : null}
           </ReeSays>
 
           {streak && streak.current > 0 && (
@@ -1165,7 +1177,7 @@ export default function MovieFeed() {
         </div>
 
         <p className="hero-eyebrow">Mood discovery</p>
-        <h1 id="mood-heading" className="mood-room-title">How do you want to feel tonight?</h1>
+        <h2 id="mood-heading" className="mood-room-title">How do you want to feel tonight?</h2>
         <p className="hero-description">Start with a feeling, not a genre.</p>
 
         <MoodPicker activeKey={activeMood?.key} onPick={pickMood} />
@@ -1424,7 +1436,7 @@ export default function MovieFeed() {
         {loading && <SkeletonPosterGrid count={4} />}
 
         {!loading && error && (
-          <ErrorState message={error} onRetry={loadData} />
+          <ErrorState message={error} onRetry={() => loadData()} />
         )}
 
         {!loading && !error && visiblemovies.length === 0 && lastsearchquery && (
@@ -1434,6 +1446,7 @@ export default function MovieFeed() {
           // "All"' for a zero-result search. This branch names the actual
           // query instead.
           <EmptyState
+            mood="search"
             title="No matches for that search."
             message={`Nothing matched "${lastsearchquery}". Try a different phrase, or search for a title directly.`}
             action={
@@ -1450,6 +1463,7 @@ export default function MovieFeed() {
 
         {!loading && !error && visiblemovies.length === 0 && !lastsearchquery && (
           <EmptyState
+            mood="lost"
             title="We searched every universe."
             message={
               genrefilter !== "All" || languagefilter !== "All"
@@ -1598,6 +1612,6 @@ export default function MovieFeed() {
           onRatingChange={() => loadData(vibe, genrefilter, languagefilter)}
         />
       )}
-    </main>
+    </div>
   );
 }

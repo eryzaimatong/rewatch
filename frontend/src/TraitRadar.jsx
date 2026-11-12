@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 /**
  * A hand-rolled SVG radar chart for the 10-trait storytelling vector.
  *
@@ -41,7 +43,10 @@ const DOT_RADIUS = 4.5;
 // in practice — live on the Social Profile comparison radar, the leading "H"
 // of that same label clipped against the left edge, so this carries a wider
 // margin than the bare label-width math suggests it needs.
-const VIEWBOX_PAD = 112;
+// Labels need generous room left/right (long names like "Humor & Lightheartedness")
+// but only a line of text above/below, so the padding is asymmetric.
+const VIEWBOX_PAD = 164;
+const VIEWBOX_PAD_Y = 52;
 
 function polar(cx, cy, r, angle) {
   return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
@@ -58,6 +63,47 @@ function signature(series) {
     .join(",");
 }
 
+const MIN_LABEL_PX = 11;
+
+// One-word forms for phones, where a long label has nowhere to go. Keyed by the
+// trait's key so they survive any change to the backend's display labels.
+const SHORT_LABELS = {
+  comfort: "Comfort",
+  family: "Family",
+  nostalgia: "Nostalgia",
+  hope: "Hope",
+  romance: "Romance",
+  bitter: "Bittersweet",
+  growth: "Growth",
+  pacing: "Slow burn",
+  humor: "Humor",
+  intensity: "Intensity"
+};
+
+/**
+ * Measures how far the chart is scaled down on screen (its on-screen width over
+ * its viewBox width). On a phone the same SVG renders at roughly a third of its
+ * design size, which turned the axis labels into ~5px text nobody can read.
+ * Returns the scale so labels can be sized in *screen* pixels instead.
+ */
+function useRenderScale(viewWidth) {
+  const ref = useRef(null);
+  const [scale, setscale] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const update = () => {
+      const w = el.getBoundingClientRect().width;
+      if (w > 0) setscale(w / viewWidth);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewWidth]);
+  return [ref, scale];
+}
+
 export default function TraitRadar({
   traits,
   primary,
@@ -67,6 +113,11 @@ export default function TraitRadar({
   svgId
 }) {
   const n = traits.length;
+  const [svgRef, scale] = useRenderScale(size + VIEWBOX_PAD * 2);
+  // Phones: keep labels at a readable on-screen size and use the short form of
+  // two-part names ("Humor & Lightheartedness" -> "Humor") so they still fit.
+  const compact = scale < 0.7;
+  const labelFont = MIN_LABEL_PX / scale;
   const cx = size / 2;
   const cy = size / 2;
   const maxR = size / 2 - 44;
@@ -126,9 +177,10 @@ export default function TraitRadar({
           equivalent is the visible trait-card list rendered alongside this
           chart wherever it's used. */}
       <svg
+        ref={svgRef}
         id={svgId}
         aria-hidden="true"
-        viewBox={`${-VIEWBOX_PAD} ${-VIEWBOX_PAD} ${size + VIEWBOX_PAD * 2} ${size + VIEWBOX_PAD * 2}`}
+        viewBox={`${-VIEWBOX_PAD} ${-VIEWBOX_PAD_Y} ${size + VIEWBOX_PAD * 2} ${size + VIEWBOX_PAD_Y * 2}`}
         width="100%"
         style={{ maxWidth: size + VIEWBOX_PAD * 2, height: "auto" }}
       >
@@ -210,8 +262,16 @@ export default function TraitRadar({
             const sin = Math.sin(angle);
             const dy = sin > 0.3 ? "0.9em" : sin < -0.3 ? "-0.3em" : "0.35em";
             return (
-              <text key={t.key} x={x} y={y} dy={dy} textAnchor={labelAnchorFor(angle)} className="radar-axis-label">
-                {t.label}
+              <text
+                key={t.key}
+                x={x}
+                y={y}
+                dy={dy}
+                textAnchor={labelAnchorFor(angle)}
+                className="radar-axis-label"
+                style={compact ? { fontSize: `${labelFont}px` } : undefined}
+              >
+                {compact ? SHORT_LABELS[t.key] ?? t.label.split(" & ")[0] : t.label}
               </text>
             );
           })}
