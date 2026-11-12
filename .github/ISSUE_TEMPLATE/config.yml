@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How the recommendations work
+    url: https://github.com/eryzaimatong/rewatch/blob/main/docs/CASE-STUDY.md
+    about: Read the case study before filing a question about match scores or Taste DNA.
