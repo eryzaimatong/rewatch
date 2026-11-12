@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { login, register, getApiMeta } from "./api";
 import { saveSession } from "./auth";
-import BrandMark from "./BrandMark";
+import { Logo } from "./BrandMark";
+import Ree from "./Ree";
 import Footer from "./Footer";
 import WakingState from "./WakingState";
 import { IconEye, IconEyeOff } from "./Icons";
@@ -122,16 +123,33 @@ export default function Login({ onLogin }) {
   return (
     <>
     <div className="auth-shell">
-      <div className="auth-card">
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
-          <BrandMark size={36} />
+      <aside className="auth-stage" aria-label="Meet Ree">
+        <Logo size={34} className="auth-stage-logo" />
+        <div className="auth-stage-ree">
+          <Ree variant="canonical" size={420} className="auth-stage-ree-img" />
         </div>
-        <span className="eyebrow">RE:WATCH</span>
+        <div className="auth-stage-copy">
+          <h2>Hi, I’m Ree. What moves you?</h2>
+          <p>
+            A twist you never saw coming? A world to get lost in? Let’s find
+            stories that feel like you.
+          </p>
+          <ul className="auth-stage-moods" aria-label="Things Ree can help you find">
+            <li>Movies</li>
+            <li>TV</li>
+            <li>Anime</li>
+            <li>K-drama</li>
+          </ul>
+        </div>
+      </aside>
+
+      <div className="auth-card">
+        <Logo size={28} className="auth-card-logo" />
         <h1 className="auth-title">
-          {isreg ? "Create Your Story Profile" : "Welcome Back"}
+          {isreg ? "Create your story profile" : "Welcome back"}
         </h1>
         <p className="auth-subtitle">
-          Stories chosen for how you feel.
+          {isreg ? "Tell Ree a little about you — it takes a minute." : "Stories chosen for how you feel."}
         </p>
 
         {errmsg && <div className="status-message status-message--error">{errmsg}</div>}

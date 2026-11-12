@@ -1,8 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
-
 :root {
+  /* Inter — the typeface of the Ree brand board. Self-hosted through
+     @fontsource-variable/inter (imported in main.jsx), so there is no
+     third-party font request. */
   font-family:
-    "Plus Jakarta Sans",
+    "Inter Variable",
+    "Inter",
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
@@ -22,64 +24,87 @@
     "Cascadia Code",
     monospace;
 
-  color: #e8eefc;
-  background: #050b1f;
+  color: #eef3ff;
+  background: #101b35;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 
-  --background: #050b1f;
-  --background-deep: #030816;
-  --surface: #0b1530;
-  --surface-soft: #0f1b3d;
-  --surface-elevated: #14234a;
+  /* ==========================================
+     RE:WATCH × REE — BRAND PALETTE
+     Straight from the mascot design system board.
+     Primary: Midnight Navy / Teal / Mint
+     Secondary: Periwinkle / Soft Lavender / Champagne
+     Nothing else is allowed to introduce a hue.
+     ========================================== */
+  --navy: #101b35;
+  --teal: #45c5b4;
+  --mint: #b8e6d5;
+  --periwinkle: #a6a4ed;
+  --lavender: #d6c9f5;
+  --champagne: #f3d9a5;
+  /* Mood accents (board: "Same soul. Different shades.") */
+  --rose: #e8bdcf;
+  --deep-teal: #287c82;
+  --violet: #7773b2;
+  --mist: #bfdded;
 
-  --text: #f4f7ff;
-  --text-muted: #9fb0d6;
-  --text-faint: #6c7fa8;
+  /* Surfaces step up from Midnight Navy; each is a navy lifted toward teal
+     so the whole UI reads as one material, not stacked greys. */
+  --background: #101b35;
+  --background-deep: #0a1226;
+  --surface: #16233f;
+  --surface-soft: #1b2b4d;
+  --surface-elevated: #223459;
 
-  --primary: #3b82f6;
-  --primary-light: #7db4ff;
-  --primary-dark: #1d4ed8;
-  /* RGB triplets alongside the hex tokens above, for the handful of spots
-     that need a variable-opacity tint (rgba(var(--primary-rgb), 0.14)) rather
-     than a solid fill — color-mix() would do this from the hex alone, but
-     this pattern needs no browser-support assumptions. Every [data-accent]
-     override below redefines both forms together. */
-  --primary-rgb: 59, 130, 246;
-  --primary-light-rgb: 125, 180, 255;
-  --primary-dark-rgb: 29, 78, 216;
+  --text: #f3f6ff;
+  --text-muted: #a9b6d3;
+  --text-faint: #7d8bab;
 
-  /* Purple is the only hue that means "interactive" or "your choice made
-     visible" — reserved for primary actions, active states, and the "you"
-     series on any chart. These three are named, scoped exceptions, not a
-     rainbow expansion:
-       --cyan   the existing TraitRadar/MovieModal comparison-series color,
-                now named — extends to any "here's an insight" moment.
-       --gold   the existing star-rating color, now named.
-       --coral  new: a single rare, non-interactive emotional highlight per
-                screen at most. Never appears anywhere purple could, so it
-                never has to be told apart from it. */
-  /* Name kept for compatibility: with a blue primary, the "secondary"
-     series/insight hue is now a contrasting pink so radar series stay
-     distinguishable. */
-  --cyan: #f472b6;
-  --cyan-rgb: 244, 114, 182;
-  --glow: #38bdf8;
-  --glow-rgb: 56, 189, 248;
-  --gold: #facc15;
-  --coral: #fb7185;
+  /* Interactive hue = Teal. Text ON a teal fill is Midnight Navy (7:1),
+     never white (2.3:1). Every [data-accent] override redefines the whole
+     set together. */
+  --primary: #45c5b4;
+  --primary-light: #b8e6d5;
+  --primary-dark: #2c9d8f;
+  --on-primary: #0d1830;
+  /* RGB triplets for variable-opacity tints: rgba(var(--primary-rgb), .14) */
+  --primary-rgb: 69, 197, 180;
+  --primary-light-rgb: 184, 230, 213;
+  --primary-dark-rgb: 44, 157, 143;
 
-  --border: rgba(140, 170, 255, 0.12);
-  --border-strong: rgba(140, 170, 255, 0.24);
+  /* Named, scoped extras — each maps to ONE meaning:
+       --cyan      comparison/secondary series + "insight" (Periwinkle)
+       --gold      ratings, streaks, the charm star (Champagne)
+       --coral     one rare emotional highlight per screen (Rose)
+       --glow      soft highlight/aura (Mint)
+     The names predate the rebrand; the values are brand colors. */
+  --cyan: #a6a4ed;
+  --cyan-rgb: 166, 164, 237;
+  --gold: #f3d9a5;
+  --coral: #e8bdcf;
+  --glow: #b8e6d5;
+  --glow-rgb: 184, 230, 213;
 
-  --danger: #ef4444;
-  --success: #4ade80;
+  /* Mood accent — swapped by [data-mood] on the home feed (see brand.css) */
+  --mood: var(--primary);
+  --mood-rgb: var(--primary-rgb);
+
+  --border: rgba(184, 230, 213, 0.11);
+  --border-strong: rgba(184, 230, 213, 0.22);
+
+  --danger: #f08a9b;
+  --success: #7fe0be;
+
+  /* Radius scale — soft-touch, never sharp. */
+  --r-sm: 12px;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --r-xl: 36px;
 
   /* ==========================================
      8-POINT SPACING SCALE
-     Use these instead of ad-hoc pixel values so
-     margins/padding stay on a consistent rhythm.
      ========================================== */
   --sp-1: 8px;
   --sp-2: 16px;
@@ -92,27 +117,17 @@
 
   /* ==========================================
      TYPE SCALE
-     Weight carries hierarchy, not just size:
-     hero 900 / section 700 / card 600 / metadata 400.
      ========================================== */
-  --fw-hero: 900;
+  --fw-hero: 800;
   --fw-section: 700;
   --fw-card: 600;
   --fw-metadata: 400;
-  --fw-description: 350;
+  --fw-description: 400;
 
-  /* ==========================================
-     PURPLE DISCIPLINE
-     Purple means "the system's judgment about you":
-     match scores, TasteDNA values, why-this-fits,
-     selected chips/filters, primary CTAs. Everything
-     else (nav, secondary buttons, borders, badges)
-     uses these neutral tokens instead.
-     ========================================== */
-  --neutral-surface: rgba(120, 160, 255, 0.07);
-  --neutral-surface-hover: rgba(120, 160, 255, 0.14);
-  --neutral-border: rgba(140, 170, 255, 0.16);
-  --neutral-text: #dbe5ff;
+  --neutral-surface: rgba(184, 230, 213, 0.06);
+  --neutral-surface-hover: rgba(184, 230, 213, 0.12);
+  --neutral-border: rgba(184, 230, 213, 0.15);
+  --neutral-text: #dfe8fb;
 }
 
 /* A trait/font-weight value below 100 isn't valid CSS in every engine's eyes for
@@ -156,8 +171,8 @@ html {
    at their default opacity/lightness. Doesn't touch color-bearing tokens
    (--primary, --success, --danger, etc.), which already meet contrast. */
 :root[data-contrast="high"] {
-  --text-muted: #d4d4d8;
-  --text-faint: #a1a1aa;
+  --text-muted: #d3dcf2;
+  --text-faint: #a9b6d3;
   --border: rgba(255, 255, 255, 0.28);
   --border-strong: rgba(255, 255, 255, 0.4);
 }
@@ -179,11 +194,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(
-      circle at 50% -10%,
-      rgba(var(--primary-dark-rgb), 0.11),
-      transparent 35%
-    ),
+    radial-gradient(900px 520px at 85% -8%, rgba(var(--primary-rgb), 0.12), transparent 62%),
+    radial-gradient(760px 460px at -6% 12%, rgba(var(--cyan-rgb), 0.09), transparent 60%),
     var(--background);
   color: var(--text);
 }
@@ -197,15 +209,10 @@ body {
    other layer in this file (max elsewhere is 1100) but visually inert.
    Static, not animated — grain has no motion to gate behind
    prefers-reduced-motion in the first place. */
+/* Film-grain overlay removed in the Ree rebrand: the board's material is
+   soft-touch polymer under diffuse studio light — clean, not gritty. */
 body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  pointer-events: none;
-  opacity: 0.035;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  content: none;
 }
 
 body,
@@ -299,7 +306,7 @@ nav {
   border: 1px solid var(--border);
   border-radius: 16px;
 
-  background: rgba(24, 25, 31, 0.82);
+  background: rgba(22, 35, 63, 0.82);
   backdrop-filter: blur(18px);
 
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
@@ -460,13 +467,13 @@ button:disabled {
 }
 
 .btn-danger-outline {
-  border-color: rgba(239, 68, 68, 0.35);
-  color: #fca5a5;
-  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(240, 138, 155, 0.35);
+  color: #f6b3be;
+  background: rgba(240, 138, 155, 0.08);
 }
 
 .btn-danger-outline:hover {
-  background: rgba(239, 68, 68, 0.14);
+  background: rgba(240, 138, 155, 0.14);
 }
 
 /* ==========================================
@@ -487,7 +494,7 @@ select {
   border-radius: 12px;
 
   color: #ffffff;
-  background: rgba(5, 11, 31, 0.75);
+  background: rgba(10, 18, 38, 0.75);
 
   outline: none;
 
@@ -507,7 +514,7 @@ select:focus {
 
 input::placeholder,
 textarea::placeholder {
-  color: #71717a;
+  color: #7d8bab;
 }
 
 input[type="range"] {
@@ -531,7 +538,7 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 20px;
 
-  background: rgba(6, 13, 34, 0.88);
+  background: rgba(10, 18, 38, 0.88);
 
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
 }
@@ -562,7 +569,7 @@ input[type="range"] {
 }
 
 .status-message--error {
-  color: #f87171;
+  color: #f08a9b;
 }
 
 .status-message--success {
@@ -597,7 +604,7 @@ input[type="range"] {
   /* Glass, not a flat panel — sticky means this sits over scrolling content
      for as long as the page is open, so a solid fill would read as a bar
      bolted on top rather than part of the same surface. */
-  background: rgba(6, 13, 34, 0.7);
+  background: rgba(10, 18, 38, 0.7);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-bottom: 1px solid var(--border);
@@ -744,7 +751,7 @@ input[type="range"] {
 }
 
 .account-menu-item--danger {
-  color: #f87171;
+  color: #f08a9b;
 }
 
 .account-menu-divider {
@@ -1018,7 +1025,7 @@ input[type="range"] {
   border: 1px solid rgba(var(--primary-rgb), 0.3);
   border-radius: 28px;
 
-  background: linear-gradient(145deg, rgba(6, 13, 34, 0.95) 0%, rgba(12, 30, 80, 0.85) 100%);
+  background: linear-gradient(145deg, rgba(10, 18, 38, 0.95) 0%, rgba(27, 43, 77, 0.85) 100%);
 
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
 
@@ -1204,7 +1211,7 @@ input[type="range"] {
 .chip.chip-insight {
   border-color: transparent;
   background: rgba(var(--cyan-rgb), 0.22);
-  color: #38bdf8;
+  color: #45c5b4;
   font-weight: 700;
 }
 
@@ -1291,7 +1298,7 @@ input[type="range"] {
   padding: 20px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: rgba(11, 12, 16, 0.6);
+  background: rgba(10, 18, 38, 0.6);
   transition: border-color 200ms ease;
   grid-column: span 1;
 }
@@ -1301,7 +1308,7 @@ input[type="range"] {
   padding: 20px 26px;
   background:
     radial-gradient(circle at 85% 15%, rgba(var(--primary-rgb), 0.16), transparent 55%),
-    rgba(11, 12, 16, 0.6);
+    rgba(10, 18, 38, 0.6);
 }
 
 .stat-card--featured .stat-value {
@@ -1481,7 +1488,7 @@ input[type="range"] {
 
   padding: 12vh var(--sp-2) var(--sp-2);
 
-  background: rgba(5, 5, 8, 0.6);
+  background: rgba(10, 18, 38, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 
@@ -1505,7 +1512,7 @@ input[type="range"] {
   border-radius: 16px;
   overflow: hidden;
 
-  background: rgba(6, 13, 34, 0.78);
+  background: rgba(10, 18, 38, 0.78);
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
 
@@ -1621,7 +1628,7 @@ input[type="range"] {
 
   padding: var(--sp-2);
 
-  background: rgba(9, 9, 11, 0.72);
+  background: rgba(10, 18, 38, 0.72);
   /* Same frosted treatment as the header/command-palette rather than a flat
      scrim — the page behind stays legible-but-blurred instead of vanishing
      completely, which is what actually reads as "glass" rather than just a
@@ -1640,7 +1647,7 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 20px;
 
-  background: rgba(11, 21, 48, 0.82);
+  background: rgba(22, 35, 63, 0.82);
   backdrop-filter: blur(20px) saturate(160%);
   color: var(--text);
 
@@ -1649,7 +1656,7 @@ input[type="range"] {
 
 @media (prefers-reduced-transparency: reduce) {
   .modal-overlay {
-    background: rgba(9, 9, 11, 0.9);
+    background: rgba(10, 18, 38, 0.9);
     backdrop-filter: none;
   }
   .modal-card {
@@ -1811,8 +1818,8 @@ input[type="range"] {
     ),
     linear-gradient(
       135deg,
-      rgba(11, 21, 48, 0.97),
-      rgba(8, 14, 40, 0.92)
+      rgba(22, 35, 63, 0.97),
+      rgba(16, 27, 53, 0.92)
     );
 
   box-shadow:
@@ -1871,7 +1878,7 @@ input[type="range"] {
 
   border-radius: 50%;
 
-  background: rgba(56, 189, 248, 0.2);
+  background: rgba(69, 197, 180, 0.2);
 
   filter: blur(60px);
 
@@ -1947,7 +1954,7 @@ input[type="range"] {
   padding: var(--sp-4);
   min-height: 280px;
 
-  background: linear-gradient(180deg, rgba(5, 11, 31, 0.1) 0%, rgba(5, 11, 31, 0.85) 100%);
+  background: linear-gradient(180deg, rgba(10, 18, 38, 0.1) 0%, rgba(10, 18, 38, 0.85) 100%);
 }
 
 .tonight-pick-body h2 {
@@ -1986,8 +1993,8 @@ input[type="range"] {
   margin: 10px auto 0;
   padding: 6px 16px;
   border-radius: 999px;
-  border: 1px solid rgba(250, 204, 21, 0.35);
-  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid rgba(243, 217, 165, 0.35);
+  background: rgba(243, 217, 165, 0.1);
   color: var(--gold);
   font-size: 0.82rem;
   font-weight: 700;
@@ -1995,8 +2002,8 @@ input[type="range"] {
 }
 
 .streak-badge--at-risk {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(240, 138, 155, 0.4);
+  background: rgba(240, 138, 155, 0.1);
   color: var(--danger);
   animation: streak-pulse 2.4s ease-in-out infinite;
 }
@@ -2043,7 +2050,7 @@ input[type="range"] {
 
   margin: 0;
 
-  color: #b4b4bd;
+  color: #a9b6d3;
 
   font-size: clamp(0.95rem, 2vw, 1.08rem);
 }
@@ -2175,7 +2182,7 @@ input[type="range"] {
 
   overflow: hidden;
 
-  background: #14234a;
+  background: #223459;
 }
 
 .recommendation-poster img {
@@ -2202,9 +2209,9 @@ input[type="range"] {
 
   background: linear-gradient(
     180deg,
-    rgba(9, 9, 11, 0.04) 35%,
-    rgba(9, 9, 11, 0.12) 60%,
-    rgba(9, 9, 11, 0.93) 100%
+    rgba(10, 18, 38, 0.04) 35%,
+    rgba(10, 18, 38, 0.12) 60%,
+    rgba(10, 18, 38, 0.93) 100%
   );
 
   pointer-events: none;
@@ -2222,7 +2229,7 @@ input[type="range"] {
 
   color: #ffffff;
 
-  background: rgba(15, 12, 25, 0.78);
+  background: rgba(16, 27, 53, 0.78);
 
   backdrop-filter: blur(14px);
 
@@ -2251,7 +2258,7 @@ input[type="range"] {
   place-items: center;
 
   border-radius: 50%;
-  background: rgba(15, 12, 25, 0.55);
+  background: rgba(16, 27, 53, 0.55);
   backdrop-filter: blur(10px);
 }
 
@@ -2316,8 +2323,8 @@ input[type="range"] {
    a togglable status). */
 .poster-quick-actions .save-icon-button.is-watched {
   cursor: default;
-  background: rgba(74, 222, 128, 0.18);
-  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(127, 224, 190, 0.18);
+  border-color: rgba(127, 224, 190, 0.35);
 }
 
 .recommendation-card:hover .poster-quick-actions,
@@ -2331,7 +2338,7 @@ input[type="range"] {
    backdrop of its own (matching the match-ring badge) so it's legible
    regardless of what's underneath. */
 .poster-quick-actions .save-icon-button {
-  background: rgba(15, 12, 25, 0.65);
+  background: rgba(16, 27, 53, 0.65);
   border-color: rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
@@ -2363,9 +2370,9 @@ input[type="range"] {
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 999px;
 
-  color: #e4e4e7;
+  color: #dfe8fb;
 
-  background: rgba(9, 9, 11, 0.65);
+  background: rgba(10, 18, 38, 0.65);
 
   backdrop-filter: blur(10px);
 
@@ -2416,7 +2423,7 @@ input[type="range"] {
   border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 50%;
 
-  color: #d4d4d8;
+  color: #d3dcf2;
 
   background: rgba(255, 255, 255, 0.055);
 
@@ -2445,7 +2452,7 @@ input[type="range"] {
 
   margin: 13px 0 20px;
 
-  color: #9f9fa9;
+  color: #a9b6d3;
 
   font-size: 0.84rem;
   line-height: 1.65;
@@ -2491,7 +2498,7 @@ input[type="range"] {
 
   padding-left: 20px;
 
-  color: #d4d4d8;
+  color: #d3dcf2;
 
   font-size: 0.78rem;
   line-height: 1.45;
@@ -2535,7 +2542,7 @@ input[type="range"] {
 }
 
 .details-button {
-  color: #ededed;
+  color: #e8eefc;
 
   border: 1px solid rgba(255, 255, 255, 0.11);
 
@@ -2566,7 +2573,7 @@ input[type="range"] {
   padding: 0 18px;
   border-radius: 11px;
   white-space: nowrap;
-  color: #ededed;
+  color: #e8eefc;
   border: 1px solid rgba(255, 255, 255, 0.11);
   background: rgba(255, 255, 255, 0.055);
   box-shadow: none;
@@ -2630,7 +2637,7 @@ input[type="range"] {
 }
 
 .feed-error {
-  border-color: rgba(239, 68, 68, 0.3);
+  border-color: rgba(240, 138, 155, 0.3);
 }
 
 .rey-mascot {
@@ -2836,8 +2843,8 @@ input[type="range"] {
    elsewhere in this app) keeps that distinction consistent rather than
    introducing a new hue for it. */
 .achievement-toast {
-  border-color: rgba(250, 204, 21, 0.35);
-  background: rgba(250, 204, 21, 0.1);
+  border-color: rgba(243, 217, 165, 0.35);
+  background: rgba(243, 217, 165, 0.1);
 }
 
 .achievement-toast .shift-toast-icon {
@@ -2912,7 +2919,7 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 18px;
 
-  background: rgba(24, 26, 33, 0.88);
+  background: rgba(22, 35, 63, 0.88);
 
   transition:
     transform 180ms ease,
@@ -2937,7 +2944,7 @@ input[type="range"] {
 
   overflow: hidden;
 
-  background: #0b1530;
+  background: #16233f;
 }
 
 .poster-wrap img {
@@ -2968,7 +2975,7 @@ input[type="range"] {
 
   color: var(--gold);
 
-  background: rgba(11, 12, 16, 0.85);
+  background: rgba(10, 18, 38, 0.85);
 
   backdrop-filter: blur(8px);
 
@@ -3021,7 +3028,7 @@ input[type="range"] {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 
-  color: #ededed;
+  color: #e8eefc;
 
   background: rgba(255, 255, 255, 0.06);
 
@@ -3078,7 +3085,7 @@ input[type="range"] {
   border-radius: 12px;
 
   color: #ffffff;
-  background: rgba(5, 11, 31, 0.75);
+  background: rgba(10, 18, 38, 0.75);
   color-scheme: dark;
 
   font-size: 0.86rem;
@@ -3136,11 +3143,11 @@ input[type="range"] {
   padding: 18px 20px;
   margin-bottom: var(--sp-4);
 
-  border: 1px solid rgba(251, 113, 133, 0.25);
+  border: 1px solid rgba(232, 189, 207, 0.25);
   border-radius: 12px;
 
   background:
-    radial-gradient(circle at 85% 15%, rgba(251, 113, 133, 0.16), transparent 55%),
+    radial-gradient(circle at 85% 15%, rgba(232, 189, 207, 0.16), transparent 55%),
     var(--surface);
 }
 
@@ -3241,34 +3248,37 @@ input[type="range"] {
    chips, links, focus rings via --primary/--primary-light/--primary-dark).
    The brand mark and TraitRadar deliberately do NOT read these tokens — see
    User.java's accentColor javadoc for why that pairing stays fixed. */
+/* Stored keys are fixed by the backend whitelist (purple|blue|orange|emerald);
+   the colors behind them are brand palette members. "purple" is the default
+   and is the :root Teal above, so it needs no override. */
 :root[data-accent="blue"] {
-  --primary: #38bdf8;
-  --primary-light: #7dd3fc;
-  --primary-dark: #0369a1;
-  --primary-rgb: 56, 189, 248;
-  --primary-light-rgb: 125, 211, 252;
-  --primary-dark-rgb: 3, 105, 161;
+  --primary: #a6a4ed;
+  --primary-light: #d6c9f5;
+  --primary-dark: #7773b2;
+  --primary-rgb: 166, 164, 237;
+  --primary-light-rgb: 214, 201, 245;
+  --primary-dark-rgb: 119, 115, 178;
+  --cyan: #45c5b4;
+  --cyan-rgb: 69, 197, 180;
 }
 
-/* data-accent="purple" is the stored default key (backend null reads as
-   it); it now means the base Midnight Blue tokens from :root, so it needs no
-   override. */
 :root[data-accent="orange"] {
-  --primary: #f97316;
-  --primary-light: #fb923c;
-  --primary-dark: #c2410c;
-  --primary-rgb: 249, 115, 22;
-  --primary-light-rgb: 251, 146, 60;
-  --primary-dark-rgb: 194, 65, 12;
+  --primary: #f3d9a5;
+  --primary-light: #fbeccc;
+  --primary-dark: #d4b36f;
+  --primary-rgb: 243, 217, 165;
+  --primary-light-rgb: 251, 236, 204;
+  --primary-dark-rgb: 212, 179, 111;
+  --gold: #fff0c9;
 }
 
 :root[data-accent="emerald"] {
-  --primary: #10b981;
-  --primary-light: #34d399;
-  --primary-dark: #047857;
-  --primary-rgb: 16, 185, 129;
-  --primary-light-rgb: 52, 211, 153;
-  --primary-dark-rgb: 4, 120, 87;
+  --primary: #b8e6d5;
+  --primary-light: #dcf3ea;
+  --primary-dark: #8bcdb6;
+  --primary-rgb: 184, 230, 213;
+  --primary-light-rgb: 220, 243, 234;
+  --primary-dark-rgb: 139, 205, 182;
 }
 
 .accent-swatch-row {
@@ -3320,8 +3330,8 @@ input[type="range"] {
 
 .achievement-card.is-unlocked {
   opacity: 1;
-  border-color: rgba(250, 204, 21, 0.35);
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.07), var(--background) 60%);
+  border-color: rgba(243, 217, 165, 0.35);
+  background: linear-gradient(135deg, rgba(243, 217, 165, 0.07), var(--background) 60%);
 }
 
 .achievement-card-row {
@@ -3879,10 +3889,10 @@ input[type="range"] {
   margin-top: var(--sp-2);
   padding: 14px;
 
-  border: 1px solid rgba(2, 132, 199, 0.22);
+  border: 1px solid rgba(166, 164, 237, 0.22);
   border-radius: 14px;
 
-  background: rgba(2, 132, 199, 0.06);
+  background: rgba(166, 164, 237, 0.06);
 }
 
 .tradeoffs-panel .fit-label {
@@ -4024,7 +4034,7 @@ input[type="range"] {
 }
 
 .radar-axis-label {
-  /* --text-faint (#71717a) against --surface only clears ~3.5:1 at this
+  /* --text-faint (#7d8bab) against --surface only clears ~3.5:1 at this
      size — below WCAG AA's 4.5:1 floor for normal-size text, flagged as a
      legibility problem. --text-muted (already what .radar-legend uses for
      the same secondary-label role) clears ~7:1. */
@@ -4296,16 +4306,16 @@ input[type="range"] {
 }
 
 .avatar-frame--bronze {
-  background: conic-gradient(from 180deg, #b45309, #f59e0b, #b45309);
+  background: conic-gradient(from 180deg, #d4b36f, #f59e0b, #d4b36f);
 }
 
 .avatar-frame--silver {
-  background: conic-gradient(from 180deg, #94a3b8, #e2e8f0, #94a3b8);
+  background: conic-gradient(from 180deg, #a9b6d3, #e2e8f0, #a9b6d3);
 }
 
 .avatar-frame--gold {
   background: conic-gradient(from 180deg, var(--gold), #fff7cc, var(--gold));
-  box-shadow: 0 0 10px rgba(250, 204, 21, 0.45);
+  box-shadow: 0 0 10px rgba(243, 217, 165, 0.45);
 }
 
 .avatar-frame--signal {
@@ -4517,7 +4527,7 @@ input[type="range"] {
   background: linear-gradient(160deg, #1a1425, #3d0f2e 70%);
   --primary-light: #f472b6;
   --primary-rgb: 244, 114, 182;
-  --border: rgba(244, 114, 182, 0.18);
+  --border: rgba(232, 189, 207, 0.18);
 }
 
 .social-profile-page[data-profile-theme="vhs"]::before {
@@ -4545,14 +4555,14 @@ input[type="range"] {
   background-size: 140px 140px, 160px 160px, 120px 120px, 180px 180px, 100% 100%;
   --primary-light: #f0abfc;
   --primary-rgb: 240, 171, 252;
-  --border: rgba(240, 171, 252, 0.2);
+  --border: rgba(214, 201, 245, 0.2);
 }
 
 .social-profile-page[data-profile-theme="midnight"] {
   background: linear-gradient(160deg, #020617, #0c1e3e 70%);
-  --primary-light: #38bdf8;
+  --primary-light: #45c5b4;
   --primary-rgb: 56, 189, 248;
-  --border: rgba(56, 189, 248, 0.16);
+  --border: rgba(69, 197, 180, 0.16);
 }
 
 .social-profile-page[data-profile-theme="indie"] {
@@ -4563,7 +4573,7 @@ input[type="range"] {
   --surface: #e7dcc2;
   --surface-soft: #ded1b2;
   --surface-elevated: #d3c4a2;
-  --border: rgba(63, 45, 26, 0.18);
+  --border: rgba(40, 48, 70, 0.18);
   --primary-light: #92400e;
   --primary-rgb: 146, 64, 14;
 }
@@ -4737,7 +4747,7 @@ input[type="range"] {
   padding: 2px 8px;
   border: none;
   background: none;
-  color: #f87171;
+  color: #f08a9b;
   font-size: 0.7rem;
 }
 
@@ -4860,7 +4870,7 @@ input[type="range"] {
     border-radius: 0;
     box-shadow: none;
 
-    background: rgba(5, 11, 31, 0.92);
+    background: rgba(10, 18, 38, 0.92);
     backdrop-filter: blur(18px);
   }
 

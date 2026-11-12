@@ -1,0 +1,24 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="185.629" height="166.541" viewBox="0 0 185.629 166.541" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="ree-replay-symbol">
+<path id="Vector" fill-rule="evenodd" clip-rule="evenodd" d="M61 0C24 0 0 27 0 69C0 116 29 153 77 161C104 166 131 157 147 139C161 123 165 102 155 83C150 73 138 70 131 77C125 83 129 91 132 99C139 116 127 133 108 137C77 144 48 127 39 105C32 87 32 63 40 46C49 27 70 23 89 33C102 40 113 52 125 54C135 56 144 50 143 41C142 33 130 23 117 15C101 5 81 0 61 0ZM60 45C55 42 51 45 51 51V102C51 108 55 111 60 108L99 84C105 80 105 75 99 71L60 45Z" fill="url(#paint0_linear_0_4)"/>
+<path id="Vector_2" d="M79 151C111 163 150 153 167 128C181 107 176 81 159 74C144 67 128 75 126 89C124 101 133 110 142 107C148 105 149 99 146 96" stroke="url(#paint1_linear_0_4)" stroke-width="21" stroke-linecap="round"/>
+<path id="Vector_3" d="M14 56C17 27 34 11 60 10C79 9 99 16 113 26" stroke="url(#paint2_linear_0_4)" stroke-width="3" stroke-linecap="round"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_4" x1="23" y1="13" x2="145" y2="154" gradientUnits="userSpaceOnUse">
+<stop stop-color="#8AE8DB"/>
+<stop offset="0.38" stop-color="#45C9BE"/>
+<stop offset="0.73" stop-color="#26A9AA"/>
+<stop offset="1" stop-color="#8B85C0"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_4" x1="101" y1="135" x2="172" y2="81" gradientUnits="userSpaceOnUse">
+<stop stop-color="#479EAE"/>
+<stop offset="0.48" stop-color="#A69AD7"/>
+<stop offset="1" stop-color="#D1C3EC"/>
+</linearGradient>
+<linearGradient id="paint2_linear_0_4" x1="22" y1="15" x2="96" y2="51" gradientUnits="userSpaceOnUse">
+<stop stop-color="#C1F5E7" stop-opacity="0.7"/>
+<stop offset="1" stop-color="#8AE8DB" stop-opacity="0"/>
+</linearGradient>
+</defs>
+</svg>

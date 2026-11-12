@@ -555,7 +555,7 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
                 <div
                   style={{
                     background: "var(--background)",
-                    border: "1px solid rgba(59, 130, 246, 0.25)",
+                    border: "1px solid rgba(69, 197, 180, 0.25)",
                     borderRadius: "12px",
                     padding: "16px",
                     marginBottom: "var(--sp-3)"
@@ -571,7 +571,7 @@ export default function MovieModal({ movie, onClose, onRatingChange, onReroll })
 
                 <TraitRadar
                   traits={radarTraits}
-                  primary={{ label: "Your TasteDNA", color: "#3b82f6", values: userValues }}
+                  primary={{ label: "Your TasteDNA", color: "#45c5b4", values: userValues }}
                   secondary={{ label: movie.title, color: MOVIE_COLOR, values: movieValues }}
                   size={300}
                 />

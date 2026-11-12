@@ -1,4 +1,4 @@
-import Rey from "./Rey";
+import Ree from "./Ree";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
 
@@ -24,7 +24,7 @@ export default function CollageCover({ posters = [], size = 64, className = "" }
         className={`collage-cover collage-cover--empty ${className}`}
         style={{ width: size, height: size }}
       >
-        <Rey mood="empty" size={Math.round(size * 0.6)} />
+        <Ree variant="icon" size={Math.round(size * 0.72)} />
       </div>
     );
   }
