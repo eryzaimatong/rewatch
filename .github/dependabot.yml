@@ -1,4 +1,6 @@
 # Keeps dependencies current without flooding the repo: monthly, grouped, capped.
+# Major-version jumps (e.g. Spring Boot 3 -> 4) are ignored on purpose: they need a
+# deliberate migration, not an automatic PR.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -6,6 +8,9 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-minor-and-patch:
         update-types: [minor, patch]
@@ -14,6 +19,9 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       backend-minor-and-patch:
         update-types: [minor, patch]
