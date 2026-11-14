@@ -595,3 +595,35 @@ login -> TasteDNA generation -> mood click -> share-card export, decoding the
 exported PNG's QR, and guards that Ree is never clipped or covering a control.
 CI runs it in the `e2e` job.
 
+### Running more than one backend instance (Redis)
+
+Everything that used to live in one server's memory can now live in Redis, so
+instances are interchangeable. Set `REDIS_URL` (Upstash, Render Key Value, or any
+Redis; managed TLS URLs look like `rediss://default:<password>@<host>:6379`) and:
+
+| State | In memory (unset) | With `REDIS_URL` |
+|---|---|---|
+| Rate limits (login, register, ...) | per instance | one shared limit across all instances (atomic Lua) |
+| TMDB cache | per instance | shared, with a TTL (`tmdb.cache.ttl-minutes`) |
+| Enrichment sweep (`@Scheduled`) | runs on each instance | runs on one instance at a time (leader lock, 2 min TTL) |
+
+Unset, behaviour is exactly what it was (single instance, all in memory).
+
+**Redis is never a single point of failure.** Every Redis call is guarded: on an
+error the app falls back to per-instance memory (rate limits and cache) or runs
+the job anyway, and stops calling Redis for 10 s so an outage does not add a
+timeout to every request. Timeouts are short (`REDIS_TIMEOUT`, default 300 ms).
+The one thing that gets weaker during an outage is the rate limit: it applies per
+instance, not globally.
+
+**Still true of any instance count:** JWTs are stateless, sessions are not stored
+server-side, and `NightService.purgeExpired` is an idempotent delete, so running
+it on every instance is harmless. Before scaling out, set `TRUST_PROXY_HEADERS`
+only if every instance sits behind the same append-style proxy (see above), and
+size Hikari pools so `instances x DB_MAX_POOL_SIZE` stays under Neon's connection
+limit (or use Neon's pooled connection string).
+
+Tests: `./mvnw test` runs the Redis integration tests when a Redis is reachable at
+`REDIS_URL` (default `redis://127.0.0.1:6379`) and skips them otherwise; CI always
+provides one.
+

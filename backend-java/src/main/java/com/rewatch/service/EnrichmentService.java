@@ -93,9 +93,22 @@ public class EnrichmentService {
         return titleRepo.save(t);
     }
 
+    /** Leader lock so several backend instances do not run the same sweep at once. */
+    private com.rewatch.config.JobLock jobLock = com.rewatch.config.JobLock.NONE;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setJobLock(com.rewatch.config.JobLock jobLock) {
+        this.jobLock = jobLock;
+    }
+
     /** Background sweep: upgrade titles that have never been keyword-enriched. */
     @Scheduled(initialDelayString = "PT15S", fixedDelayString = "PT20S")
     public void enrichBatch() {
+        // 2 minutes comfortably covers one batch; a crashed leader frees the job after that.
+        jobLock.runIfLeader("enrichment-sweep", java.time.Duration.ofMinutes(2), this::sweep);
+    }
+
+    private void sweep() {
         if (!tmdb.isConfigured()) {
             return;
         }

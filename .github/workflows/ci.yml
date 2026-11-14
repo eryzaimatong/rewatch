@@ -9,6 +9,17 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # A real Redis so the shared-state tests (rate limits, TMDB cache, job lock)
+    # run here instead of being skipped.
+    services:
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend-java
@@ -20,6 +31,8 @@ jobs:
           java-version: "17"
           cache: maven
       - run: ./mvnw -B test
+        env:
+          REDIS_URL: redis://127.0.0.1:6379
 
   # Production runs Hibernate with ddl-auto=validate. This boots the app against a
   # real Postgres with `update`, then again with `validate`, so a mapping that
