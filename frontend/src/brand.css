@@ -167,13 +167,20 @@ select:focus {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.ree-live { perspective: 700px; }
+/* isolation keeps the aura (z-index:-1) inside Ree's own stacking context. */
+.ree-live { isolation: isolate; }
+/* Filters + perspective sit on this wrapper; the 3D head-turn is its child. */
+.ree-tone {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 100%; height: 100%;
+  perspective: 700px;
+  filter: drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
+}
 .ree-look, .ree-body, .ree-hop { display: flex; align-items: flex-end; justify-content: center; }
 .ree-img {
   display: block;
   max-width: 100%;
   height: auto;
-  filter: drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
   pointer-events: none;
 }
 .ree-aura {
@@ -195,7 +202,7 @@ select:focus {
   filter: blur(6px);
 }
 /* Mood response: she shifts colour like a chameleon, and her aura follows. */
-.ree-hue .ree-img {
+.ree-hue .ree-tone {
   filter: hue-rotate(var(--ree-hue, 0deg)) saturate(var(--ree-sat, 1)) brightness(var(--ree-lum, 1)) drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
   transition: filter 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }

@@ -12,7 +12,7 @@ import ErrorState from "./ErrorState";
 import ReviewInteractions from "./ReviewInteractions";
 import CollageCover from "./CollageCover";
 import { drawBrandMark } from "./canvasBrandMark";
-import { CARD_FONT, ensureCardFonts } from "./shareCard";
+import { CARD_FONT, ensureCardFonts, toBlobSafe } from "./shareCard";
 import { IconMusic } from "./Icons";
 import "./App.css";
 
@@ -152,7 +152,7 @@ export default function SocialProfile() {
     ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
 
     setexportingListId(null);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = `${profile.username}-${list.name.toLowerCase().replace(/\s+/g, "-")}.png`;

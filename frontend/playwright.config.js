@@ -19,7 +19,7 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 860 } } },
     // Mobile only needs the layout checks; the share flow differs on a phone (native share sheet).
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testMatch: /rendering\.spec\.js/ }
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testMatch: /(rendering|safari)\.spec\.js/ }
   ],
   webServer: {
     command: "npm run build && npm run preview -- --port 4173 --strictPort",

@@ -82,18 +82,50 @@ export function downloadBlob(blob, filename) {
  * Instagram, then manually attach it" and one tap straight into Stories/
  * Messages/TikTok. Falls back to a direct download everywhere else.
  */
-export async function shareOrDownloadBlob(blob, filename, { title, text, kind } = {}) {
-  const result = await shareOrDownloadInner(blob, filename, { title, text });
+/**
+ * canvas.toBlob that survives iOS Safari, which can hand the callback `null`
+ * for a large canvas under memory pressure. Falls back to the canvas data URL,
+ * and reports null (never a fake file) only when nothing can be produced.
+ */
+export function toBlobSafe(canvas, callback, type = "image/png", quality) {
+  const fromDataUrl = () => {
+    try {
+      const [head, body] = canvas.toDataURL(type, quality).split(",");
+      const mime = /data:([^;]+)/.exec(head)?.[1] ?? type;
+      const bytes = atob(body);
+      const buf = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+      return new Blob([buf], { type: mime });
+    } catch {
+      return null;
+    }
+  };
+  try {
+    canvas.toBlob((blob) => callback(blob ?? fromDataUrl()), type, quality);
+  } catch {
+    callback(fromDataUrl());
+  }
+}
+
+export async function shareOrDownloadBlob(blob, filename, { title, text, url, kind } = {}) {
+  if (!blob) return "failed";
+  const result = await shareOrDownloadInner(blob, filename, { title, text, url });
   track("card_exported", { kind: kind ?? "card", method: result });
   return result;
 }
 
-async function shareOrDownloadInner(blob, filename, { title, text }) {
+async function shareOrDownloadInner(blob, filename, { title, text, url }) {
   const file = new File([blob], filename, { type: blob.type });
 
   if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title, text });
+      // Many targets (Instagram Stories, TikTok, some messengers) take the image
+      // and drop or strip the `url` field, so the link also goes in the caption
+      // text. Together, the loop survives whichever field a platform keeps.
+      const caption = url && !(text ?? "").includes(url) ? [text, url].filter(Boolean).join(" ") : text;
+      const payload = { files: [file], title, text: caption };
+      if (url) payload.url = url;
+      await navigator.share(payload);
       return "shared";
     } catch (err) {
       // AbortError = the user backed out of the share sheet themselves —

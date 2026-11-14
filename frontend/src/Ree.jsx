@@ -199,6 +199,9 @@ function LiveRee({ pose, size, className, style, live, aura, hop, moodKey, a11y 
       onClick={animated ? () => setPoked((n) => n + 1) : undefined}
     >
       {aura && <span className="ree-aura" aria-hidden="true" />}
+      {/* Filters live on this wrapper, OUTSIDE the 3D-transformed .ree-look: WebKit
+          mis-renders drop-shadow on anything inside a 3D transform (clipped/flickering). */}
+      <span className="ree-tone">
       <motion.span
         className="ree-look"
         style={{ x: animated ? x : 0, y: animated ? y : 0, rotateY: animated ? yaw : 0, rotateX: animated ? pitch : 0, transformOrigin: "50% 80%" }}
@@ -232,6 +235,7 @@ function LiveRee({ pose, size, className, style, live, aura, hop, moodKey, a11y 
         </motion.span>
       </motion.span>
       </motion.span>
+      </span>
       <span className="ree-shadow" aria-hidden="true" />
     </span>
   );

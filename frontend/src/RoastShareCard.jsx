@@ -15,7 +15,8 @@ import {
   CARD_FONT,
   ensureCardFonts,
   compareUrl,
-  CARD_FOOTER_TOP
+  CARD_FOOTER_TOP,
+  toBlobSafe
 } from "./shareCard";
 import "./App.css";
 
@@ -120,9 +121,10 @@ export default function RoastShareCard({ userId, username, onClose }) {
     drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${username}-taste-roast.png`, {
         kind: "roast",
+        url: compareUrl(username, "share"),
         title: "I got roasted by Re:Watch",
         text: roast.headline
       }).catch(() => setshareErr("Could not share this card."));

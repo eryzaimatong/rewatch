@@ -18,7 +18,8 @@ import {
   CARD_FONT,
   ensureCardFonts,
   compareUrl,
-  CARD_FOOTER_TOP
+  CARD_FOOTER_TOP,
+  toBlobSafe
 } from "./shareCard";
 import "./App.css";
 
@@ -236,9 +237,10 @@ export default function CompareTaste() {
     drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `taste-compatibility-with-${result.targetUsername}.png`, {
         kind: "compare",
+        url: compareUrl(result.targetUsername, "share"),
         title: `${result.compatibilityPercent}% taste compatibility on Re:Watch`,
         text: `I'm ${result.compatibilityPercent}% compatible with @${result.targetUsername} on Re:Watch.`
       }).catch(() => seterr("Could not share this card. Try again, or take a screenshot instead."));

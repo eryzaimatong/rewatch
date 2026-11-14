@@ -11,7 +11,8 @@ import {
   shareOrDownloadBlob,
   CARD_FONT,
   ensureCardFonts,
-  compareUrl
+  compareUrl,
+  toBlobSafe
 } from "./shareCard";
 import "./App.css";
 
@@ -171,9 +172,10 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${movie.title.replace(/[^a-z0-9]+/gi, "-")}-match.png`, {
         kind: "match",
+        url: compareUrl(username, "share"),
         title: `${roundedScore}% match on Re:Watch`,
         text: `${movie.title} is a ${roundedScore}% match for me on Re:Watch.`
       }).catch(() => setshareErr("Could not share this card."));

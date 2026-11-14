@@ -13,7 +13,8 @@ import {
   CARD_FONT,
   ensureCardFonts,
   compareUrl,
-  CARD_FOOTER_TOP
+  CARD_FOOTER_TOP,
+  toBlobSafe
 } from "./shareCard";
 import EmptyState from "./EmptyState";
 import Ree from "./Ree";
@@ -197,9 +198,10 @@ export default function Wrapped() {
     drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${username}-wrapped-${month}.png`, {
         kind: "wrapped",
+        url: compareUrl(username, "share"),
         title: "My Re:Watch Wrapped",
         text: `My ${summary.period} on Re:Watch: ${summary.archetype}`
       });

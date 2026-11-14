@@ -24,7 +24,8 @@ import {
   CARD_FONT,
   ensureCardFonts,
   compareUrl,
-  CARD_FOOTER_TOP
+  CARD_FOOTER_TOP,
+  toBlobSafe
 } from "./shareCard";
 import "./App.css";
 
@@ -279,9 +280,10 @@ export default function TasteProfile() {
     drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${username}-tastedna-card.png`, {
         kind: "tastedna",
+        url: compareUrl(username, "share"),
         title: "My Re:Watch TasteDNA",
         text: `My TasteDNA archetype on Re:Watch: ${archetype}`
       });
