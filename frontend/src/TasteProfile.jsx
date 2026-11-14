@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import TraitRadar from "./TraitRadar";
 import EvolutionTimeline from "./EvolutionTimeline";
 import BrandMark from "./BrandMark";
@@ -7,6 +7,10 @@ import useModalA11y from "./useModalA11y";
 import Ree from "./Ree";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
+import { useResilientQuery, fetchJson } from "./resilience/useResilientQuery";
+import { TASTE_PROFILE_FALLBACK } from "./resilience/fallbacks";
+import StatusBanner from "./resilience/StatusBanner";
+import { TasteSkeleton } from "./Skeleton";
 import {
   CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
   svgElementToImage, shareOrDownloadBlob, wrapText
@@ -118,14 +122,24 @@ const FALLBACK_LABELS = {
 };
 
 export default function TasteProfile() {
-  const [traits, settraits] = useState({});
-  const [offline, setoffline] = useState(false);
-  const [archetype, setarchetype] = useState("Emotional Storyteller");
-  const [archetypeBlurb, setarchetypeBlurb] = useState("You enjoy balanced storytelling across multiple emotional tones.");
-  const [meanConfidence, setmeanConfidence] = useState(0.1);
-  const [ratingCount, setratingCount] = useState(0);
-  const [personalized, setpersonalized] = useState(false);
-  const [loading, setloading] = useState(true);
+  // One resilient query replaces six hand-synced useState calls and a
+  // hand-rolled fetch/backup: cache -> skeleton -> labelled fallback -> real
+  // data hot-swapped in whenever the server finally answers.
+  const userid = localStorage.getItem("userId") || 1;
+  const { data, status, source, isFallback, isStale, isRevalidating, retry } = useResilientQuery({
+    key: `tastedna:${userid}`,
+    fetcher: (signal) => fetchJson(`/api/tastedna/profile/${userid}`, { signal }),
+    fallback: TASTE_PROFILE_FALLBACK,
+    validate: (d) => !!d && typeof d === "object" && !!d.traits && typeof d.traits === "object"
+  });
+  const profile = data ?? TASTE_PROFILE_FALLBACK;
+  const traits = profile.traits ?? {};
+  const archetype = profile.archetype || "Emotional Storyteller";
+  const archetypeBlurb = profile.archetypeBlurb || "";
+  const meanConfidence = typeof profile.meanConfidence === "number" ? profile.meanConfidence : 0.1;
+  const ratingCount = typeof profile.ratingCount === "number" ? profile.ratingCount : 0;
+  const personalized = !!profile.personalized;
+  const loading = status === "loading";
   const [msg, setmsg] = useState("");
   const [err, seterr] = useState("");
   const [showcard, setshowcard] = useState(false);
@@ -136,48 +150,6 @@ export default function TasteProfile() {
   const [compareLinkCopied, setcompareLinkCopied] = useState(false);
 
   const username = localStorage.getItem("username") || "friend";
-  const userid = localStorage.getItem("userId") || 1;
-
-  useEffect(() => {
-    loadprofile();
-  }, []);
-
-  async function loadprofile() {
-    setloading(true);
-    seterr("");
-    setoffline(false);
-
-    const res = await fetch(`${BASE}/api/tastedna/profile/` + userid, { headers: authHeaders() }).catch(() => null);
-
-    if (res && res.ok) {
-      const data = await res.json();
-      settraits(data.traits ?? {});
-      setarchetype(data.archetype || "Emotional Storyteller");
-      setarchetypeBlurb(data.archetypeBlurb || "");
-      setmeanConfidence(typeof data.meanConfidence === "number" ? data.meanConfidence : 0.1);
-      setratingCount(typeof data.ratingCount === "number" ? data.ratingCount : 0);
-      setpersonalized(!!data.personalized);
-      setloading(false);
-      return;
-    }
-
-    seterr("Couldn't reach Re:Watch, so this is a blank starting profile — not your real one.");
-    setoffline(true);
-    const backup = {
-      comfort: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.comfort },
-      family: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.family },
-      nostalgia: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.nostalgia },
-      hope: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.hope },
-      romance: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.romance },
-      bitter: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.bitter },
-      growth: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.growth },
-      pacing: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.pacing },
-      humor: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.humor },
-      intensity: { val: 0.5, conf: 0.1, trend: 0, evid: 0, label: FALLBACK_LABELS.intensity }
-    };
-    settraits(backup);
-    setloading(false);
-  }
 
   function gettrendtext(node) {
     if (!node || node.trend === 0) {
@@ -222,7 +194,7 @@ export default function TasteProfile() {
     }
 
     setmsg("Done — your TasteDNA has been rebuilt from your complete rating history.");
-    loadprofile();
+    retry();
   }
 
   async function exportTasteCardPNG() {
@@ -295,13 +267,7 @@ export default function TasteProfile() {
 
   return (
     <div className="page-shell page-shell--wide taste-page">
-      {offline && (
-        <div className="offline-banner" role="alert">
-          <Ree mood="error" size={64} />
-          <p>{err}</p>
-          <button type="button" className="btn-primary" onClick={loadprofile}>Try again</button>
-        </div>
-      )}
+      <StatusBanner source={source} isFallback={isFallback} isStale={isStale} isRevalidating={isRevalidating} onRetry={retry} subject="your TasteDNA" />
       <header className="taste-hero">
         <div className="taste-hero-copy">
           <span className="eyebrow">Evolving TasteDNA</span>
@@ -353,12 +319,7 @@ export default function TasteProfile() {
         <Ree pose="curious" size={190} className="taste-hero-ree" />
       </header>
 
-      {loading && (
-        <div className="feed-state feed-state--radar">
-          <div className="loading-orb" />
-          <p>Loading your trait nodes...</p>
-        </div>
-      )}
+      {loading && <TasteSkeleton />}
 
       {!loading && (
         <>
@@ -424,7 +385,7 @@ export default function TasteProfile() {
         </>
       )}
 
-      {err && !offline && <p className="status-message status-message--error">{err}</p>}
+      {err && <p className="status-message status-message--error">{err}</p>}
       {msg && <p className="status-message status-message--success">{msg}</p>}
 
       <div className="taste-footer">

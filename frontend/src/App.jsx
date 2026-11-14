@@ -9,6 +9,7 @@ import NotificationBell from "./NotificationBell";
 import AccountMenu from "./AccountMenu";
 import ErrorBoundary from "./ErrorBoundary";
 import RouteLoading from "./RouteLoading";
+import RouteErrorBoundary from "./resilience/RouteErrorBoundary";
 import CommandPalette from "./CommandPalette";
 import { IconSearch } from "./Icons";
 import { IconHome, IconBookmark, IconUsers, IconDna } from "./RailIcons";
@@ -157,7 +158,7 @@ function AppShell({ onLogout }) {
           <Routes>
             <Route path="/" element={<MovieFeed />} />
             <Route path="/watchlist" element={<Dashboard />} />
-            <Route path="/community" element={<Community />} />
+            <Route path="/community" element={<RouteErrorBoundary area="Community" resetKey={location.pathname} title="The community is taking a breather" message="We couldn’t load this corner just now. Your ratings and TasteDNA are safe — pick a film by mood while it recovers."><Community /></RouteErrorBoundary>} />
             <Route path="/social/:userId" element={<SocialProfile />} />
             <Route path="/profile" element={<TasteProfile />} />
             <Route path="/wrapped" element={<Wrapped />} />

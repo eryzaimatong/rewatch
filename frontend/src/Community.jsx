@@ -228,7 +228,7 @@ export default function Community() {
         {matchesloading ? (
           <SkeletonPersonGrid count={3} />
         ) : matcheserr ? (
-          <ErrorState message={matcheserr} onRetry={loadPeople} />
+          <ErrorState title="Matches are still warming up" message={matcheserr} onRetry={loadPeople} />
         ) : matches.length === 0 ? (
           <EmptyState compact mood="loading" message="Rate a few more titles to unlock DNA matches — at least 3 ratings are needed to compare shapes meaningfully." />
         ) : (
@@ -252,7 +252,7 @@ export default function Community() {
             <div className="loading-orb" />
           </div>
         ) : collectionserr ? (
-          <ErrorState message={collectionserr} onRetry={loadCollections} />
+          <ErrorState title="Collections are still warming up" message={collectionserr} onRetry={loadCollections} />
         ) : collections.length === 0 ? (
           <EmptyState compact mood="trailer" message="No public collections yet — be the first: make a watchlist shelf public from your Watchlist page." />
         ) : (
@@ -293,7 +293,7 @@ export default function Community() {
             <div className="loading-orb" />
           </div>
         ) : feederr ? (
-          <ErrorState message={feederr} onRetry={loadPeople} />
+          <ErrorState title="Your feed is still warming up" message={feederr} onRetry={loadPeople} />
         ) : feed.length === 0 ? (
           <EmptyState compact mood="search" message="Follow someone from their public profile to see what they're watching here." />
         ) : (

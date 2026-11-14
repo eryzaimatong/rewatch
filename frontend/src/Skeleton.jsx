@@ -32,3 +32,53 @@ export function SkeletonPersonGrid({ count = 4 }) {
     </div>
   );
 }
+
+/** Mirrors .movie-card / .recommendation-grid cards: poster 2:3 + title + meta. */
+export function SkeletonMovieRow({ count = 6 }) {
+  return <SkeletonPosterGrid count={count} lines={2} />;
+}
+
+/** Mirrors TasteProfile's radar card + two-column trait grid, so nothing jumps. */
+export function TasteSkeleton({ traitCount = 6 }) {
+  return (
+    <div role="status" aria-label="Loading your TasteDNA" aria-busy="true">
+      <div className="taste-grid">
+        <section className="taste-card taste-radar-card skeleton-radar-card">
+          <div className="skeleton-radar" />
+        </section>
+        <section className="taste-card">
+          <div className="skeleton-line skeleton-line--wide skeleton-title" />
+          <div className="taste-trait-grid">
+            {Array.from({ length: traitCount }, (_, i) => (
+              <div className="trait-card skeleton-trait" key={i}>
+                <div className="skeleton-line skeleton-line--wide" />
+                <div className="skeleton-line skeleton-bar" />
+                <div className="skeleton-line skeleton-line--narrow" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors DailyDoubleFeature's two poster buttons. */
+export function DoubleFeatureSkeleton() {
+  return (
+    <section className="feed-section daily-double-feature" aria-busy="true" aria-label="Loading today's double feature">
+      <div className="skeleton-line skeleton-line--narrow" />
+      <div className="skeleton-line skeleton-line--wide skeleton-title" />
+      <div className="df-grid">
+        {[0, 1].map((i) => (
+          <div className="df-card skeleton-card" key={i}>
+            <div className="skeleton-poster" />
+            <div className="skeleton-body">
+              <div className="skeleton-line skeleton-line--wide" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

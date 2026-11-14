@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
+import { useResilientQuery, fetchJson } from "./resilience/useResilientQuery";
+import { DoubleFeatureSkeleton } from "./Skeleton";
+import Ree from "./Ree";
 import "./App.css";
 
-const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w200";
+const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w342";
 const FALLBACK_POSTER = "https://placehold.co/200x300/16233f/45c5b4?text=Re:Watch";
 
 function posterUrl(path) {
@@ -31,31 +34,18 @@ function shareText(dateStr, correct, streak, titleA, titleB, chosenTitle) {
  */
 export default function DailyDoubleFeature() {
   const userId = localStorage.getItem("userId");
-  const [state, setstate] = useState(null);
-  const [loading, setloading] = useState(true);
+  // ttlMs 0: today's pair must never come from yesterday's cache.
+  const { data: state, status, retry } = useResilientQuery({
+    key: userId ? `daily:${userId}` : null,
+    fetcher: (signal) => fetchJson(`/api/daily/${userId}`, { signal }),
+    validate: (d) => !!d?.titleA && !!d?.titleB,
+    ttlMs: 0,
+    softTimeoutMs: 8_000
+  });
   const [guessing, setguessing] = useState(false);
   const [result, setresult] = useState(null);
   const [copied, setcopied] = useState(false);
   const [err, seterr] = useState("");
-
-  useEffect(() => {
-    if (!userId) {
-      // See EvolutionTimeline.jsx for why this needs a targeted disable: a
-      // fetch keyed on userId is exactly what an effect is for, even though
-      // the rule flags any dependency-triggered effect that sets state
-      // before its async call resolves.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setloading(false);
-      return;
-    }
-    (async () => {
-      const res = await fetch(`${BASE}/api/daily/${userId}`, { headers: authHeaders() }).catch(() => null);
-      if (res && res.ok) {
-        setstate(await res.json());
-      }
-      setloading(false);
-    })();
-  }, [userId]);
 
   async function pick(titleId, titleLabel) {
     if (guessing || !state || state.alreadyPlayed) return;
@@ -92,8 +82,21 @@ export default function DailyDoubleFeature() {
     }
   }
 
-  if (!userId || loading || !state) {
-    return null;
+  if (!userId) return null;
+  if (status === "loading") return <DoubleFeatureSkeleton />;
+  if (!state) {
+    // Nothing cached, no fallback and the request failed: a gentle, actionable
+    // card instead of a vanished section.
+    return (
+      <section className="feed-section daily-double-feature df-rest">
+        <Ree pose="sleepy" size={84} />
+        <div>
+          <h2>Daily Double Feature</h2>
+          <p>Ree is still setting up tonight's pair.</p>
+        </div>
+        <button type="button" className="pill" onClick={retry}>Try again</button>
+      </section>
+    );
   }
 
   const played = state.alreadyPlayed || !!result;
@@ -102,18 +105,26 @@ export default function DailyDoubleFeature() {
     currentStreak: state.currentStreak,
     chosenTitle: state.previousGuess.chosenTitleId === state.titleA.titleId ? state.titleA.title : state.titleB.title
   } : null);
+  const streak = outcome?.currentStreak ?? state.currentStreak ?? 0;
 
   return (
     <section className="feed-section daily-double-feature">
-      <p className="section-eyebrow">Today's Ritual</p>
-      <h2 style={{ margin: "0 0 6px" }}>Daily Double Feature</h2>
-      <p style={{ margin: "0 0 var(--sp-2)", color: "var(--text-muted)" }}>
-        {played
-          ? "You've already played today — come back tomorrow for the next one."
-          : "Which one is YOUR real better match tonight? Pick before you see the numbers."}
-      </p>
+      <header className="df-head">
+        <div>
+          <p className="section-eyebrow">Today's Ritual</p>
+          <h2>Daily Double Feature</h2>
+          <p className="df-sub">
+            {played
+              ? "You've played today. Come back tomorrow for a new pair."
+              : "Which one is YOUR real better match tonight? Choose before you see the numbers."}
+          </p>
+        </div>
+        {streak > 0 && (
+          <span className="df-streak" title="Daily streak"><span aria-hidden="true">🔥</span> <span className="mono">{streak}</span>-day streak</span>
+        )}
+      </header>
 
-      <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "stretch" }}>
+      <div className="df-grid">
         {[state.titleA, state.titleB].map((t) => {
           const isChosen = played && outcome && outcome.chosenTitle === t.title;
           const score = result
@@ -123,40 +134,38 @@ export default function DailyDoubleFeature() {
             <button
               key={t.titleId}
               type="button"
+              className={`df-card${isChosen ? " is-chosen" : ""}`}
               onClick={() => pick(t.titleId, t.title)}
               disabled={played || guessing}
-              style={{
-                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "6px",
-                background: "var(--surface)", border: isChosen ? "2px solid var(--primary)" : "1px solid var(--border)",
-                borderRadius: "12px", padding: "10px", cursor: played ? "default" : "pointer"
-              }}
+              aria-pressed={isChosen}
             >
-              <img
-                src={posterUrl(t.posterPath)}
-                alt=""
-                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_POSTER; }}
-                style={{ width: "72px", height: "108px", objectFit: "cover", borderRadius: "8px" }}
-              />
-              <span style={{ fontSize: "0.82rem", fontWeight: 600, textAlign: "center" }}>{t.title}</span>
-              {score !== null && (
-                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}><span className="mono">{Math.round(score)}%</span> match</span>
-              )}
+              <span className="df-poster">
+                <img
+                  src={posterUrl(t.posterPath)}
+                  alt=""
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_POSTER; }}
+                />
+                {score !== null && (
+                  <span className="df-score"><span className="mono">{Math.round(score)}%</span> match</span>
+                )}
+              </span>
+              <span className="df-title">{t.title}</span>
             </button>
           );
         })}
       </div>
 
       {played && outcome && (
-        <p style={{ margin: "var(--sp-2) 0 0", fontWeight: 600 }}>
-          {outcome.correct ? "✅ Nailed it." : "❌ Not quite."}{" "}
-          {outcome.currentStreak > 1 && <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>🔥 <span className="mono">{outcome.currentStreak}</span>-day streak</span>}
+        <p className={`df-outcome ${outcome.correct ? "is-right" : "is-wrong"}`}>
+          {outcome.correct ? "Nailed it — that one really was your better match." : "Not quite — the other one fit you better."}
         </p>
       )}
 
       {err && <p className="status-message status-message--error">{err}</p>}
 
       {played && (
-        <button type="button" onClick={copyResult} className="btn-block" style={{ marginTop: "var(--sp-2)", maxWidth: "220px" }}>
+        <button type="button" onClick={copyResult} className="btn-block df-copy">
           {copied ? "Copied!" : "Copy Result"}
         </button>
       )}

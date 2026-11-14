@@ -121,7 +121,7 @@ export default function GuestHome() {
           <p className="guest-sub">Skip the scrolling. Tell Ree a mood and she’ll pick stories that fit it — movies, series, anime and K-drama.</p>
         </div>
         <div className="guest-hero-ree">
-          <Ree pose={reePose} size={small ? 170 : 260} hop={hop} />
+          <Ree pose={reePose} moodKey={status === "error" ? undefined : mood?.key} size={small ? 170 : 260} hop={hop} />
         </div>
       </section>
 
