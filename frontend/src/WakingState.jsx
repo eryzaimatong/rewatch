@@ -10,7 +10,7 @@ const TICK_MS = 1_000;
 const DEFAULT_STAGE_4_MESSAGES = [
   "Still working on it — nothing's frozen, the server's just slow to stretch.",
   "While you wait: TasteDNA scores 10 different storytelling traits, from pacing to how bittersweet you like your endings.",
-  "That radar below is a ‘Cozy Nostalgic’ profile — leans hard into warmth and memory. Yours might look nothing like it. That’s the point.",
+  "That radar below is a ‘Brain Smooth, Vibes Immaculate’ profile — leans hard into warmth and memory. Yours might look nothing like it. That’s the point.",
   "Every match on Re:Watch comes from a real taste model — not popularity, not what’s trending."
 ];
 

@@ -531,3 +531,67 @@ profile.
   timeout and dead-session detection, auth.js, onboardingUtils.js,
   accessibility) via Vitest, but not the UI components themselves — those
   are still verified only by ad hoc manual passes, not a committed suite.
+
+## Always-on backend, strict schema, telemetry (runbook)
+
+### Moving the backend off Render's free tier (no more 150 s cold starts)
+
+`render.yaml` now declares `plan: starter` (paid, never spins down) with one
+instance. To apply it: Render dashboard -> `rewatch-backend` -> Settings ->
+Instance type -> Starter (or sync the blueprint). Region is immutable, so the
+service keeps whatever region it already has; the Neon database is in
+`aws-us-west-2` (Oregon), so Render's Oregon region is the lowest-latency match.
+
+After it is live and stable for a few days:
+- `keepalive.yml` becomes an uptime check only; its 10-minute schedule can be
+  relaxed, since nothing needs waking.
+- The frontend's 200 s request budget (`sessionGuard.js`, `FETCH_TIMEOUT_MS`) was
+  sized for a 135-170 s cold boot. With an always-on backend the worst case is
+  Neon resuming a suspended compute (seconds), so it can be lowered to about 45 s
+  so genuine failures surface sooner. Measure first, then change.
+- Watch memory in the Render metrics; Starter is 512 MB. Move to Standard if the
+  JVM is under pressure.
+
+### Strict schema validation (`ddl-auto=validate`)
+
+Production now sets `spring.jpa.hibernate.ddl-auto=${JPA_DDL_AUTO:validate}`
+(`application-prod.properties`, and `JPA_DDL_AUTO=validate` in `render.yaml`).
+Hibernate no longer alters the live schema; it checks it at boot and refuses to
+start if it does not match the entities.
+
+Verified before the switch: all 21 live tables (Neon project "Re:Watch Oregon")
+have the same column names, types, nullability and lengths as the schema
+Hibernate builds from the entities, and a boot with `validate` against that
+schema starts cleanly. `backend-java/scripts/verify-schema.sh` repeats the
+check (boot with `update`, then with `validate`) and runs in CI (`schema` job).
+
+What changes for developers:
+- **Every schema change needs a Flyway migration** (`V4__*.sql`, ...) shipped
+  with or before the entity change. Before, `update` added the column for you;
+  now a missing column stops the boot, by design.
+- **Empty databases do not boot under `validate`** (V1 is a no-op baseline).
+  Disaster recovery: set `JPA_DDL_AUTO=update` for one boot, then back to
+  `validate`. The same switch is the emergency override for a bad deploy.
+- Not covered by `validate`: indexes, constraints, and sequences.
+
+### Telemetry
+
+PostHog (anonymous product events) and Sentry (crash reports) are optional and
+lazy-loaded; with no keys set nothing is downloaded and nothing is sent. Set in
+the Vercel project env: `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST` (EU projects use
+`https://eu.i.posthog.com`) and `VITE_SENTRY_DSN`. The commit SHA is attached to
+crash reports automatically on Vercel. Events carry no usernames, emails,
+tokens or ids; Do Not Track and the Settings switch both disable it. Events:
+`card_exported` (kind, method), `compare_link_opened` (src), `mood_picked`,
+`login_completed`, `signup_completed`. Share-card QR codes link to
+`/compare/:username?src=card`, so scans are attributable. If you deploy behind
+the bundled nginx CSP (`frontend/nginx.conf`), add your PostHog and Sentry hosts
+to `connect-src`.
+
+### End-to-end tests
+
+`cd frontend && npm run e2e` (Playwright, Chromium, backend mocked) covers
+login -> TasteDNA generation -> mood click -> share-card export, decoding the
+exported PNG's QR, and guards that Ree is never clipped or covering a control.
+CI runs it in the `e2e` job.
+

@@ -167,12 +167,20 @@ select:focus {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.ree-body, .ree-hop { display: flex; align-items: flex-end; justify-content: center; }
+/* isolation keeps the aura (z-index:-1) inside Ree's own stacking context. */
+.ree-live { isolation: isolate; }
+/* Filters + perspective sit on this wrapper; the 3D head-turn is its child. */
+.ree-tone {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 100%; height: 100%;
+  perspective: 700px;
+  filter: drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
+}
+.ree-look, .ree-body, .ree-hop { display: flex; align-items: flex-end; justify-content: center; }
 .ree-img {
   display: block;
   max-width: 100%;
   height: auto;
-  filter: drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
   pointer-events: none;
 }
 .ree-aura {
@@ -193,10 +201,19 @@ select:focus {
   background: rgba(4, 9, 22, 0.55);
   filter: blur(6px);
 }
+/* Mood response: she shifts colour like a chameleon, and her aura follows. */
+.ree-hue .ree-tone {
+  filter: hue-rotate(var(--ree-hue, 0deg)) saturate(var(--ree-sat, 1)) brightness(var(--ree-lum, 1)) drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
+  transition: filter 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.ree-toned .ree-aura {
+  background: radial-gradient(closest-side, rgba(var(--ree-tint, 69, 197, 180), 0.34), rgba(var(--ree-tint, 143, 138, 214), 0.12) 60%, transparent 100%);
+  transition: background 0.7s;
+}
 @keyframes ree-aura { 0%, 100% { opacity: 0.75; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.04); } }
 @media (prefers-reduced-motion: reduce) { .ree-aura { animation: none; } }
 
-.ree--icon { border-radius: 22%; }
+.ree--icon { border-radius: 0; }
 
 .ree--canonical { filter: drop-shadow(0 26px 40px rgba(4, 9, 22, 0.55)); }
 
@@ -722,7 +739,9 @@ body.has-shell #root { max-width: none; padding: 0; }
     radial-gradient(640px 340px at 6% 104%, rgba(var(--primary-rgb), 0.28), transparent 70%);
 }
 
-.cx-hero-ree { position: absolute; right: clamp(130px, 13vw, 220px); bottom: -6px; z-index: 1; }
+/* Stands inside the card: the stage clips overflow, so her ground shadow (~24px) and glow need room
+   above the edge, otherwise they are sliced flat. Guarded by e2e/rendering.spec.js. */
+.cx-hero-ree { position: absolute; right: clamp(130px, 13vw, 220px); bottom: 28px; z-index: 1; }
 
 .cx-hero-copy { width: min(680px, 62%); padding: clamp(28px, 5vw, 72px); text-align: left; }
 
@@ -841,7 +860,7 @@ body.has-shell #root { max-width: none; padding: 0; }
 
 .cx-tab:hover { transform: translateX(-3px); background: var(--mint); }
 
-.cx-hero-dots { position: absolute; right: 28px; bottom: 24px; display: flex; align-items: center; gap: 10px; }
+.cx-hero-dots { position: absolute; right: 28px; bottom: 24px; z-index: 2; display: flex; align-items: center; gap: 10px; } /* above Ree (z-index 1) so she never swallows a click */
 
 .cx-arrow {
   display: grid;
@@ -1247,7 +1266,7 @@ body.has-shell #root { max-width: none; padding: 0; }
       linear-gradient(0deg, var(--background) 38%, rgba(16, 27, 53, 0.72) 58%, rgba(16, 27, 53, 0) 84%),
       radial-gradient(500px 260px at 0% 100%, rgba(var(--primary-rgb), 0.28), transparent 70%);
   }
-  .cx-hero-ree { right: 14px; top: 14px; bottom: auto; transform: scale(0.52); transform-origin: top right; }
+  .cx-hero-ree { right: 30px; top: 14px; bottom: auto; transform: scale(0.52); transform-origin: top right; }
   .cx-hero-copy { width: 100%; padding: 24px 22px 72px; }
   .cx-title { font-size: clamp(2.3rem, 11vw, 3.5rem); }
   .cx-cta { flex: 1 1 auto; }
@@ -1968,3 +1987,106 @@ a.btn-primary {
 .night-link { color: var(--mint); font-weight: 600; }
 @media (max-width: 480px) { .guest-bar-actions { gap: 4px; } .guest-signin { padding: 10px 8px; } .guest-join { padding: 9px 14px; } }
 @media (max-width: 400px) { .guest-join { padding: 8px 11px; font-size: 0.82rem; } .guest-signin { padding: 8px 6px; font-size: 0.9rem; } .guest-brand svg { width: 28px; height: 28px; } .guest-bar { gap: 6px; } }
+
+/* ---------- Resilience: status banner + skeleton extras ---------- */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  padding: 12px 18px;
+  border: 1px solid rgba(var(--primary-rgb), 0.28);
+  border-radius: var(--r-md);
+  background: linear-gradient(100deg, rgba(var(--primary-rgb), 0.10), rgba(var(--primary-rgb), 0.03));
+  animation: banner-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.status-banner p { flex: 1; margin: 0; color: var(--text); font-size: 0.9rem; line-height: 1.45; }
+.status-banner .ree { margin: -6px 0; }
+.status-banner--fallback { border-color: rgba(243, 217, 165, 0.38); background: linear-gradient(100deg, rgba(243, 217, 165, 0.10), rgba(243, 217, 165, 0.03)); }
+@keyframes banner-in { from { opacity: 0; transform: translateY(-6px); } }
+@media (max-width: 640px) { .status-banner { flex-wrap: wrap; } .status-banner .pill { width: 100%; } }
+
+.skeleton-radar-card { min-height: 380px; }
+.skeleton-radar {
+  width: min(100%, 320px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(100deg, var(--surface-elevated) 30%, rgba(var(--primary-rgb), 0.1) 50%, var(--surface-elevated) 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+.skeleton-title { height: 20px; margin-bottom: var(--sp-2); }
+.skeleton-trait { padding: 18px; display: flex; flex-direction: column; gap: 12px; min-height: 108px; }
+.skeleton-bar { height: 8px; width: 100%; border-radius: 999px; }
+.df-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); margin-top: var(--sp-2); }
+@media (prefers-reduced-motion: reduce) {
+  .status-banner { animation: none; }
+  .skeleton-radar { animation: none; }
+}
+
+/* ---------- Daily Double Feature ---------- */
+.daily-double-feature .df-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); flex-wrap: wrap; }
+.daily-double-feature h2 { margin: 0 0 6px; font-size: clamp(1.35rem, 2.4vw, 1.75rem); letter-spacing: -0.03em; line-height: 1.1; }
+.df-sub { margin: 0; max-width: 46ch; color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; }
+.df-streak {
+  padding: 6px 12px; border-radius: 999px; font-size: 0.82rem; font-weight: 600; color: var(--sand, #f3d9a5);
+  border: 1px solid rgba(243, 217, 165, 0.35); background: rgba(243, 217, 165, 0.08);
+}
+.df-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 0; text-align: left; cursor: pointer;
+  background: none; border: 0; color: inherit; border-radius: 18px;
+}
+.df-card:disabled { cursor: default; }
+.df-poster {
+  position: relative; display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 18px;
+  border: 1px solid var(--border); background: var(--surface-elevated);
+  box-shadow: 0 14px 30px -18px rgba(4, 9, 22, 0.9);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s, border-color 0.25s;
+}
+.df-poster img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.df-poster::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(4, 9, 22, 0.7), transparent 45%); pointer-events: none; }
+.df-card:not(:disabled):hover .df-poster, .df-card:focus-visible .df-poster {
+  transform: translateY(-6px); border-color: rgba(var(--primary-rgb), 0.7);
+  box-shadow: 0 26px 44px -20px rgba(var(--primary-rgb), 0.5);
+}
+.df-card:not(:disabled):hover .df-poster img { transform: scale(1.05); }
+.df-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+.df-card.is-chosen .df-poster { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary), 0 26px 44px -20px rgba(var(--primary-rgb), 0.55); }
+.df-card:disabled:not(.is-chosen) .df-poster { opacity: 0.6; filter: saturate(0.7); }
+.df-score {
+  position: absolute; z-index: 1; left: 12px; bottom: 12px; padding: 5px 11px; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600; background: rgba(4, 9, 22, 0.7); backdrop-filter: blur(8px); color: var(--mint);
+}
+.df-title { font-weight: 600; font-size: 0.98rem; letter-spacing: -0.01em; padding: 0 2px; }
+.df-outcome { margin: var(--sp-2) 0 0; font-weight: 600; }
+.df-outcome.is-right { color: var(--mint); }
+.df-outcome.is-wrong { color: var(--text-muted); }
+.df-copy { margin-top: var(--sp-2); max-width: 220px; }
+.df-rest { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.df-rest h2 { margin: 0; }
+.df-rest p { margin: 4px 0 0; color: var(--text-muted); }
+.df-rest > div { flex: 1; min-width: 160px; }
+@media (prefers-reduced-motion: reduce) {
+  .df-poster, .df-poster img { transition: none; }
+  .df-card:not(:disabled):hover .df-poster, .df-card:not(:disabled):hover .df-poster img { transform: none; }
+}
+
+/* ---------- Route error fallback ---------- */
+.route-fallback {
+  max-width: 520px; margin: clamp(24px, 8vh, 80px) auto; padding: var(--sp-4) var(--sp-3); text-align: center;
+  border: 1px solid var(--border); border-radius: 28px;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(var(--primary-rgb), 0.12), transparent 60%), var(--surface);
+}
+.route-fallback h2 { margin: var(--sp-2) 0 8px; font-size: 1.6rem; letter-spacing: -0.03em; }
+.route-fallback p { margin: 0 auto var(--sp-3); max-width: 38ch; color: var(--text-muted); line-height: 1.55; }
+.route-fallback-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center; }
+.route-fallback .cx-cta { text-decoration: none; }
+
+/* Preview feed while the server wakes: visible, clearly a stand-in, inert. */
+.feed-passthru { display: contents; }
+.feed-passthru[inert] { user-select: none; }
+.feed-passthru[inert] :is(img, h2, h3, p) { opacity: 0.92; }
+
+.feed-error-escape { display: inline-block; margin-top: 12px; color: var(--primary-light, var(--mint)); text-underline-offset: 3px; }
+.settings-fields { display: contents; border: 0; padding: 0; margin: 0; min-width: 0; }
+.settings-fields:disabled { opacity: 0.45; }

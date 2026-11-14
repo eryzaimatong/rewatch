@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 import { POSES, canonicalUrl, iconUrl } from "./reeAssets";
+import { MOODS, MOOD_REE_POSE, MOOD_REE_TONE } from "./moods";
 
 /**
  * Ree — Re:Watch's companion chameleon (see the Figma "Mascot design system").
@@ -19,6 +20,13 @@ import { POSES, canonicalUrl, iconUrl } from "./reeAssets";
  *   <Ree pose="detective" size={160} />  // any of the 12 expression poses
  *   <Ree variant="canonical" size={420}/>// transparent cut-out hero render
  *   <Ree variant="icon" size={40} />     // flat app-icon version
+ *   <Ree moodKey="mysterious" />         // user's chosen mood: pose + colour shift
+ *
+ * Every asset is a true-alpha cut-out (no photo box, no tile), so Ree sits on
+ * the page's own background. Gaze: the art is raster, so "eyes follow the
+ * cursor" is done as a 3D head-turn of the whole figure (a few degrees of
+ * yaw/pitch plus parallax) — a separate eye layer from design would let the
+ * pupils move on their own later without touching this API.
  */
 // Semantic moods used across the app -> expression poses.
 const MOOD_TO_POSE = {
@@ -51,9 +59,14 @@ const POSE_ALT = {
 
 // width / height of each cut-out, so layout never jumps while it loads.
 const ASPECT = {
-  default: 0.82, curious: 0.78, excited: 0.75, sleepy: 1.17, sad: 0.8, surprised: 0.64,
-  thinking: 0.69, detective: 0.72, cinema: 0.94, lovestory: 0.74, mystery: 0.78, celebrating: 0.76
+  default: 1.01, curious: 0.96, excited: 0.95, sleepy: 1.45, sad: 1.18, surprised: 0.79,
+  thinking: 0.85, detective: 0.98, cinema: 1.0, lovestory: 1.28, mystery: 0.96, celebrating: 0.93
 };
+
+// Poses whose art already carries its own palette (rose Love-story, deep-blue
+// Mystery): rotating their hue would fight the art, so they keep their colours
+// and only the aura follows the mood.
+const OWN_PALETTE = new Set(["lovestory", "mystery"]);
 
 const POP = {
   initial: { opacity: 0, scale: 0.82, y: 10, scaleX: 0.9, scaleY: 1.12 },
@@ -72,9 +85,10 @@ export default function Ree({
   style,
   live,
   aura = true,
-  hop = 0
+  hop = 0,
+  moodKey
 }) {
-  const resolvedPose = pose ?? MOOD_TO_POSE[mood] ?? "default";
+  const resolvedPose = pose ?? MOOD_REE_POSE[moodKey] ?? MOOD_TO_POSE[mood] ?? "default";
   // Board rule: below 48px, drop the shading and keep head, eyes, spiral.
   const kind = variant === "icon" || size < 48 ? "icon" : variant;
   const label = alt ?? (kind === "icon" ? "Ree" : POSE_ALT[resolvedPose]);
@@ -117,12 +131,13 @@ export default function Ree({
       live={live ?? size >= 110}
       aura={aura}
       hop={hop}
+      moodKey={moodKey}
       a11y={a11y}
     />
   );
 }
 
-function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
+function LiveRee({ pose, size, className, style, live, aura, hop, moodKey, a11y }) {
   const reduce = useReducedMotion();
   const rootRef = useRef(null);
   const [dozing, setDozing] = useState(false);
@@ -131,6 +146,9 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
   const lookY = useMotionValue(0);
   const x = useSpring(lookX, { stiffness: 90, damping: 14 });
   const y = useSpring(lookY, { stiffness: 90, damping: 14 });
+  // Head-turn: yaw follows horizontal gaze, pitch follows vertical (inverted).
+  const yaw = useTransform(x, (v) => v * 1.5);
+  const pitch = useTransform(y, (v) => v * -1.4);
   const animated = live && !reduce;
 
   // Look toward the pointer; doze off after ~40s without any interaction.
@@ -167,18 +185,30 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
   const h = size;
   const w = Math.round(size * ratio);
   const hopKey = hop + poked;
+  const tone = MOOD_REE_TONE[moodKey];
+  const moodInfo = MOODS.find((m) => m.key === moodKey);
+  const toneVars = tone
+    ? { "--ree-hue": `${tone.hue}deg`, "--ree-sat": tone.sat, "--ree-lum": tone.lum, "--ree-tint": moodInfo?.tint }
+    : undefined;
 
   return (
     <span
       ref={rootRef}
-      className={`ree ree-live ${className}`}
-      style={{ width: Math.round(size * 0.95), height: h, ...style }}
+      className={`ree ree-live${tone ? " ree-toned" : ""}${tone && !OWN_PALETTE.has(shown) ? " ree-hue" : ""} ${className}`}
+      style={{ width: Math.round(size * 0.95), height: h, ...toneVars, ...style }}
       onClick={animated ? () => setPoked((n) => n + 1) : undefined}
     >
       {aura && <span className="ree-aura" aria-hidden="true" />}
+      {/* Filters live on this wrapper, OUTSIDE the 3D-transformed .ree-look: WebKit
+          mis-renders drop-shadow on anything inside a 3D transform (clipped/flickering). */}
+      <span className="ree-tone">
+      <motion.span
+        className="ree-look"
+        style={{ x: animated ? x : 0, y: animated ? y : 0, rotateY: animated ? yaw : 0, rotateX: animated ? pitch : 0, transformOrigin: "50% 80%" }}
+      >
       <motion.span
         className="ree-body"
-        style={{ x: animated ? x : 0, y: animated ? y : 0, transformOrigin: "50% 100%" }}
+        style={{ transformOrigin: "50% 100%" }}
         animate={animated ? { y: [0, -size * 0.035, 0], rotate: [-0.8, 0.8, -0.8], scaleY: [1, 1.014, 1] } : undefined}
         transition={animated ? { duration: 5.2, repeat: Infinity, ease: "easeInOut" } : undefined}
       >
@@ -204,6 +234,8 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
           </AnimatePresence>
         </motion.span>
       </motion.span>
+      </motion.span>
+      </span>
       <span className="ree-shadow" aria-hidden="true" />
     </span>
   );
@@ -212,10 +244,10 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
  * Ree speaking — the companion voice used for guidance and reassurance:
  * a small icon-Ree beside a soft bubble. Keep copy short and kind.
  */
-export function ReeSays({ children, pose, className = "" }) {
+export function ReeSays({ children, pose, moodKey, className = "" }) {
   return (
     <div className={`ree-says ${className}`}>
-      {pose ? <Ree pose={pose} size={52} className="ree-says-avatar" /> : <Ree variant="icon" size={40} className="ree-says-icon" />}
+      {pose || moodKey ? <Ree pose={pose} moodKey={moodKey} size={52} className="ree-says-avatar" /> : <Ree variant="icon" size={40} className="ree-says-icon" />}
       <p className="ree-says-bubble">{children}</p>
     </div>
   );

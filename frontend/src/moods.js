@@ -24,6 +24,18 @@ export const MOOD_REE_POSE = {
   calm: "sleepy"
 };
 
+// Ree is a chameleon: picking a mood shifts her colour, not just her pose.
+// Hue offsets (deg) are applied to her teal base via CSS hue-rotate; `sat` and
+// `lum` keep the result inside the brand's soft palette instead of neon.
+export const MOOD_REE_TONE = {
+  happy:       { hue: 0,    sat: 1.08, lum: 1.04 },
+  melancholic: { hue: 72,   sat: 0.9,  lum: 0.96 },
+  romantic:    { hue: 150,  sat: 0.95, lum: 1.05 },
+  mysterious:  { hue: 96,   sat: 1.0,  lum: 0.88 },
+  adventurous: { hue: -135, sat: 1.05, lum: 1.06 },
+  calm:        { hue: 24,   sat: 0.82, lum: 1.06 }
+};
+
 // Ree reacts to what is on screen: the pick's genre decides her pose.
 export function poseForGenres(genres = []) {
   const g = genres.join(" ").toLowerCase();

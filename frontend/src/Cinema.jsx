@@ -299,7 +299,7 @@ export function MoodPicker({ activeKey, onPick }) {
             style={{ "--mood-ring": m.ring, "--mood-tint": m.tint }}
           >
             <span className="mood-card-photo">
-              <img src={MOOD_POSES[m.key]} alt="" aria-hidden="true" loading="lazy" width="394" height="383" />
+              <img src={MOOD_POSES[m.key]} alt="" aria-hidden="true" loading="lazy" width="560" height="492" />
               {active && <span className="mood-card-check" aria-hidden="true">✓</span>}
             </span>
             <span className="mood-card-name">{m.name}</span>
@@ -318,10 +318,10 @@ export function MoodPicker({ activeKey, onPick }) {
 
 /** "Your quiet escape: Perfect Days" — the board's mood-result card. */
 export function MoodResult({ mood, movie, onOpen }) {
-  if (!mood || !movie) return null;
+  if (!mood || !movie || movie.isPreview) return null;
   return (
     <div className="mood-result" role="status" aria-live="polite">
-      <Ree mood="search" size={72} className="mood-result-ree" />
+      <Ree moodKey={mood.key} size={72} className="mood-result-ree" />
       <div>
         <p className="mood-result-kicker">Your {mood.name.toLowerCase()} pick</p>
         <h3>{movie.title}</h3>

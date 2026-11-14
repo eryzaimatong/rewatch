@@ -2,8 +2,19 @@ import { useEffect, useState } from "react";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
-  loadImage, shareOrDownloadBlob
+  CARD_SCALE,
+  CARD_W,
+  CARD_H,
+  drawCardFrame,
+  drawCardFooter,
+  drawVerticallyCentered,
+  loadImage,
+  shareOrDownloadBlob,
+  CARD_FONT,
+  ensureCardFonts,
+  compareUrl,
+  CARD_FOOTER_TOP,
+  toBlobSafe
 } from "./shareCard";
 import EmptyState from "./EmptyState";
 import Ree from "./Ree";
@@ -75,6 +86,7 @@ export default function Wrapped() {
   }
 
   async function exportWrappedPNG() {
+    await ensureCardFonts();
     if (!summary) return;
     setexporting(true);
 
@@ -97,18 +109,18 @@ export default function Wrapped() {
 
     drawCardFrame(ctx, "RE:WATCH WRAPPED");
 
-    drawVerticallyCentered(ctx, 146, CARD_H - 100, (c, startY) => {
+    drawVerticallyCentered(ctx, 146, CARD_FOOTER_TOP, (c, startY) => {
     c.textAlign = "center";
     c.fillStyle = "#ffffff";
-    c.font = "bold 32px 'Plus Jakarta Sans', sans-serif";
+    c.font = `700 32px ${CARD_FONT}`;
     c.fillText(summary.period, CARD_W / 2, startY);
 
     c.fillStyle = "#a1a1aa";
-    c.font = "14px 'Plus Jakarta Sans', sans-serif";
+    c.font = `400 14px ${CARD_FONT}`;
     c.fillText(`${username} · ${summary.ratingCount} title${summary.ratingCount === 1 ? "" : "s"} rated`, CARD_W / 2, startY + 26);
 
     c.fillStyle = "#d8b4fe";
-    c.font = "bold 19px 'Plus Jakarta Sans', sans-serif";
+    c.font = `700 19px ${CARD_FONT}`;
     c.fillText(summary.archetype, CARD_W / 2, startY + 68);
 
     // Poster collage — the visual hook. Real cover art, not just numbers.
@@ -116,7 +128,7 @@ export default function Wrapped() {
     if (posterImages.some(Boolean)) {
       c.textAlign = "left";
       c.fillStyle = "#71717a";
-      c.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+      c.font = `700 12px ${CARD_FONT}`;
       c.fillText("TOP RATED", 36, y);
       y += 18;
 
@@ -155,7 +167,7 @@ export default function Wrapped() {
 
         c.textAlign = "center";
         c.fillStyle = "#facc15"; // mirrors --gold in App.css — Canvas can't resolve CSS vars
-        c.font = "11px 'Plus Jakarta Sans', sans-serif";
+        c.font = `400 11px ${CARD_FONT}`;
         c.fillText("★".repeat(r.overall || 0), x + posterW / 2, y + posterH + 16);
       });
       y += posterH + 40;
@@ -163,18 +175,18 @@ export default function Wrapped() {
 
     c.textAlign = "left";
     c.fillStyle = "#71717a";
-    c.font = "bold 12px 'Plus Jakarta Sans', sans-serif";
+    c.font = `700 12px ${CARD_FONT}`;
     c.fillText("BIGGEST MOVERS THIS MONTH", 36, y);
     y += 34;
 
     summary.topShifts.forEach((s) => {
       c.fillStyle = "#ffffff";
-      c.font = "16px 'Plus Jakarta Sans', sans-serif";
+      c.font = `400 16px ${CARD_FONT}`;
       c.fillText(s.label, 36, y);
 
       c.textAlign = "right";
       c.fillStyle = s.delta >= 0 ? "#7fe0be" : "#f08a9b"; // mirrors --success/--danger — Canvas can't resolve CSS vars
-      c.font = "bold 16px 'Plus Jakarta Sans', sans-serif";
+      c.font = `700 16px ${CARD_FONT}`;
       c.fillText(shiftLabel(s), CARD_W - 36, y);
       c.textAlign = "left";
       y += 40;
@@ -183,11 +195,13 @@ export default function Wrapped() {
     return y;
     });
 
-    drawCardFooter(ctx);
+    drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${username}-wrapped-${month}.png`, {
+        kind: "wrapped",
+        url: compareUrl(username, "share"),
         title: "My Re:Watch Wrapped",
         text: `My ${summary.period} on Re:Watch: ${summary.archetype}`
       });

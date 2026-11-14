@@ -7,6 +7,7 @@ import Ree from "./Ree";
 import Footer from "./Footer";
 import WakingState from "./WakingState";
 import { IconEye, IconEyeOff } from "./Icons";
+import { track } from "./telemetry";
 import "./App.css";
 
 const MIN_PASSWORD_LENGTH = 6;
@@ -102,6 +103,7 @@ export default function Login({ onLogin }) {
       // Registration now returns a full session, same as login — no reason to
       // make the user re-enter their password immediately after choosing it.
       const uid = res.userId || 1;
+      track(isreg ? "signup_completed" : "login_completed");
       saveSession({ userId: uid, username: res.username || username, token: res.token, onboarded: res.onboarded, accentColor: res.accentColor, avatarUrl: res.avatarUrl, avatarFrame: res.avatarFrame, role: res.role });
       if (onLogin) {
         onLogin(uid);

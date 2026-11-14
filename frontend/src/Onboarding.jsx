@@ -197,7 +197,7 @@ export default function Onboarding({ onFinish }) {
     const profile = await gettastedna(userid);
     setanalyzing(false);
     setreveal({
-      archetype: profile?.archetype || "Emotional Storyteller",
+      archetype: profile?.archetype || "The 'You Pick' Friend",
       archetypeBlurb: profile?.archetypeBlurb || ""
     });
   }

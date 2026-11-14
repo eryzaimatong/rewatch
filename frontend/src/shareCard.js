@@ -4,7 +4,55 @@
 // share sheet or a download, and the background/brand-mark frame every card
 // opens with. Card-specific content (what gets drawn inside the frame)
 // stays in each component; only the truly shared plumbing lives here.
+import qrcode from "qrcode-generator";
+import { track } from "./telemetry";
 import { drawBrandMark } from "./canvasBrandMark";
+
+/**
+ * The canvas font. It is the app's own bundled brand font (see main.jsx), not a
+ * font that has to be fetched from somewhere: the cards used to name "Plus
+ * Jakarta Sans", which nothing in the app ever loads, so every exported card
+ * silently fell back to the system sans-serif.
+ */
+export const CARD_FONT = "'Inter Variable', Inter, system-ui, sans-serif";
+
+/**
+ * Canvas text does not wait for web fonts: drawing before a face has loaded
+ * paints the fallback. Awaiting this first makes the exported image use the
+ * real font. Never throws and never hangs: if fonts can't load, the card still
+ * exports (returns false) rather than blocking the user's share.
+ */
+export function ensureCardFonts(timeoutMs = 3000) {
+  const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+  if (!fonts || typeof fonts.load !== "function") return Promise.resolve(false);
+  let timer;
+  const loaded = Promise.all([fonts.load('400 14px "Inter Variable"'), fonts.load('700 14px "Inter Variable"')])
+    .then(() => fonts.ready)
+    .then(() => true)
+    .catch(() => false);
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  return Promise.race([loaded, timedOut]).finally(() => clearTimeout(timer));
+}
+
+/** Public origin of the site, without a trailing slash. */
+export function siteOrigin() {
+  const configured = (import.meta.env.VITE_SITE_URL || "").trim();
+  const base = configured || (typeof window !== "undefined" ? window.location.origin : "");
+  return base.replace(/\/+$/, "");
+}
+
+/** The no-account compare page a share card should send people to. `src` tags where the visit came from. */
+export function compareUrl(username, src) {
+  const url = `${siteOrigin()}/compare/${encodeURIComponent(username)}`;
+  return src ? `${url}?src=${encodeURIComponent(src)}` : url;
+}
+
+/** What a person can read off the image and type: no protocol, no tracking params. */
+export function displayUrl(url) {
+  return url.replace(/^https?:\/\//, "").replace(/[?#].*$/, "").replace(/\/$/, "");
+}
 
 /**
  * `navigator.canShare({files})` reports true on several desktop Chromium/Edge
@@ -34,12 +82,50 @@ export function downloadBlob(blob, filename) {
  * Instagram, then manually attach it" and one tap straight into Stories/
  * Messages/TikTok. Falls back to a direct download everywhere else.
  */
-export async function shareOrDownloadBlob(blob, filename, { title, text } = {}) {
+/**
+ * canvas.toBlob that survives iOS Safari, which can hand the callback `null`
+ * for a large canvas under memory pressure. Falls back to the canvas data URL,
+ * and reports null (never a fake file) only when nothing can be produced.
+ */
+export function toBlobSafe(canvas, callback, type = "image/png", quality) {
+  const fromDataUrl = () => {
+    try {
+      const [head, body] = canvas.toDataURL(type, quality).split(",");
+      const mime = /data:([^;]+)/.exec(head)?.[1] ?? type;
+      const bytes = atob(body);
+      const buf = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+      return new Blob([buf], { type: mime });
+    } catch {
+      return null;
+    }
+  };
+  try {
+    canvas.toBlob((blob) => callback(blob ?? fromDataUrl()), type, quality);
+  } catch {
+    callback(fromDataUrl());
+  }
+}
+
+export async function shareOrDownloadBlob(blob, filename, { title, text, url, kind } = {}) {
+  if (!blob) return "failed";
+  const result = await shareOrDownloadInner(blob, filename, { title, text, url });
+  track("card_exported", { kind: kind ?? "card", method: result });
+  return result;
+}
+
+async function shareOrDownloadInner(blob, filename, { title, text, url }) {
   const file = new File([blob], filename, { type: blob.type });
 
   if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title, text });
+      // Many targets (Instagram Stories, TikTok, some messengers) take the image
+      // and drop or strip the `url` field, so the link also goes in the caption
+      // text. Together, the loop survives whichever field a platform keeps.
+      const caption = url && !(text ?? "").includes(url) ? [text, url].filter(Boolean).join(" ") : text;
+      const payload = { files: [file], title, text: caption };
+      if (url) payload.url = url;
+      await navigator.share(payload);
       return "shared";
     } catch (err) {
       // AbortError = the user backed out of the share sheet themselves —
@@ -129,21 +215,83 @@ export function drawCardFrame(ctx, eyebrowText) {
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#45c5b4";
-  ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+  ctx.font = `700 13px ${CARD_FONT}`;
   ctx.fillText(eyebrowText, CARD_W / 2, 100);
 }
 
-/** The closing brand moment every card ends with, anchored to the bottom. */
-export function drawCardFooter(ctx) {
-  ctx.textAlign = "center";
+/** Where card content must stop: the footer (QR + link) needs the space below this line. */
+export const CARD_FOOTER_TOP = CARD_H - 150;
+
+/**
+ * Draws a QR code for `text` inside a white tile (dark-on-light with a quiet
+ * zone, which is what scanners need) filling a `size` square at (x, y).
+ * Whole-pixel modules keep the edges crisp; uses fillRect only.
+ */
+export function drawQr(ctx, text, x, y, size) {
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  const count = qr.getModuleCount();
+  const quiet = 3;
+  const module = Math.max(1, Math.floor(size / (count + quiet * 2)));
+  const tile = module * (count + quiet * 2);
+  const left = x + (size - tile) / 2;
+  const top = y + (size - tile) / 2;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(left, top, tile, tile);
+  ctx.fillStyle = "#0b1220";
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) {
+        ctx.fillRect(left + (col + quiet) * module, top + (row + quiet) * module, module, module);
+      }
+    }
+  }
+}
+
+/**
+ * The closing moment every card ends with: a scannable QR plus the same link
+ * as text, so a screenshot posted anywhere carries people back into the app.
+ * `url` is the full link encoded in the QR; the visible text drops the
+ * protocol and tracking params.
+ */
+export function drawCardFooter(ctx, { url = siteOrigin() } = {}) {
+  const qrSize = 84;
+  const gap = 16;
+  const rowTop = CARD_H - 128;
+  const label = displayUrl(url);
+
+  ctx.textAlign = "left";
+  let urlPx = 13;
+  ctx.font = `600 ${urlPx}px ${CARD_FONT}`;
+  const maxText = CARD_W - 72 - qrSize - gap;
+  while (ctx.measureText(label).width > maxText && urlPx > 9) {
+    urlPx -= 1;
+    ctx.font = `600 ${urlPx}px ${CARD_FONT}`;
+  }
+  const textWidth = Math.min(maxText, Math.max(ctx.measureText(label).width, 150));
+  const startX = (CARD_W - (qrSize + gap + textWidth)) / 2;
+
   ctx.fillStyle = "rgba(255,255,255,0.12)";
-  ctx.fillRect(CARD_W / 2 - 24, CARD_H - 84, 48, 1);
-  ctx.fillStyle = "#71717a";
-  ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
-  ctx.fillText("Stories chosen for how you feel.", CARD_W / 2, CARD_H - 56);
+  ctx.fillRect(CARD_W / 2 - 24, rowTop - 20, 48, 1);
+
+  drawQr(ctx, url, startX, rowTop, qrSize);
+
+  const textX = startX + qrSize + gap;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `700 15px ${CARD_FONT}`;
+  ctx.fillText("Compare tastes with me", textX, rowTop + 28);
   ctx.fillStyle = "#45c5b4";
-  ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
-  ctx.fillText("RE:WATCH", CARD_W / 2, CARD_H - 36);
+  ctx.font = `600 ${urlPx}px ${CARD_FONT}`;
+  ctx.fillText(label, textX, rowTop + 50);
+  ctx.fillStyle = "#71717a";
+  ctx.font = `400 11px ${CARD_FONT}`;
+  ctx.fillText("Scan it or type the link", textX, rowTop + 70);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#45c5b4";
+  ctx.font = `700 12px ${CARD_FONT}`;
+  ctx.fillText("RE:WATCH", CARD_W / 2, CARD_H - 18);
 }
 
 /**

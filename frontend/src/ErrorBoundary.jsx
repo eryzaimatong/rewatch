@@ -1,5 +1,6 @@
 import { Component } from "react";
 import ErrorState from "./ErrorState";
+import { captureError } from "./telemetry";
 import "./App.css";
 
 /**
@@ -20,6 +21,7 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("Unhandled render error:", error, info);
+    captureError(error, { area: "app", componentStack: String(info?.componentStack ?? "").slice(0, 500) });
   }
 
   render() {
@@ -34,6 +36,10 @@ export default class ErrorBoundary extends Component {
             message="This page hit an error it couldn't recover from. Reloading usually fixes it."
             onRetry={() => window.location.reload()}
           />
+          {/* Plain anchor: this boundary can sit outside the router. */}
+          <p style={{ textAlign: "center", marginTop: "var(--sp-2)" }}>
+            <a href="/" className="feed-error-escape">Back to mood discovery</a>
+          </p>
         </div>
       </div>
     );

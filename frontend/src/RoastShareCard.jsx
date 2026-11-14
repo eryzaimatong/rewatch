@@ -4,8 +4,19 @@ import BrandMark from "./BrandMark";
 import { authHeaders } from "./auth";
 import { BASE } from "./api";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
-  shareOrDownloadBlob, wrapText
+  CARD_SCALE,
+  CARD_W,
+  CARD_H,
+  drawCardFrame,
+  drawCardFooter,
+  drawVerticallyCentered,
+  shareOrDownloadBlob,
+  wrapText,
+  CARD_FONT,
+  ensureCardFonts,
+  compareUrl,
+  CARD_FOOTER_TOP,
+  toBlobSafe
 } from "./shareCard";
 import "./App.css";
 
@@ -60,6 +71,7 @@ export default function RoastShareCard({ userId, username, onClose }) {
   }
 
   async function exportCard() {
+    await ensureCardFonts();
     if (!roast) return;
     setexporting(true);
     setshareErr("");
@@ -72,14 +84,14 @@ export default function RoastShareCard({ userId, username, onClose }) {
 
     drawCardFrame(ctx, "TASTE ROAST");
 
-    drawVerticallyCentered(ctx, 140, CARD_H - 100, (c, startY) => {
+    drawVerticallyCentered(ctx, 140, CARD_FOOTER_TOP, (c, startY) => {
       c.textAlign = "center";
       c.fillStyle = "#93a0be";
-      c.font = "13px 'Plus Jakarta Sans', sans-serif";
+      c.font = `400 13px ${CARD_FONT}`;
       c.fillText(`@${username}`, CARD_W / 2, startY);
 
       c.fillStyle = "#ffffff";
-      c.font = "bold 30px 'Plus Jakarta Sans', sans-serif";
+      c.font = `700 30px ${CARD_FONT}`;
       let y = wrapText(c, roast.headline, CARD_W / 2, startY + 60, CARD_W - 100, 38);
 
       y += 30;
@@ -92,12 +104,12 @@ export default function RoastShareCard({ userId, username, onClose }) {
 
       y += 34;
       c.fillStyle = "#45c5b4";
-      c.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
+      c.font = `700 11px ${CARD_FONT}`;
       c.fillText("THE RECEIPTS", CARD_W / 2, y);
 
       y += 34;
       c.fillStyle = "#dfe8fb";
-      c.font = "16px 'Plus Jakarta Sans', sans-serif";
+      c.font = `400 16px ${CARD_FONT}`;
       roast.receipts.forEach((line) => {
         y = wrapText(c, line, CARD_W / 2, y, CARD_W - 120, 24);
         y += 26;
@@ -106,11 +118,13 @@ export default function RoastShareCard({ userId, username, onClose }) {
       return y;
     });
 
-    drawCardFooter(ctx);
+    drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${username}-taste-roast.png`, {
+        kind: "roast",
+        url: compareUrl(username, "share"),
         title: "I got roasted by Re:Watch",
         text: roast.headline
       }).catch(() => setshareErr("Could not share this card."));

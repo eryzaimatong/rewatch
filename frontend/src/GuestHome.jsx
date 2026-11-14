@@ -8,6 +8,7 @@ import { MoodPicker } from "./Cinema";
 import { MOOD_REE_POSE } from "./moods";
 import useModalA11y from "./useModalA11y";
 import { BASE } from "./api";
+import { track } from "./telemetry";
 import "./App.css";
 
 const TMDB = "https://image.tmdb.org/t/p/w500";
@@ -79,6 +80,7 @@ export default function GuestHome() {
   }, []);
 
   async function pick(m) {
+    track("mood_picked", { mood: m.key, surface: "guest" });
     const id = ++reqId.current;
     setMood(m);
     setHop((n) => n + 1);
@@ -121,7 +123,7 @@ export default function GuestHome() {
           <p className="guest-sub">Skip the scrolling. Tell Ree a mood and she’ll pick stories that fit it — movies, series, anime and K-drama.</p>
         </div>
         <div className="guest-hero-ree">
-          <Ree pose={reePose} size={small ? 170 : 260} hop={hop} />
+          <Ree pose={reePose} moodKey={status === "error" ? undefined : mood?.key} size={small ? 170 : 260} hop={hop} />
         </div>
       </section>
 

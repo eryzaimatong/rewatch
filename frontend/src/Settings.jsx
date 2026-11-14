@@ -3,12 +3,16 @@ import {
   changePassword, getEmail, changeEmail, deleteAccount, getBlockedUsers, unblockUser,
   getProfileVisibility, setProfileVisibility, getEmailNotifications, setEmailNotifications,
   setAccentColor, setAvatar,
-  setAvatarFrame, getAchievements, setNickname, setBio, setProfileSong, setPinnedContent, setProfileTheme, BASE
+  setAvatarFrame, getAchievements, setNickname, setBio, setProfileSong, setPinnedContent, setProfileTheme, BASE, getApiMeta
 } from "./api";
+import { useResilientQuery } from "./resilience/useResilientQuery";
+import StatusBanner from "./resilience/StatusBanner";
 import { saveSession, clearSession, applyAccentColor, authHeaders } from "./auth";
 import { getAccessibilityPrefs, setAccessibilityPref } from "./accessibility";
 import { isSoundEnabled, setSoundEnabled, playConfirm } from "./sound";
 import ConfirmDialog from "./ConfirmDialog";
+import ErrorState from "./ErrorState";
+import { setTelemetryOptOut } from "./telemetry";
 import Avatar from "./Avatar";
 import InstallAppButton from "./InstallAppButton";
 import { IconLock } from "./Icons";
@@ -82,6 +86,35 @@ const SETTINGS_GROUPS = [
   { key: "taste", label: "TasteDNA", hint: "Your taste profile" }
 ];
 
+// Every settings read in one resilient bundle. The three that drive toggles
+// and the recovery email MUST succeed: showing a default "public / notifications
+// on" the server never confirmed would invite a save that overwrites the real
+// value. Anything else degrades to empty on its own.
+async function fetchSettings(userid, signal) {
+  const get = (path) =>
+    fetch(`${BASE}${path}`, { headers: authHeaders(), signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch((e) => {
+        if (signal?.aborted) throw e;
+        return null;
+      });
+  const [blocked, visibility, emailNotifs, email, achievements, profile, reviews, folders] = await Promise.all([
+    getBlockedUsers(), getProfileVisibility(userid), getEmailNotifications(userid), getEmail(userid),
+    getAchievements(userid),
+    get(`/api/social/profile/${userid}`),
+    get(`/api/social/${userid}/reviews?limit=40`),
+    get(`/api/watchlist/${userid}/folders`)
+  ]);
+  const ok = (v) => v != null && getApiMeta(v)?.ok !== false;
+  if (!ok(visibility) || !ok(emailNotifs) || !ok(email)) throw new Error("settings unavailable");
+  return {
+    blocked: Array.isArray(blocked) ? blocked : [],
+    visibility, emailNotifs, email,
+    unlockedKeys: (achievements?.achievements ?? []).filter((a) => a.unlocked).map((a) => a.key),
+    profile, reviews: Array.isArray(reviews) ? reviews : [], folders: Array.isArray(folders) ? folders : []
+  };
+}
+
 export default function Settings() {
   const [group, setgroup] = useState(() => {
     const fromHash = window.location.hash.replace("#", "");
@@ -111,7 +144,6 @@ export default function Settings() {
   const [pwmsg, setpwmsg] = useState("");
 
   const [currentemail, setcurrentemail] = useState("");
-  const [emailloading, setemailloading] = useState(true);
   const [newemail, setnewemail] = useState("");
   const [emailpassword, setemailpassword] = useState("");
   const [emailsaving, setemailsaving] = useState(false);
@@ -124,15 +156,12 @@ export default function Settings() {
   const [delloading, setdelloading] = useState(false);
 
   const [blocked, setblocked] = useState([]);
-  const [blockedloading, setblockedloading] = useState(true);
   const [unblockingId, setunblockingId] = useState(null);
 
   const [profilepublic, setprofilepublic] = useState(true);
-  const [visibilityloading, setvisibilityloading] = useState(true);
   const [visibilitysaving, setvisibilitysaving] = useState(false);
 
   const [emailnotifsenabled, setemailnotifsenabled] = useState(true);
-  const [emailnotifsloading, setemailnotifsloading] = useState(true);
   const [emailnotifssaving, setemailnotifssaving] = useState(false);
 
   const [accentcolor, setaccentcolor] = useState(localStorage.getItem("accentColor") || "purple");
@@ -187,32 +216,20 @@ export default function Settings() {
   const [ownfolders, setownfolders] = useState([]);
   const [pinnedtitleids, setpinnedtitleids] = useState([]);
   const [pinnedratingid, setpinnedratingid] = useState(null);
+  const [telemetryoff, settelemetryoff] = useState(() => {
+    try {
+      return localStorage.getItem("telemetryOptOut") === "1";
+    } catch {
+      return false;
+    }
+  });
+  function toggletelemetry() {
+    setTelemetryOptOut(!telemetryoff);
+    settelemetryoff(!telemetryoff);
+  }
   const [pinnedfolderid, setpinnedfolderid] = useState(null);
   const [pinnedsaving, setpinnedsaving] = useState(false);
   const [pinnedmsg, setpinnedmsg] = useState("");
-
-  async function loadnickname() {
-    const res = await fetch(`${BASE}/api/social/profile/${userid}`, { headers: authHeaders() }).catch(() => null);
-    if (res && res.ok) {
-      const data = await res.json();
-      setnicknameField(data.nickname || "");
-      setbioField(data.bio || "");
-      setprofilesongField(data.profileSong || "");
-      setprofiletheme(data.profileTheme || "cinema");
-      setpinnedtitleids((data.pinnedTitles || []).map((t) => t.titleId));
-      setpinnedratingid(data.pinnedReview?.ratingId ?? null);
-      setpinnedfolderid(data.pinnedCollection?.folderId ?? null);
-    }
-  }
-
-  async function loadpinnedpickers() {
-    const [reviewsRes, foldersRes] = await Promise.all([
-      fetch(`${BASE}/api/social/${userid}/reviews?limit=40`, { headers: authHeaders() }).catch(() => null),
-      fetch(`${BASE}/api/watchlist/${userid}/folders`, { headers: authHeaders() }).catch(() => null)
-    ]);
-    if (reviewsRes && reviewsRes.ok) setownreviews(await reviewsRes.json());
-    if (foldersRes && foldersRes.ok) setownfolders(await foldersRes.json());
-  }
 
   const MAX_PINNED_TITLES = 4;
   function togglepinnedtitle(titleId) {
@@ -235,56 +252,40 @@ export default function Settings() {
     setpinnedsaving(false);
   }
 
-  async function loadblocked() {
-    setblockedloading(true);
-    setblocked(await getBlockedUsers());
-    setblockedloading(false);
-  }
+  const settingsQ = useResilientQuery({
+    key: `settings:${userid}`,
+    fetcher: (signal) => fetchSettings(userid, signal),
+    validate: (d) => !!d && Array.isArray(d.blocked)
+  });
+  const settingsloading = settingsQ.status === "loading";
+  const emailloading = settingsloading;
+  const blockedloading = settingsloading;
+  const visibilityloading = settingsloading;
+  const emailnotifsloading = settingsloading;
 
-  async function loadachievements() {
-    const res = await getAchievements(userid);
-    if (res?.achievements) {
-      setunlockedachievementkeys(new Set(res.achievements.filter((a) => a.unlocked).map((a) => a.key)));
+  // Seed the editable form state from each new payload (cache first, then the
+  // fresh server copy) — never from half-loaded defaults.
+  const [seededFrom, setseededFrom] = useState(null);
+  if (settingsQ.data && settingsQ.data !== seededFrom) {
+    setseededFrom(settingsQ.data);
+    const d = settingsQ.data;
+    setblocked(d.blocked);
+    if (typeof d.visibility.public === "boolean") setprofilepublic(d.visibility.public);
+    if (typeof d.emailNotifs.enabled === "boolean") setemailnotifsenabled(d.emailNotifs.enabled);
+    if (d.email.email) setcurrentemail(d.email.email);
+    setunlockedachievementkeys(new Set(d.unlockedKeys));
+    setownreviews(d.reviews);
+    setownfolders(d.folders);
+    if (d.profile) {
+      setnicknameField(d.profile.nickname || "");
+      setbioField(d.profile.bio || "");
+      setprofilesongField(d.profile.profileSong || "");
+      setprofiletheme(d.profile.profileTheme || "cinema");
+      setpinnedtitleids((d.profile.pinnedTitles || []).map((t) => t.titleId));
+      setpinnedratingid(d.profile.pinnedReview?.ratingId ?? null);
+      setpinnedfolderid(d.profile.pinnedCollection?.folderId ?? null);
     }
   }
-
-  async function loadvisibility() {
-    setvisibilityloading(true);
-    const res = await getProfileVisibility(userid);
-    if (res && typeof res.public === "boolean") {
-      setprofilepublic(res.public);
-    }
-    setvisibilityloading(false);
-  }
-
-  async function loademailnotifs() {
-    setemailnotifsloading(true);
-    const res = await getEmailNotifications(userid);
-    if (res && typeof res.enabled === "boolean") {
-      setemailnotifsenabled(res.enabled);
-    }
-    setemailnotifsloading(false);
-  }
-
-  async function loademail() {
-    setemailloading(true);
-    const res = await getEmail(userid);
-    if (res && res.email) {
-      setcurrentemail(res.email);
-    }
-    setemailloading(false);
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadblocked();
-    loadvisibility();
-    loademailnotifs();
-    loademail();
-    loadachievements();
-    loadnickname();
-    loadpinnedpickers();
-  }, []);
 
   // The exact placeholder register()'s old no-email fallback used to write —
   // see AccountService.getEmail's own doc comment for why this pattern
@@ -556,6 +557,18 @@ export default function Settings() {
         ))}
       </nav>
       <div className="page-panel taste-panel settings-body">
+        <StatusBanner source={settingsQ.source} isStale={settingsQ.isStale} isRevalidating={settingsQ.isRevalidating} isSlow={settingsQ.isSlow} onRetry={settingsQ.retry} subject="your settings" />
+        {settingsQ.status === "error" && (
+          <ErrorState
+            title="Your settings are still warming up"
+            message="We couldn't confirm your saved preferences, so we're not showing guesses. Nothing was changed."
+            onRetry={settingsQ.retry}
+            escapeTo="/"
+            escapeLabel="Pick a film by mood"
+          />
+        )}
+        {/* Disabled (keyboard included) until the server confirms the real values. */}
+        <fieldset className="settings-fields" disabled={settingsQ.status === "error"}>
 
         <section className="feed-section" data-group="profile">
           <p className="section-eyebrow">Nickname</p>
@@ -1012,6 +1025,21 @@ export default function Settings() {
         </section>
 
         <section className="feed-section" data-group="privacy">
+          <p className="section-eyebrow">Anonymous usage and crash reports</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Helps us fix crashes and see which features people use. Never includes your name, email or ratings.
+          </p>
+          <div className="trait-card settings-toggle-row">
+            <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
+              {telemetryoff ? "Off: nothing is sent from this browser." : "On: anonymous events and crash reports."}
+            </p>
+            <button type="button" className={telemetryoff ? "btn-block" : "btn-primary"} style={{ maxWidth: "140px" }} onClick={toggletelemetry}>
+              {telemetryoff ? "Turn On" : "Turn Off"}
+            </button>
+          </div>
+        </section>
+
+        <section className="feed-section" data-group="privacy">
           <p className="section-eyebrow">Blocked users</p>
           {blockedloading ? (
             <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>Loading...</p>
@@ -1059,6 +1087,7 @@ export default function Settings() {
             {delloading ? "Deleting..." : "Delete Account"}
           </button>
         </section>
+        </fieldset>
       </div>
 
       {showconfirmretake && (

@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
-import { gettastedna, BASE, getFollowedCollections, unfollowCollection } from "./api";
+import { useState } from "react";
+import { gettastedna, BASE, getFollowedCollections, unfollowCollection, getApiMeta } from "./api";
+import { useResilientQuery } from "./resilience/useResilientQuery";
+import StatusBanner from "./resilience/StatusBanner";
 import { authHeaders } from "./auth";
 import MatchRing from "./MatchRing";
 import MovieModal from "./MovieModal";
@@ -62,6 +64,36 @@ function MiniCard({ movie, onOpen, action }) {
   );
 }
 
+// One round-trip bundle for the whole screen. Only the watchlist is required:
+// if it fails the query fails (-> cache / honest error); every other section
+// degrades to empty on its own so one slow endpoint never blanks the page.
+async function fetchDashboard(userid, signal) {
+  const get = (path) => fetch(`${BASE}${path}`, { headers: authHeaders(), signal }).catch((e) => {
+    if (signal?.aborted) throw e;
+    return null;
+  });
+  const [dna, watchlistRes, foldersRes, recsRes, gemsRes, followed] = await Promise.all([
+    gettastedna(userid),
+    get(`/api/watchlist/${userid}`),
+    get(`/api/watchlist/${userid}/folders`),
+    // limit=1: Recommender runs its cold-start reorder before trimming.
+    get(`/api/recommendations/${userid}?limit=1`),
+    get(`/api/discovery/hidden-gems/${userid}?limit=4`),
+    getFollowedCollections()
+  ]);
+  if (!watchlistRes || !watchlistRes.ok) throw new Error("watchlist unavailable");
+  const json = async (res, fallback) => (res && res.ok ? res.json().catch(() => fallback) : fallback);
+  const recs = await json(recsRes, []);
+  return {
+    dna: getApiMeta(dna)?.ok === false ? null : dna,
+    items: await watchlistRes.json(),
+    folders: await json(foldersRes, []),
+    todayspick: Array.isArray(recs) && recs.length > 0 ? recs[0] : null,
+    discoveries: await json(gemsRes, []),
+    followed: Array.isArray(followed) ? followed : []
+  };
+}
+
 export default function Dashboard() {
   const [items, setitems] = useState([]);
   const [folders, setfolders] = useState([]);
@@ -74,9 +106,7 @@ export default function Dashboard() {
   const [confirmingDeleteFolderId, setconfirmingDeleteFolderId] = useState(null);
   const [followedcollections, setfollowedcollections] = useState([]);
 
-  const [loading, setloading] = useState(true);
-  const [errmsg, seterrmsg] = useState("");
-  const [archetype, setarchetype] = useState("Emotional Storyteller");
+  const [archetype, setarchetype] = useState("The 'You Pick' Friend");
   const [archetypeBlurb, setarchetypeBlurb] = useState("");
   const [confidence, setconfidence] = useState(0);
   const [ratedcount, setratedcount] = useState(0);
@@ -93,74 +123,43 @@ export default function Dashboard() {
   const username = localStorage.getItem("username") || "friend";
   const userid = localStorage.getItem("userId");
 
-  async function loadprofiledata() {
-    setloading(true);
-    seterrmsg("");
+  const dash = useResilientQuery({
+    key: userid ? `dashboard:${userid}` : null,
+    fetcher: (signal) => fetchDashboard(userid, signal),
+    validate: (d) => !!d && Array.isArray(d.items)
+  });
+  const loading = !!userid && dash.status === "loading";
+  // Nothing the server confirmed yet: show a dash, never an invented zero.
+  const unconfirmed = !dash.data;
+  const errmsg = !userid
+    ? "Log in to see your dashboard."
+    : dash.status === "error" ? "Could not load your watchlist right now." : "";
 
-    if (!userid) {
-      seterrmsg("Log in to see your dashboard.");
-      setloading(false);
-      return;
+  // Seed the editable local state (undo-removal, folder edits…) from each new
+  // payload: first paint from cache, then the fresh server copy.
+  const [seededFrom, setseededFrom] = useState(null);
+  if (dash.data && dash.data !== seededFrom) {
+    setseededFrom(dash.data);
+    const d = dash.data;
+    if (d.dna) {
+      setarchetype(d.dna.archetype || "The 'You Pick' Friend");
+      setarchetypeBlurb(d.dna.archetypeBlurb || "");
+      setconfidence(Math.round((d.dna.meanConfidence || 0) * 100));
+      setratedcount(d.dna.ratingCount || 0);
+      setpersonalized(!!d.dna.personalized);
+      settraits(d.dna.traits || {});
     }
-
-    const dnaprofile = await gettastedna(userid);
-    if (dnaprofile) {
-      setarchetype(dnaprofile.archetype || "Emotional Storyteller");
-      setarchetypeBlurb(dnaprofile.archetypeBlurb || "");
-      setconfidence(Math.round((dnaprofile.meanConfidence || 0) * 100));
-      setratedcount(dnaprofile.ratingCount || 0);
-      setpersonalized(!!dnaprofile.personalized);
-      settraits(dnaprofile.traits || {});
-    }
-
-    const [watchlistRes, foldersRes, recsRes, gemsRes] = await Promise.all([
-      fetch(`${BASE}/api/watchlist/${userid}`, { headers: authHeaders() }).catch(() => null),
-      fetch(`${BASE}/api/watchlist/${userid}/folders`, { headers: authHeaders() }).catch(() => null),
-      // limit=1 is safe here — Recommender.recommend() now runs its cold-start
-      // safety-net reorder against its own internal lookahead window before
-      // trimming to whatever limit the caller actually asked for, rather than
-      // trimming first and leaving the reorder nothing to work with (see the
-      // comment there; that used to make this exact request a guaranteed no-op
-      // for a fresh account's Today's Pick).
-      fetch(`${BASE}/api/recommendations/${userid}?limit=1`, { headers: authHeaders() }).catch(() => null),
-      fetch(`${BASE}/api/discovery/hidden-gems/${userid}?limit=4`, { headers: authHeaders() }).catch(() => null)
-    ]);
-
-    if (watchlistRes && watchlistRes.ok) {
-      setitems(await watchlistRes.json());
-    } else {
-      seterrmsg("Could not load your watchlist right now.");
-    }
-
-    if (foldersRes && foldersRes.ok) {
-      setfolders(await foldersRes.json());
-    }
-
-    if (recsRes && recsRes.ok) {
-      const recs = await recsRes.json();
-      settodayspick(Array.isArray(recs) && recs.length > 0 ? recs[0] : null);
-    }
-
-    if (gemsRes && gemsRes.ok) {
-      setdiscoveries(await gemsRes.json());
-    }
-
-    setfollowedcollections(await getFollowedCollections());
-
-    setloading(false);
+    setitems(d.items);
+    setfolders(d.folders);
+    settodayspick(d.todayspick);
+    setdiscoveries(d.discoveries);
+    setfollowedcollections(d.followed);
   }
 
   async function handleunfollowcollection(folderId) {
     setfollowedcollections((current) => current.filter((c) => c.folderId !== folderId));
     await unfollowCollection(folderId);
   }
-
-  useEffect(() => {
-    // Standard mount-time fetch; see EvolutionTimeline.jsx for why this
-    // pattern needs no further change despite the linter's static analysis.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadprofiledata();
-  }, []);
 
   // WatchlistItemDTO.id is the watchlist row's own id — distinct from the
   // tmdbId MovieModal expects as `movie.id` (see MovieFeed.jsx's normalizeMovie
@@ -359,18 +358,18 @@ export default function Dashboard() {
           <div className="stat-card">
             <span className="stat-label">TasteDNA Confidence</span>
             <strong className="stat-value">
-              {!personalized ? "Not yet rated" : confidence < 40 ? "Still forming" : `${confidence}%`}
+              {unconfirmed ? "—" : !personalized ? "Not yet rated" : confidence < 40 ? "Still forming" : `${confidence}%`}
             </strong>
           </div>
 
           <div className="stat-card">
             <span className="stat-label">Stories Rated</span>
-            <strong className="stat-value">{ratedcount}</strong>
+            <strong className="stat-value">{unconfirmed ? "—" : ratedcount}</strong>
           </div>
 
           <div className="stat-card">
             <span className="stat-label">Watchlist Queue</span>
-            <strong className="stat-value">{items.length} Saved</strong>
+            <strong className="stat-value">{unconfirmed ? "—" : `${items.length} Saved`}</strong>
           </div>
         </div>
 
@@ -570,10 +569,12 @@ export default function Dashboard() {
         })()}
       </div>
 
+      <StatusBanner source={dash.source} isStale={dash.isStale} isRevalidating={dash.isRevalidating} isSlow={dash.isSlow} onRetry={dash.retry} subject="your watchlist" />
+
       {loading && <SkeletonPosterGrid count={4} gridClassName="mini-card-grid" lines={1} />}
 
       {!loading && errmsg && (
-        <ErrorState title="Could not load watchlist" message={errmsg} onRetry={loadprofiledata} />
+        <ErrorState title="Could not load watchlist" message={errmsg} onRetry={dash.retry} escapeTo="/" escapeLabel="Pick a film by mood" />
       )}
 
       {!loading && !errmsg && visibleitems.length === 0 && (

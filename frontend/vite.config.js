@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Lets crash reports be matched to the exact deploy (Vercel exposes the commit at build time).
+  define: {
+    'import.meta.env.VITE_RELEASE': JSON.stringify(process.env.VITE_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || ''),
+  },
   test: {
     // Most units under test (onboardingUtils, api helpers) are plain JS with
     // no DOM. auth.js needs localStorage/document, which is why this isn't
@@ -15,5 +19,7 @@ export default defineConfig({
     // just "CI is slower" — happy-dom is the standard, much lighter
     // alternative Vitest itself recommends for exactly this.
     environment: 'happy-dom',
+    // Playwright specs live in e2e/ and run with `npm run e2e`, not Vitest.
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
   },
 })

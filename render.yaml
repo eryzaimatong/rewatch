@@ -8,7 +8,11 @@ services:
   - type: web
     name: rewatch-backend
     runtime: docker
-    plan: free
+    # Paid instance: never spins down, so no 150-second cold start. (Free web
+    # services sleep after 15 idle minutes.) Starter is 512 MB / 0.5 CPU; move up
+    # to `standard` if the JVM shows memory pressure in the Render metrics.
+    plan: starter
+    numInstances: 1
     dockerfilePath: ./backend-java/Dockerfile
     dockerContext: ./backend-java
     healthCheckPath: /api/health
@@ -26,6 +30,10 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
+      # Strict schema validation (see application-prod.properties). Set to
+      # `update` for one boot to recover an empty database, then back to this.
+      - key: JPA_DDL_AUTO
+        value: validate
       # DB_* were previously `fromDatabase: rewatch-db` (Render-managed).
       # Migrated off Render Postgres onto Neon (free tier, no 30-day expiry
       # — see DEPLOYMENT.md for the migration record); Render's own Postgres

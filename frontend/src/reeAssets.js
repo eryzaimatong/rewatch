@@ -5,7 +5,7 @@ export const canonicalUrl = Object.values(
   import.meta.glob("./assets/ree/ree-canonical.webp", { eager: true, query: "?url", import: "default" })
 )[0];
 export const iconUrl = Object.values(
-  import.meta.glob("./assets/ree/ree-icon.png", { eager: true, query: "?url", import: "default" })
+  import.meta.glob("./assets/ree/ree-icon.webp", { eager: true, query: "?url", import: "default" })
 )[0];
 
 const byName = (map, prefix) =>

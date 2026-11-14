@@ -2,7 +2,17 @@ import { useState } from "react";
 import useModalA11y from "./useModalA11y";
 import BrandMark from "./BrandMark";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, loadImage, shareOrDownloadBlob
+  CARD_SCALE,
+  CARD_W,
+  CARD_H,
+  drawCardFrame,
+  drawCardFooter,
+  loadImage,
+  shareOrDownloadBlob,
+  CARD_FONT,
+  ensureCardFonts,
+  compareUrl,
+  toBlobSafe
 } from "./shareCard";
 import "./App.css";
 
@@ -59,6 +69,7 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
   const roundedScore = Math.round(matchScore ?? 0);
 
   async function exportCard() {
+    await ensureCardFonts();
     setexporting(true);
     setshareErr("");
 
@@ -75,8 +86,9 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     // Poster — the dominant visual. A recognizable piece of pop culture is
     // what makes this worth looking at twice in someone's feed, more than
     // any chart could.
-    const posterW = 340;
-    const posterH = 510;
+    // 2:3 poster sized so title, drivers and the QR footer all fit above the card's bottom.
+    const posterW = 300;
+    const posterH = 450;
     const posterX = (CARD_W - posterW) / 2;
     const posterY = 122;
     ctx.save();
@@ -118,22 +130,22 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
     ctx.stroke();
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 26px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `700 26px ${CARD_FONT}`;
     ctx.fillText(`${roundedScore}%`, badgeCx, badgeCy + 4);
     ctx.fillStyle = "#a9b6d3";
-    ctx.font = "9px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `400 9px ${CARD_FONT}`;
     ctx.fillText("MATCH", badgeCx, badgeCy + 18);
 
     let y = posterY + posterH + 44;
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 24px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `700 24px ${CARD_FONT}`;
     const titleLine = movie.title.length > 30 ? movie.title.slice(0, 30) + "…" : movie.title;
     ctx.fillText(titleLine, CARD_W / 2, y);
 
     y += 24;
     ctx.fillStyle = "#93a0be";
-    ctx.font = "13px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `400 13px ${CARD_FONT}`;
     ctx.fillText(movie.year || "", CARD_W / 2, y);
 
     y += 40;
@@ -146,22 +158,24 @@ export default function MatchShareCard({ movie, matchScore, drivers, username, o
 
     y += 32;
     ctx.fillStyle = "#93a0be";
-    ctx.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `700 11px ${CARD_FONT}`;
     ctx.fillText(`WHY IT MATCHES ${username.toUpperCase()}`, CARD_W / 2, y);
 
     y += 30;
     topDrivers.forEach((d) => {
       ctx.fillStyle = "#dfe8fb";
-      ctx.font = "15px 'Plus Jakarta Sans', sans-serif";
+      ctx.font = `400 15px ${CARD_FONT}`;
       ctx.fillText(d, CARD_W / 2, y);
       y += 26;
     });
 
-    drawCardFooter(ctx);
+    drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       shareOrDownloadBlob(blob, `${movie.title.replace(/[^a-z0-9]+/gi, "-")}-match.png`, {
+        kind: "match",
+        url: compareUrl(username, "share"),
         title: `${roundedScore}% match on Re:Watch`,
         text: `${movie.title} is a ${roundedScore}% match for me on Re:Watch.`
       }).catch(() => setshareErr("Could not share this card."));

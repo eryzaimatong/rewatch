@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
-import { getAchievements } from "./api";
+import { useResilientQuery, fetchJson } from "./resilience/useResilientQuery";
+import StatusBanner from "./resilience/StatusBanner";
+import ErrorState from "./ErrorState";
+import { SkeletonAchievementGrid } from "./Skeleton";
 import Ree from "./Ree";
 import "./App.css";
 
@@ -50,27 +52,12 @@ function AchievementCard({ achievement }) {
 export default function Achievements() {
   const userid = Number(localStorage.getItem("userId")) || 1;
 
-  const [summary, setsummary] = useState(null);
-  const [loading, setloading] = useState(true);
-  const [err, seterr] = useState("");
-
-  async function load() {
-    setloading(true);
-    seterr("");
-    const res = await getAchievements(userid);
-    if (res) {
-      setsummary(res);
-    } else {
-      seterr("Could not load your achievements right now.");
-    }
-    setloading(false);
-  }
-
-  useEffect(() => {
-    // Initial fetch on mount / user change; `load` only touches this component's own state.
-    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-    load();
-  }, [userid]);
+  const { data: summary, status, source, isStale, isRevalidating, isSlow, retry } = useResilientQuery({
+    key: `achievements:${userid}`,
+    fetcher: (signal) => fetchJson(`/api/tastedna/achievements/${userid}`, { signal }),
+    validate: (d) => !!d && Array.isArray(d.achievements)
+  });
+  const loading = status === "loading";
 
   return (
     <div className="page-shell page-shell--wide">
@@ -102,18 +89,18 @@ export default function Achievements() {
           <Ree pose="celebrating" size={120} className="page-hero-ree" />
         </div>
 
-        {loading && (
-          <div className="feed-state">
-            <div className="loading-orb" />
-            <p>Loading your achievements...</p>
-          </div>
-        )}
+        <StatusBanner source={source} isStale={isStale} isRevalidating={isRevalidating} isSlow={isSlow} onRetry={retry} subject="your achievements" />
 
-        {err && (
-          <div className="inline-error">
-            <p className="status-message status-message--error">{err}</p>
-            <button type="button" onClick={load}>Try again</button>
-          </div>
+        {loading && <SkeletonAchievementGrid />}
+
+        {status === "error" && (
+          <ErrorState
+            title="Your milestones are still warming up"
+            message="We couldn't reach the server just now. Nothing you've unlocked is lost."
+            onRetry={retry}
+            escapeTo="/"
+            escapeLabel="Pick a film by mood"
+          />
         )}
 
         {!loading && summary && groupByCategory(summary.achievements).map(([category, items]) => (

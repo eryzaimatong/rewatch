@@ -12,6 +12,7 @@ import ErrorState from "./ErrorState";
 import ReviewInteractions from "./ReviewInteractions";
 import CollageCover from "./CollageCover";
 import { drawBrandMark } from "./canvasBrandMark";
+import { CARD_FONT, ensureCardFonts, toBlobSafe } from "./shareCard";
 import { IconMusic } from "./Icons";
 import "./App.css";
 
@@ -81,6 +82,7 @@ export default function SocialProfile() {
   // 9:16 — same Stories/Reels canvas as Wrapped's and TasteDNA's exports, so
   // a shared list gets the same shareable-poster treatment those already have.
   async function exportListPoster(list) {
+    await ensureCardFonts();
     setexportingListId(list.folderId);
 
     const posterUrls = list.items.slice(0, 6).map((i) => poster(i.poster));
@@ -107,15 +109,15 @@ export default function SocialProfile() {
     drawBrandMark(ctx, cardW / 2, 56, 16);
     ctx.textAlign = "center";
     ctx.fillStyle = "#45c5b4";
-    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `700 13px ${CARD_FONT}`;
     ctx.fillText("RE:WATCH CURATED SHELF", cardW / 2, 100);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 28px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `700 28px ${CARD_FONT}`;
     ctx.fillText(list.name, cardW / 2, 146);
 
     ctx.fillStyle = "#a1a1aa";
-    ctx.font = "14px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `400 14px ${CARD_FONT}`;
     ctx.fillText(`by ${profile.username} · ${list.itemCount} title${list.itemCount === 1 ? "" : "s"}`, cardW / 2, 172);
 
     // 2 columns x 3 rows poster grid
@@ -143,14 +145,14 @@ export default function SocialProfile() {
     ctx.fillStyle = "rgba(255,255,255,0.12)";
     ctx.fillRect(cardW / 2 - 24, cardH - 84, 48, 1);
     ctx.fillStyle = "#71717a";
-    ctx.font = "12px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `400 12px ${CARD_FONT}`;
     ctx.fillText("Stories chosen for how you feel.", cardW / 2, cardH - 56);
     ctx.fillStyle = "#45c5b4";
-    ctx.font = "bold 13px 'Plus Jakarta Sans', sans-serif";
+    ctx.font = `700 13px ${CARD_FONT}`;
     ctx.fillText("RE:WATCH", cardW / 2, cardH - 36);
 
     setexportingListId(null);
-    canvas.toBlob((blob) => {
+    toBlobSafe(canvas, (blob) => {
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = `${profile.username}-${list.name.toLowerCase().replace(/\s+/g, "-")}.png`;
