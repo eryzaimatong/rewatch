@@ -92,6 +92,20 @@ describe("useResilientQuery", () => {
   });
 });
 
+describe("useResilientQuery without a fallback", () => {
+  it("flags isSlow at the soft limit (honest wait message) and still lands the real data", async () => {
+    const d = deferred();
+    mount({ key: "slowless", fetcher: () => d.promise, softTimeoutMs: 20 });
+    expect(box.current.isSlow).toBe(false);
+    await wait(40);
+    expect(box.current.status).toBe("loading");
+    expect(box.current.isSlow).toBe(true);
+    await act(async () => d.resolve({ v: 1 }));
+    expect(box.current.isSlow).toBe(false);
+    expect(box.current.data).toEqual({ v: 1 });
+  });
+});
+
 describe("warmUp", () => {
   it("retries through a 503 (app up, DB asleep) until healthy, without throwing", async () => {
     vi.useFakeTimers();

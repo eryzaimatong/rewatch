@@ -55,6 +55,13 @@ const RAIL_ITEMS = [
   { to: "/profile", label: "TasteDNA Profile", short: "TasteDNA", Icon: IconDna }
 ];
 
+// Every authenticated screen gets its own boundary: one crashing tab shows a
+// friendly way back to mood discovery instead of taking the shell down.
+function Guarded({ area, children, ...rest }) {
+  const { pathname } = useLocation();
+  return <RouteErrorBoundary area={area} resetKey={pathname} {...rest}>{children}</RouteErrorBoundary>;
+}
+
 function openPalette() {
   window.dispatchEvent(new CustomEvent("rewatch:open-command-palette"));
 }
@@ -156,14 +163,14 @@ function AppShell({ onLogout }) {
       <main id="main-content" tabIndex={-1} style={{ outline: "none" }}>
         <div key={location.pathname} className="route-transition">
           <Routes>
-            <Route path="/" element={<MovieFeed />} />
-            <Route path="/watchlist" element={<Dashboard />} />
-            <Route path="/community" element={<RouteErrorBoundary area="Community" resetKey={location.pathname} title="The community is taking a breather" message="We couldn’t load this corner just now. Your ratings and TasteDNA are safe — pick a film by mood while it recovers."><Community /></RouteErrorBoundary>} />
-            <Route path="/social/:userId" element={<SocialProfile />} />
-            <Route path="/profile" element={<TasteProfile />} />
-            <Route path="/wrapped" element={<Wrapped />} />
-            <Route path="/achievements" element={<Achievements />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/" element={<Guarded area="Your feed"><MovieFeed /></Guarded>} />
+            <Route path="/watchlist" element={<Guarded area="Your watchlist"><Dashboard /></Guarded>} />
+            <Route path="/community" element={<Guarded area="Community" title="The community is taking a breather" message="We couldn’t load this corner just now. Your ratings and TasteDNA are safe — pick a film by mood while it recovers."><Community /></Guarded>} />
+            <Route path="/social/:userId" element={<Guarded area="This profile"><SocialProfile /></Guarded>} />
+            <Route path="/profile" element={<Guarded area="Your TasteDNA"><TasteProfile /></Guarded>} />
+            <Route path="/wrapped" element={<Guarded area="Your Wrapped"><Wrapped /></Guarded>} />
+            <Route path="/achievements" element={<Guarded area="Your achievements"><Achievements /></Guarded>} />
+            <Route path="/settings" element={<Guarded area="Settings"><Settings /></Guarded>} />
             {/* Client-side gate is UX only (hides the link, avoids a dead-end page for
                 a non-admin who guesses the URL) — the real check is the server's
                 hasRole("ADMIN") on every /api/admin/** request this page makes. */}

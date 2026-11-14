@@ -5,8 +5,16 @@ import { useServerStatus } from "./serverStatus";
  * One calm, honest line whenever what's on screen isn't live data yet.
  * Renders nothing for real data, so pages can drop it in unconditionally.
  */
-export default function StatusBanner({ source, isFallback, isStale, isRevalidating, onRetry, subject = "this page" }) {
+export default function StatusBanner({ source, isFallback, isStale, isRevalidating, isSlow, onRetry, subject = "this page" }) {
   const { phase } = useServerStatus();
+  if (isSlow) {
+    return (
+      <div className="status-banner" role="status" aria-live="polite">
+        <Ree pose="sleepy" size={56} />
+        <p>Ree is waking the server — a cold start can take up to a minute. Hang tight, {subject} will appear on its own.</p>
+      </div>
+    );
+  }
   if (!isFallback && !isStale) return null;
 
   const waking = phase === "waking" || phase === "idle";

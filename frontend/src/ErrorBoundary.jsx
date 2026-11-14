@@ -34,6 +34,10 @@ export default class ErrorBoundary extends Component {
             message="This page hit an error it couldn't recover from. Reloading usually fixes it."
             onRetry={() => window.location.reload()}
           />
+          {/* Plain anchor: this boundary can sit outside the router. */}
+          <p style={{ textAlign: "center", marginTop: "var(--sp-2)" }}>
+            <a href="/" className="feed-error-escape">Back to mood discovery</a>
+          </p>
         </div>
       </div>
     );

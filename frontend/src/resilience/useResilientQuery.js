@@ -25,6 +25,7 @@ function init(key, ttlMs) {
     source: hit ? SOURCE.CACHE : null,
     savedAt: hit ? hit.savedAt : null,
     inflight: false,
+    slow: false,
     error: null
   };
 }
@@ -34,14 +35,16 @@ function reducer(s, a) {
   if (a.key !== s.key) return s; // a result for a key we've since left
   switch (a.type) {
     case "start":
-      return { ...s, inflight: true, error: null };
+      return { ...s, inflight: true, slow: false, error: null };
     case "network":
-      return { ...s, data: a.data, source: SOURCE.NETWORK, savedAt: Date.now(), inflight: false, error: null };
+      return { ...s, data: a.data, source: SOURCE.NETWORK, savedAt: Date.now(), inflight: false, slow: false, error: null };
     case "fallback":
       // Only fills a gap; never overwrites real or cached data.
-      return s.data === undefined && a.fallback !== undefined
+      if (s.data !== undefined) return s;
+      // No fallback to show: flag "slow" so the page can explain the wait.
+      return a.fallback !== undefined
         ? { ...s, data: a.fallback, source: SOURCE.FALLBACK }
-        : s;
+        : { ...s, slow: true };
     case "fail": {
       const next = { ...s, inflight: false, error: a.error };
       return s.data === undefined && a.fallback !== undefined
@@ -154,6 +157,7 @@ export function useResilientQuery({
     isFallback: view.source === SOURCE.FALLBACK,
     isStale: hasData && view.source !== SOURCE.NETWORK,
     isRevalidating: view.inflight && hasData,
+    isSlow: view.slow && !hasData,
     savedAt: view.savedAt,
     error: view.error,
     retry

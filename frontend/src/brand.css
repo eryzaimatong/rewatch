@@ -2072,3 +2072,12 @@ a.btn-primary {
 .route-fallback p { margin: 0 auto var(--sp-3); max-width: 38ch; color: var(--text-muted); line-height: 1.55; }
 .route-fallback-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center; }
 .route-fallback .cx-cta { text-decoration: none; }
+
+/* Preview feed while the server wakes: visible, clearly a stand-in, inert. */
+.feed-passthru { display: contents; }
+.feed-passthru[inert] { user-select: none; }
+.feed-passthru[inert] :is(img, h2, h3, p) { opacity: 0.92; }
+
+.feed-error-escape { display: inline-block; margin-top: 12px; color: var(--primary-light, var(--mint)); text-underline-offset: 3px; }
+.settings-fields { display: contents; border: 0; padding: 0; margin: 0; min-width: 0; }
+.settings-fields:disabled { opacity: 0.45; }

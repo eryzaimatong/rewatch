@@ -82,3 +82,23 @@ export function DoubleFeatureSkeleton() {
     </section>
   );
 }
+
+/** Mirrors AchievementCard rows inside .achievement-grid. */
+export function SkeletonAchievementGrid({ count = 6 }) {
+  return (
+    <section className="feed-section" aria-busy="true" aria-label="Loading your achievements">
+      <div className="skeleton-line skeleton-line--narrow" style={{ marginBottom: "var(--sp-2)" }} />
+      <div className="achievement-grid">
+        {Array.from({ length: count }, (_, i) => (
+          <div className="skeleton-card" key={i}>
+            <div className="skeleton-body">
+              <div className="skeleton-avatar" />
+              <div className="skeleton-line skeleton-line--wide" />
+              <div className="skeleton-line skeleton-line--mid" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { getrecs, gettitles, BASE, getWatchStatuses, setWatchStatus, heroSearch, getApiMeta } from "./api";
@@ -13,6 +13,9 @@ import MatchRing from "./MatchRing";
 import EmptyState from "./EmptyState";
 import ErrorState from "./ErrorState";
 import { SkeletonPosterGrid } from "./Skeleton";
+import { useResilientQuery } from "./resilience/useResilientQuery";
+import { FEED_FALLBACK } from "./resilience/fallbacks";
+import StatusBanner from "./resilience/StatusBanner";
 import { IconEye, IconFlame, IconShuffle, IconFilmCheck } from "./Icons";
 import "./App.css";
 
@@ -298,10 +301,58 @@ const cardVariants = {
   })
 };
 
+// Pure fetch of the browse feed: filters -> relax vibe -> relax genre ->
+// personal recs -> raw catalog. Throws on any real failure so the resilient
+// query shows cache/fallback instead of a fake "nothing matched".
+async function fetchFeed({ vibe, genre, language }, signal) {
+  const call = async (v, g) => {
+    const params = new URLSearchParams();
+    if (v && v !== "All") params.set("vibe", v);
+    if (g && g !== "All") params.set("genre", g);
+    if (language && language !== "All") params.set("language", language);
+    // The backend derives the personalizing id from the JWT, not a query param.
+    const res = await fetch(`${BASE}/api/movies/popular?${params.toString()}`, { headers: authHeaders(), signal });
+    if (!res.ok) {
+      if (res.status >= 500 || res.status === 429) throw new Error(`popular feed failed: ${res.status}`);
+      return null;
+    }
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data) ? data : null;
+  };
+  const throwIfUnreachable = (result) => {
+    if (getApiMeta(result)?.ok === false) throw new Error("feed unreachable");
+    return result;
+  };
+
+  let notice = "";
+  let live = await call(vibe, genre);
+  if ((!live || live.length === 0) && vibe !== "All") {
+    live = await call("All", genre);
+    if (live?.length) notice = `No exact matches for "${vibe}" with these filters, so we loosened the vibe.`;
+  }
+  if ((!live || live.length === 0) && genre !== "All") {
+    live = await call("All", "All");
+    if (live?.length) notice = "No exact matches, so we loosened the genre and vibe filters.";
+  }
+  let raw = live;
+  if (!raw || raw.length === 0) {
+    const userId = localStorage.getItem("userId");
+    raw = userId ? throwIfUnreachable(await getrecs(userId)) : [];
+    if (!Array.isArray(raw) || raw.length === 0) {
+      const titles = throwIfUnreachable(await gettitles());
+      raw = Array.isArray(titles) ? titles : [];
+    }
+  }
+  const movies = raw.map((item, index) => normalizeMovie(item, index));
+  return { movies, notice, languages: [...new Set(movies.map((m) => m.originalLanguage).filter(Boolean))].sort() };
+}
+
 export default function MovieFeed() {
-  const [movies, setMovies] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Search results overlay the browse feed (null = not searching). The browse
+  // feed itself is a resilient query further down, keyed by the active filters.
+  const [searchMovies, setSearchMovies] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   // Captured from the first, unfiltered load only — never recomputed after a
   // filtered fetch. availablelanguages used to be derived live from
   // `movies`, which meant picking any one filter shrank the pill row down
@@ -310,7 +361,6 @@ export default function MovieFeed() {
   // visible regardless of which one is currently active. (Genre pills don't
   // need this — see GENRE_OPTIONS above, a fixed list instead.)
   const [alllanguagesSeen, setalllanguagesSeen] = useState([]);
-  const [relaxednotice, setrelaxednotice] = useState("");
   // Maps movie.id (tmdbId-preferring, see normalizeMovie) -> the persisted
   // watchlist row id, so a click can DELETE the right row. Replaces the old
   // local-only savedIds array, which never called the server at all and
@@ -332,7 +382,7 @@ export default function MovieFeed() {
   // current results came from browsing (mount, a filter pill, Reset All
   // Filters). Lets the empty state below reference what was actually
   // searched instead of always describing vibe/genre/language, which a
-  // hero search never touches — see loadData and dosearch for where this
+  // hero search never touches — see dosearch for where this
   // gets set and cleared.
   const [lastsearchquery, setlastsearchquery] = useState(null);
   // Persisted so switching moods sticks across a reload/re-login instead of
@@ -352,6 +402,39 @@ export default function MovieFeed() {
   function setgenrefilter(next) {
     setgenrefilterRaw(next);
     localStorage.setItem("genreFilter", next);
+  }
+
+  // Browse feed: cache -> skeleton -> labelled preview -> real data hot-swapped
+  // in. Keyed by user + filters, so changing a filter refetches (and a cached
+  // copy of that exact filter combo shows instantly).
+  const feedUserId = localStorage.getItem("userId") ?? "anon";
+  const feed = useResilientQuery({
+    key: `feed:${feedUserId}:${vibe}:${genrefilter}:${languagefilter}`,
+    fetcher: (signal) => fetchFeed({ vibe, genre: genrefilter, language: languagefilter }, signal),
+    fallback: FEED_FALLBACK,
+    validate: (d) => !!d && Array.isArray(d.movies),
+    softTimeoutMs: 7_000
+  });
+  const feedMovies = useMemo(
+    () => (feed.data?.movies ?? []).map((m, i) => (feed.isFallback ? { ...normalizeMovie(m, i), isPreview: true } : m)),
+    [feed.data, feed.isFallback]
+  );
+  const movies = searchMovies ?? feedMovies;
+  const searching = searchMovies !== null;
+  const previewMode = feed.isFallback && !searching;
+  const loading = searchLoading || (!searching && feed.status === "loading");
+  const error = searchError || (!searching && feed.status === "error" ? "Couldn't load your feed. Check your connection and try again." : "");
+  const relaxednotice = !searching && !feed.isFallback ? feed.data?.notice ?? "" : "";
+  // Captured from the first real, unfiltered load only (see availablelanguages).
+  if (!feed.isFallback && feed.source === "network" && alllanguagesSeen.length === 0 && feed.data?.languages?.length) {
+    setalllanguagesSeen(feed.data.languages);
+  }
+  // Back to browsing: drop any search overlay.
+  function refreshFeed() {
+    setSearchMovies(null);
+    setSearchError("");
+    setlastsearchquery(null);
+    feed.retry();
   }
   const [moodline, setmoodline] = useState("");
   // Drives which flavor of hero subtitle is honest to show — see the `hook`
@@ -387,7 +470,7 @@ export default function MovieFeed() {
     dismissRefinementPrompt();
     // The whole point of refining is that recommendations change — reload
     // the sections whose ranking actually depends on the trait profile.
-    loadData(vibe, genrefilter, languagefilter);
+    feed.retry();
     loadMood();
     loadDiscovery();
   }
@@ -557,7 +640,6 @@ export default function MovieFeed() {
     // (rather than eslint-disable-next-line on each call) because the rule
     // only ever flags whichever of the two calls it reaches first.
     /* eslint-disable react-hooks/set-state-in-effect */
-    loadData();
     loadMood();
     loadWatchlist();
     loadWatchStatuses();
@@ -567,20 +649,17 @@ export default function MovieFeed() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
-  // Re-fetches from the server whenever a filter pill changes, instead of
-  // only ever filtering whatever the mount-time load happened to return —
-  // see loadData's own comment for why that was the actual cause of
-  // "combining two filters returns zero results" on a 6,000+ title catalog.
-  // skippedFirstRun guards against double-fetching on mount: the effect
-  // above already calls loadData() once, unconditionally, on mount.
+  // Changing a filter returns to browsing (drops any search overlay); the
+  // resilient feed query above refetches on its own because its key changed.
   const skippedFirstRun = useRef(false);
   useEffect(() => {
     if (!skippedFirstRun.current) {
       skippedFirstRun.current = true;
       return;
     }
-    loadData(vibe, genrefilter, languagefilter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSearchMovies(null);
+    setSearchError("");
+    setlastsearchquery(null);
   }, [vibe, genrefilter, languagefilter]);
 
   async function loadStreak() {
@@ -623,104 +702,6 @@ export default function MovieFeed() {
   // pool (see Recommender.recommend's filtered overload) before picking the
   // top 30 — the filters narrow the same breadth the unfiltered feed draws
   // from, not a slice already narrowed down to something else.
-  async function fetchPopular(activeVibe, activeGenre, activeLanguage) {
-    const params = new URLSearchParams();
-    if (activeVibe && activeVibe !== "All") params.set("vibe", activeVibe);
-    if (activeGenre && activeGenre !== "All") params.set("genre", activeGenre);
-    if (activeLanguage && activeLanguage !== "All") params.set("language", activeLanguage);
-    // The backend derives the personalizing id from the JWT (see TmdbController),
-    // not a query param — a permitAll route that trusted `?userId=` would let
-    // anyone read anyone's personalized feed without logging in.
-    // Unlike a genuinely empty result, a network failure or a 5xx must NOT be
-    // swallowed into `null`: loadData's fallbacks would then run against the same
-    // dead server, find nothing, and tell the visitor "we searched every
-    // universe" — an honest-sounding lie about a connection problem. Throwing
-    // lets loadData's catch show the real error with a working Try again.
-    const res = await fetch(`${BASE}/api/movies/popular?${params.toString()}`, { headers: authHeaders() });
-    if (!res.ok) {
-      if (res.status >= 500 || res.status === 429) {
-        throw new Error(`popular feed failed: ${res.status}`);
-      }
-      return null;
-    }
-    const data = await res.json().catch(() => null);
-    return Array.isArray(data) ? data : null;
-  }
-
-  async function loadData(vibeArg, genreArg, languageArg) {
-    setLoading(true);
-    setError("");
-    setrelaxednotice("");
-    setlastsearchquery(null);
-
-    const activeVibe = vibeArg ?? vibe;
-    const activeGenre = genreArg ?? genrefilter;
-    const activeLanguage = languageArg ?? languagefilter;
-    const isFirstLoad = alllanguagesSeen.length === 0;
-
-    // getrecs()/gettitles() only guard against a non-2xx response — a genuine
-    // network failure (offline, DNS, an aborted request) makes fetch() itself
-    // reject, which used to propagate straight out of this function and skip
-    // every statement below, including setLoading(false) — the feed was stuck
-    // on the skeleton loader forever with no error shown and no way to retry.
-    // Wrapping the whole load in try/catch/finally is what actually surfaces
-    // ErrorState (with its retry button, already wired to call this function
-    // again) instead of a permanent spinner.
-    try {
-      const userId = localStorage.getItem("userId");
-      let liveData = await fetchPopular(activeVibe, activeGenre, activeLanguage);
-
-      // Genuine zero-match combos still happen (a real genre+language pair
-      // that just has nothing in the catalog) even with filters now applied
-      // to the full 6,000+ title pool instead of an already-narrow slice —
-      // vibe is the softest, most approximate constraint of the three, so
-      // it's the first one dropped, then genre, before falling all the way
-      // back to "show something, unfiltered" silently.
-      if ((!liveData || liveData.length === 0) && activeVibe !== "All") {
-        liveData = await fetchPopular("All", activeGenre, activeLanguage);
-        if (liveData && liveData.length > 0) {
-          setrelaxednotice(`No exact matches for "${activeVibe}" with these filters, so we loosened the vibe.`);
-        }
-      }
-      if ((!liveData || liveData.length === 0) && activeGenre !== "All") {
-        liveData = await fetchPopular("All", "All", activeLanguage);
-        if (liveData && liveData.length > 0) {
-          setrelaxednotice(`No exact matches, so we loosened the genre and vibe filters.`);
-        }
-      }
-
-      if (liveData && liveData.length > 0) {
-        const normalizedMovies = liveData.map((item, index) => normalizeMovie(item, index));
-        setMovies(normalizedMovies);
-        if (isFirstLoad) {
-          setalllanguagesSeen([...new Set(normalizedMovies.map((m) => m.originalLanguage).filter(Boolean))].sort());
-        }
-        return;
-      }
-
-      let response = [];
-
-      if (userId) {
-        response = await getrecs(userId);
-      }
-
-      if (!Array.isArray(response) || response.length === 0) {
-        const titles = await gettitles();
-        response = Array.isArray(titles) ? titles : [];
-      }
-
-      const normalizedMovies = response.map((item, index) => normalizeMovie(item, index));
-      setMovies(normalizedMovies);
-      if (isFirstLoad) {
-        setalllanguagesSeen([...new Set(normalizedMovies.map((m) => m.originalLanguage).filter(Boolean))].sort());
-      }
-    } catch {
-      setError("Couldn't load your feed. Check your connection and try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     // Debounced regardless of branch (rather than an early synchronous
     // setState for the too-short case) — see EvolutionTimeline.jsx for why a
@@ -747,12 +728,12 @@ export default function MovieFeed() {
     if (q === "") {
       setsearchunderstood(null);
       setsearchhook(null);
-      loadData();
+      refreshFeed();
       return;
     }
 
-    setLoading(true);
-    setError("");
+    setSearchLoading(true);
+    setSearchError("");
 
     const result = await heroSearch(q);
     const meta = getApiMeta(result);
@@ -765,18 +746,18 @@ export default function MovieFeed() {
       // these means something different and calls for a different next
       // action from the user.
       if (meta?.type === "network") {
-        setError(meta.name === "TimeoutError"
+        setSearchError(meta.name === "TimeoutError"
           ? "That took too long — the server may still be waking up. Please try again."
           : "Could not reach Re:Watch. Check your connection and try again.");
       } else if (meta?.status === 429) {
-        setError(result.data?.message || "Too many searches. Please wait a moment and try again.");
+        setSearchError(result.data?.message || "Too many searches. Please wait a moment and try again.");
       } else if (meta?.status >= 500) {
         const ref = result.data?.correlationId;
-        setError(`Something went wrong on our end. Please try again.${ref ? ` (ref: ${ref})` : ""}`);
+        setSearchError(`Something went wrong on our end. Please try again.${ref ? ` (ref: ${ref})` : ""}`);
       } else {
-        setError("Could not complete that search. Please try again.");
+        setSearchError("Could not complete that search. Please try again.");
       }
-      setLoading(false);
+      setSearchLoading(false);
       return;
     }
 
@@ -787,10 +768,10 @@ export default function MovieFeed() {
     );
 
     const normalizedMovies = result.movies.map((item, index) => normalizeMovie(item, index));
-    setMovies(normalizedMovies);
+    setSearchMovies(normalizedMovies);
     setlastsearchquery(q);
     setrecentsearches(pushRecentSearch(q));
-    setLoading(false);
+    setSearchLoading(false);
   }
 
   function handlePosterError(event) {
@@ -806,7 +787,7 @@ export default function MovieFeed() {
   async function surpriseMe(excludeId) {
     let pool = movies.slice(0, SURPRISE_POOL_SIZE);
     if (pool.length === 0) {
-      await loadData();
+      refreshFeed();
       return;
     }
     // A reroll landing on the exact title already on screen reads as
@@ -898,7 +879,7 @@ export default function MovieFeed() {
   const availablegenres = GENRE_OPTIONS;
 
   // vibe/genre/language are now applied server-side (Recommender.recommend's
-  // filtered overload, called from loadData) against the full candidate
+  // filtered overload, called from fetchFeed) against the full candidate
   // pool, not just the ~30 titles an unfiltered feed happens to return — so
   // `movies` already reflects whatever's currently selected by the time it
   // gets here. This used to re-filter AGAIN client-side on top of that
@@ -1123,6 +1104,7 @@ export default function MovieFeed() {
   return (
     <div className="movie-feed">
       <h1 className="sr-only">Your Re:Watch home</h1>
+      <div className="feed-passthru" inert={previewMode}>
       {movies.length > 0 && (
         <CinemaHero
           movies={movies}
@@ -1144,6 +1126,7 @@ export default function MovieFeed() {
           onDetails={handleDetails}
         />
       )}
+      </div>
 
       <section
         className="feed-hero mood-room"
@@ -1151,7 +1134,7 @@ export default function MovieFeed() {
         aria-labelledby="mood-heading"
       >
         <div className="mood-room-top">
-          <ReeSays pose="default" className="mood-room-says">
+          <ReeSays pose={activeMood ? undefined : "default"} moodKey={activeMood?.key} className="mood-room-says">
             {moodline || `Good evening, ${username}.`}
             {/* The backend's two cold-start lines say nearly the same thing;
                 only show the hook when the greeting doesn't already cover it. */}
@@ -1278,6 +1261,7 @@ export default function MovieFeed() {
 
       </section>
 
+      <div className="feed-passthru" inert={previewMode}>
       {movies.length >= 3 && (
         <SpotlightWheel
           movies={movies.length >= 8 ? movies.slice(3) : movies}
@@ -1287,6 +1271,7 @@ export default function MovieFeed() {
           onDetails={handleDetails}
         />
       )}
+      </div>
 
       {!refinementDismissed && (
         <div className="moment-card refinement-prompt">
@@ -1434,10 +1419,14 @@ export default function MovieFeed() {
           </div>
         )}
 
+        {!searching && (
+          <StatusBanner source={feed.source} isFallback={feed.isFallback} isStale={feed.isStale} isRevalidating={feed.isRevalidating} onRetry={feed.retry} subject="your feed" />
+        )}
+
         {loading && <SkeletonPosterGrid count={4} />}
 
         {!loading && error && (
-          <ErrorState message={error} onRetry={() => loadData()} />
+          <ErrorState message={error} onRetry={refreshFeed} />
         )}
 
         {!loading && !error && visiblemovies.length === 0 && lastsearchquery && (
@@ -1491,7 +1480,7 @@ export default function MovieFeed() {
         )}
 
         {!loading && !error && visiblemovies.length > 0 && (
-          <div>
+          <div className="feed-passthru" inert={previewMode} aria-busy={previewMode}>
             {renderRow(
               "Tonight's Top Matches",
               "Personal TasteDNA™ Match",
@@ -1610,7 +1599,7 @@ export default function MovieFeed() {
           // already showing numbers consistent with what the modal itself
           // just displayed, instead of the pre-rating snapshot from the last
           // full load.
-          onRatingChange={() => loadData(vibe, genrefilter, languagefilter)}
+          onRatingChange={() => feed.retry()}
         />
       )}
     </div>
