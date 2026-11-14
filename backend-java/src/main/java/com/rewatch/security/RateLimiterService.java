@@ -1,31 +1,39 @@
 package com.rewatch.security;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 /**
- * In-memory sliding-window rate limiter for the auth endpoints — this app's
+ * Sliding-window rate limiter for the auth endpoints — this app's
  * only unauthenticated, abuse-prone surface (login invites credential
  * stuffing, register/forgot-password can be used to spam an inbox or a real
- * Gmail sending account). No new dependency (Bucket4j etc.): a per-key deque
- * of recent-attempt timestamps, pruned to the window on each check, is
- * enough at this app's current single-instance scale — same "revisit if this
- * ever needs to survive a restart or run across multiple instances" caveat
- * as everywhere else in this codebase that trades a small in-memory
- * structure for not adding Redis this early.
+ * Gmail sending account). A sliding window of recent-attempt timestamps per
+ * key, kept in a {@link RateLimitStore}: in memory by default, or in Redis when
+ * REDIS_URL is set so that several backend instances enforce ONE shared limit.
  */
 @Service
 public class RateLimiterService {
 
-    private final Map<String, Deque<Instant>> attempts = new ConcurrentHashMap<>();
+    /** Upper bound on how long a failure-counted attempt (login guard) is kept; every window used is shorter. */
+    private static final Duration FAILURE_RETENTION = Duration.ofHours(24);
+
+    private final RateLimitStore store;
+
+    /** Single-instance default: all state in this process's memory. */
+    public RateLimiterService() {
+        this(new InMemoryRateLimitStore());
+    }
+
+    /** Spring wiring: the store is Redis-backed when REDIS_URL is set (see RateLimitConfig). */
+    @Autowired
+    public RateLimiterService(RateLimitStore store) {
+        this.store = store;
+    }
 
     /**
      * @return true if this call is allowed (and is now counted against the
@@ -33,20 +41,7 @@ public class RateLimiterService {
      *         within {@code window}.
      */
     public boolean allow(String key, int maxAttempts, Duration window) {
-        Instant now = Instant.now();
-        Instant cutoff = now.minus(window);
-
-        Deque<Instant> log = attempts.computeIfAbsent(key, k -> new ArrayDeque<>());
-        synchronized (log) {
-            while (!log.isEmpty() && log.peekFirst().isBefore(cutoff)) {
-                log.pollFirst();
-            }
-            if (log.size() >= maxAttempts) {
-                return false;
-            }
-            log.addLast(now);
-            return true;
-        }
+        return store.tryAcquire(key, maxAttempts, window);
     }
 
     /**
@@ -58,25 +53,12 @@ public class RateLimiterService {
      * check-and-consume.
      */
     public boolean isBlocked(String key, int maxAttempts, Duration window) {
-        Deque<Instant> log = attempts.get(key);
-        if (log == null) {
-            return false;
-        }
-        Instant cutoff = Instant.now().minus(window);
-        synchronized (log) {
-            while (!log.isEmpty() && log.peekFirst().isBefore(cutoff)) {
-                log.pollFirst();
-            }
-            return log.size() >= maxAttempts;
-        }
+        return store.isBlocked(key, maxAttempts, window);
     }
 
     /** Records one attempt against {@code key} unconditionally — pairs with isBlocked() for failure-only counting. */
     public void recordAttempt(String key) {
-        Deque<Instant> log = attempts.computeIfAbsent(key, k -> new ArrayDeque<>());
-        synchronized (log) {
-            log.addLast(Instant.now());
-        }
+        store.record(key, FAILURE_RETENTION);
     }
 
     /**
@@ -86,18 +68,7 @@ public class RateLimiterService {
      * allow()/isBlocked() found the key already at its limit.
      */
     public long secondsUntilRetry(String key, Duration window) {
-        Deque<Instant> log = attempts.get(key);
-        if (log == null) {
-            return 0;
-        }
-        synchronized (log) {
-            Instant oldest = log.peekFirst();
-            if (oldest == null) {
-                return 0;
-            }
-            long secs = Duration.between(Instant.now(), oldest.plus(window)).getSeconds();
-            return Math.max(0, secs);
-        }
+        return store.secondsUntilRetry(key, window);
     }
 
     /**

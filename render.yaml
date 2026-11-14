@@ -34,6 +34,11 @@ services:
       # `update` for one boot to recover an empty database, then back to this.
       - key: JPA_DDL_AUTO
         value: validate
+      # Shared state for more than one instance (rate limits, TMDB cache, job
+      # lock). Set by hand in the dashboard: it carries a password. Leave unset
+      # to run a single instance fully in memory.
+      - key: REDIS_URL
+        sync: false
       # DB_* were previously `fromDatabase: rewatch-db` (Render-managed).
       # Migrated off Render Postgres onto Neon (free tier, no 30-day expiry
       # — see DEPLOYMENT.md for the migration record); Render's own Postgres
