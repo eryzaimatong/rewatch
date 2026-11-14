@@ -19,6 +19,15 @@ export default defineConfig([
     },
   },
   {
+    // Build config, Playwright config and specs run in Node.
+    files: ['vite.config.js', 'playwright.config.js', 'e2e/**/*.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+  },
+  {
     // Vercel Edge Middleware/Functions, not part of the Vite/browser build —
     // these run in Vercel's own edge runtime, which exposes standard Web
     // APIs (fetch, Request/Response, URL) plus `process.env` for project

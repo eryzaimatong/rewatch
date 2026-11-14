@@ -732,7 +732,9 @@ body.has-shell #root { max-width: none; padding: 0; }
     radial-gradient(640px 340px at 6% 104%, rgba(var(--primary-rgb), 0.28), transparent 70%);
 }
 
-.cx-hero-ree { position: absolute; right: clamp(130px, 13vw, 220px); bottom: -6px; z-index: 1; }
+/* Stands inside the card: the stage clips overflow, so her ground shadow (~24px) and glow need room
+   above the edge, otherwise they are sliced flat. Guarded by e2e/rendering.spec.js. */
+.cx-hero-ree { position: absolute; right: clamp(130px, 13vw, 220px); bottom: 28px; z-index: 1; }
 
 .cx-hero-copy { width: min(680px, 62%); padding: clamp(28px, 5vw, 72px); text-align: left; }
 
@@ -851,7 +853,7 @@ body.has-shell #root { max-width: none; padding: 0; }
 
 .cx-tab:hover { transform: translateX(-3px); background: var(--mint); }
 
-.cx-hero-dots { position: absolute; right: 28px; bottom: 24px; display: flex; align-items: center; gap: 10px; }
+.cx-hero-dots { position: absolute; right: 28px; bottom: 24px; z-index: 2; display: flex; align-items: center; gap: 10px; } /* above Ree (z-index 1) so she never swallows a click */
 
 .cx-arrow {
   display: grid;
@@ -1257,7 +1259,7 @@ body.has-shell #root { max-width: none; padding: 0; }
       linear-gradient(0deg, var(--background) 38%, rgba(16, 27, 53, 0.72) 58%, rgba(16, 27, 53, 0) 84%),
       radial-gradient(500px 260px at 0% 100%, rgba(var(--primary-rgb), 0.28), transparent 70%);
   }
-  .cx-hero-ree { right: 14px; top: 14px; bottom: auto; transform: scale(0.52); transform-origin: top right; }
+  .cx-hero-ree { right: 30px; top: 14px; bottom: auto; transform: scale(0.52); transform-origin: top right; }
   .cx-hero-copy { width: 100%; padding: 24px 22px 72px; }
   .cx-title { font-size: clamp(2.3rem, 11vw, 3.5rem); }
   .cx-cta { flex: 1 1 auto; }
