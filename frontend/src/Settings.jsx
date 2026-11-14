@@ -12,6 +12,7 @@ import { getAccessibilityPrefs, setAccessibilityPref } from "./accessibility";
 import { isSoundEnabled, setSoundEnabled, playConfirm } from "./sound";
 import ConfirmDialog from "./ConfirmDialog";
 import ErrorState from "./ErrorState";
+import { setTelemetryOptOut } from "./telemetry";
 import Avatar from "./Avatar";
 import InstallAppButton from "./InstallAppButton";
 import { IconLock } from "./Icons";
@@ -215,6 +216,17 @@ export default function Settings() {
   const [ownfolders, setownfolders] = useState([]);
   const [pinnedtitleids, setpinnedtitleids] = useState([]);
   const [pinnedratingid, setpinnedratingid] = useState(null);
+  const [telemetryoff, settelemetryoff] = useState(() => {
+    try {
+      return localStorage.getItem("telemetryOptOut") === "1";
+    } catch {
+      return false;
+    }
+  });
+  function toggletelemetry() {
+    setTelemetryOptOut(!telemetryoff);
+    settelemetryoff(!telemetryoff);
+  }
   const [pinnedfolderid, setpinnedfolderid] = useState(null);
   const [pinnedsaving, setpinnedsaving] = useState(false);
   const [pinnedmsg, setpinnedmsg] = useState("");
@@ -1010,6 +1022,21 @@ export default function Settings() {
               </button>
             </div>
           )}
+        </section>
+
+        <section className="feed-section" data-group="privacy">
+          <p className="section-eyebrow">Anonymous usage and crash reports</p>
+          <p style={{ margin: "0 0 10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
+            Helps us fix crashes and see which features people use. Never includes your name, email or ratings.
+          </p>
+          <div className="trait-card settings-toggle-row">
+            <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.88rem" }}>
+              {telemetryoff ? "Off: nothing is sent from this browser." : "On: anonymous events and crash reports."}
+            </p>
+            <button type="button" className={telemetryoff ? "btn-block" : "btn-primary"} style={{ maxWidth: "140px" }} onClick={toggletelemetry}>
+              {telemetryoff ? "Turn On" : "Turn Off"}
+            </button>
+          </div>
         </section>
 
         <section className="feed-section" data-group="privacy">

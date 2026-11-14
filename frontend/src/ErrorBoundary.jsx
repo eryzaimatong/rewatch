@@ -1,5 +1,6 @@
 import { Component } from "react";
 import ErrorState from "./ErrorState";
+import { captureError } from "./telemetry";
 import "./App.css";
 
 /**
@@ -20,6 +21,7 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("Unhandled render error:", error, info);
+    captureError(error, { area: "app", componentStack: String(info?.componentStack ?? "").slice(0, 500) });
   }
 
   render() {

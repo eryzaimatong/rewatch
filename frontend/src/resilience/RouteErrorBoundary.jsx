@@ -1,6 +1,7 @@
 import { Component } from "react";
 import { Link } from "react-router-dom";
 import Ree from "../Ree";
+import { captureError } from "../telemetry";
 
 const MAX_INLINE_RETRIES = 2;
 
@@ -21,6 +22,7 @@ export default class RouteErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error(`[${this.props.area ?? "route"}] render error:`, error, info?.componentStack);
+    captureError(error, { area: this.props.area ?? "route" });
   }
 
   componentDidUpdate(prev) {

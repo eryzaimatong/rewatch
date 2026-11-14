@@ -17,6 +17,7 @@ import { useResilientQuery } from "./resilience/useResilientQuery";
 import { FEED_FALLBACK } from "./resilience/fallbacks";
 import StatusBanner from "./resilience/StatusBanner";
 import { IconEye, IconFlame, IconShuffle, IconFilmCheck } from "./Icons";
+import { track } from "./telemetry";
 import "./App.css";
 
 const TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
@@ -897,6 +898,7 @@ export default function MovieFeed() {
     ) ?? null;
 
   function pickMood(m) {
+    track("mood_picked", { mood: m.key, surface: "feed" });
     if (activeMood?.key === m.key) {
       setvibe("All");
       setgenrefilter("All");

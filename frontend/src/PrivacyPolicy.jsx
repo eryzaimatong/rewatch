@@ -31,8 +31,14 @@ export default function PrivacyPolicy() {
           <li><strong>Catalog data:</strong> movie/show metadata (titles, posters, genres) is
             sourced from TMDB, not something we collect about you.</li>
           <li><strong>Session data:</strong> a JSON Web Token stored in your browser's
-            localStorage to keep you signed in. We don't use tracking cookies or
-            third-party analytics.</li>
+            localStorage to keep you signed in. We don't use tracking cookies.</li>
+          <li><strong>Anonymous usage and crash data:</strong> when enabled, we use PostHog
+            for anonymous product events (for example, that a share card was exported or a
+            mood was picked) and Sentry for crash reports. These events never include your
+            username, email, password, or ratings, are not tied to a profile, and the
+            query string is removed from reported page addresses. We honour your browser's
+            Do Not Track setting, and you can switch this off any time in
+            {" "}<Link to="/settings#privacy">Settings</Link>.</li>
         </ul>
 
         <h2>What we don't do</h2>

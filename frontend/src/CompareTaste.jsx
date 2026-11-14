@@ -5,9 +5,20 @@ import MatchRing from "./MatchRing";
 import TraitRadar from "./TraitRadar";
 import WakingState from "./WakingState";
 import { BASE } from "./api";
+import { track } from "./telemetry";
 import {
-  CARD_SCALE, CARD_W, CARD_H, drawCardFrame, drawCardFooter, drawVerticallyCentered,
-  wrapText, shareOrDownloadBlob
+  CARD_SCALE,
+  CARD_W,
+  CARD_H,
+  drawCardFrame,
+  drawCardFooter,
+  drawVerticallyCentered,
+  wrapText,
+  shareOrDownloadBlob,
+  CARD_FONT,
+  ensureCardFonts,
+  compareUrl,
+  CARD_FOOTER_TOP
 } from "./shareCard";
 import "./App.css";
 
@@ -117,6 +128,11 @@ export default function CompareTaste() {
   }
 
   useEffect(() => {
+    // The other half of the share loop: who actually opened a compare link, and from where.
+    track("compare_link_opened", { src: new URLSearchParams(window.location.search).get("src") || "link" });
+  }, []);
+
+  useEffect(() => {
     (async () => {
       await fetchQuiz();
     })();
@@ -165,6 +181,7 @@ export default function CompareTaste() {
   }
 
   async function exportCard() {
+    await ensureCardFonts();
     if (!result) return;
     setexporting(true);
 
@@ -176,18 +193,18 @@ export default function CompareTaste() {
 
     drawCardFrame(ctx, "TASTE COMPATIBILITY");
 
-    drawVerticallyCentered(ctx, 220, CARD_H - 100, (c, startY) => {
+    drawVerticallyCentered(ctx, 220, CARD_FOOTER_TOP, (c, startY) => {
       c.textAlign = "center";
       c.fillStyle = "#ffffff";
-      c.font = "bold 64px 'Plus Jakarta Sans', sans-serif";
+      c.font = `700 64px ${CARD_FONT}`;
       c.fillText(`${result.compatibilityPercent}%`, CARD_W / 2, startY);
 
       c.fillStyle = "#93a0be";
-      c.font = "14px 'Plus Jakarta Sans', sans-serif";
+      c.font = `400 14px ${CARD_FONT}`;
       c.fillText(`compatible with @${result.targetUsername}`, CARD_W / 2, startY + 30);
 
       c.fillStyle = "#dfe8fb";
-      c.font = "bold 22px 'Plus Jakarta Sans', sans-serif";
+      c.font = `700 22px ${CARD_FONT}`;
       let y = wrapText(c, result.headline, CARD_W / 2, startY + 90, CARD_W - 100, 30);
 
       if (result.sharedTraits.length > 0) {
@@ -201,12 +218,12 @@ export default function CompareTaste() {
 
         y += 34;
         c.fillStyle = "#45c5b4";
-        c.font = "bold 11px 'Plus Jakarta Sans', sans-serif";
+        c.font = `700 11px ${CARD_FONT}`;
         c.fillText("WHAT YOU SHARE", CARD_W / 2, y);
 
         y += 32;
         c.fillStyle = "#dfe8fb";
-        c.font = "16px 'Plus Jakarta Sans', sans-serif";
+        c.font = `400 16px ${CARD_FONT}`;
         result.sharedTraits.forEach((label) => {
           c.fillText(label, CARD_W / 2, y);
           y += 26;
@@ -216,11 +233,12 @@ export default function CompareTaste() {
       return y;
     });
 
-    drawCardFooter(ctx);
+    drawCardFooter(ctx, { url: compareUrl(username, "card") });
 
     setexporting(false);
     canvas.toBlob((blob) => {
       shareOrDownloadBlob(blob, `taste-compatibility-with-${result.targetUsername}.png`, {
+        kind: "compare",
         title: `${result.compatibilityPercent}% taste compatibility on Re:Watch`,
         text: `I'm ${result.compatibilityPercent}% compatible with @${result.targetUsername} on Re:Watch.`
       }).catch(() => seterr("Could not share this card. Try again, or take a screenshot instead."));

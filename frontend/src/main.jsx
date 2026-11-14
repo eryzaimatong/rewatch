@@ -8,6 +8,7 @@ import App from './App.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 import { installSessionGuard } from './sessionGuard.js'
 import { warmUp } from './resilience/serverStatus.js'
+import { initTelemetry } from './telemetry.js'
 
 installSessionGuard()
 
@@ -25,6 +26,14 @@ createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+// Analytics + crash reporting load after the page is interactive (and only if
+// keys are configured), so they can never slow first paint.
+window.addEventListener('load', () => {
+  const start = () => initTelemetry().catch(() => {})
+  if ('requestIdleCallback' in window) window.requestIdleCallback(start, { timeout: 4000 })
+  else setTimeout(start, 1500)
+})
 
 // Registered after load so it never competes with the initial render for
 // bandwidth/main-thread time — see public/sw.js for the caching strategy.
