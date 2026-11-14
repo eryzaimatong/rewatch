@@ -235,10 +235,10 @@ function LiveRee({ pose, size, className, style, live, aura, hop, moodKey, a11y 
  * Ree speaking — the companion voice used for guidance and reassurance:
  * a small icon-Ree beside a soft bubble. Keep copy short and kind.
  */
-export function ReeSays({ children, pose, className = "" }) {
+export function ReeSays({ children, pose, moodKey, className = "" }) {
   return (
     <div className={`ree-says ${className}`}>
-      {pose ? <Ree pose={pose} size={52} className="ree-says-avatar" /> : <Ree variant="icon" size={40} className="ree-says-icon" />}
+      {pose || moodKey ? <Ree pose={pose} moodKey={moodKey} size={52} className="ree-says-avatar" /> : <Ree variant="icon" size={40} className="ree-says-icon" />}
       <p className="ree-says-bubble">{children}</p>
     </div>
   );

@@ -318,10 +318,10 @@ export function MoodPicker({ activeKey, onPick }) {
 
 /** "Your quiet escape: Perfect Days" — the board's mood-result card. */
 export function MoodResult({ mood, movie, onOpen }) {
-  if (!mood || !movie) return null;
+  if (!mood || !movie || movie.isPreview) return null;
   return (
     <div className="mood-result" role="status" aria-live="polite">
-      <Ree mood="search" size={72} className="mood-result-ree" />
+      <Ree moodKey={mood.key} size={72} className="mood-result-ree" />
       <div>
         <p className="mood-result-kicker">Your {mood.name.toLowerCase()} pick</p>
         <h3>{movie.title}</h3>
