@@ -59,9 +59,14 @@ const POSE_ALT = {
 
 // width / height of each cut-out, so layout never jumps while it loads.
 const ASPECT = {
-  default: 0.82, curious: 0.78, excited: 0.75, sleepy: 1.17, sad: 0.8, surprised: 0.64,
-  thinking: 0.69, detective: 0.72, cinema: 0.94, lovestory: 0.74, mystery: 0.78, celebrating: 0.76
+  default: 1.01, curious: 0.96, excited: 0.95, sleepy: 1.45, sad: 1.18, surprised: 0.79,
+  thinking: 0.85, detective: 0.98, cinema: 1.0, lovestory: 1.28, mystery: 0.96, celebrating: 0.93
 };
+
+// Poses whose art already carries its own palette (rose Love-story, deep-blue
+// Mystery): rotating their hue would fight the art, so they keep their colours
+// and only the aura follows the mood.
+const OWN_PALETTE = new Set(["lovestory", "mystery"]);
 
 const POP = {
   initial: { opacity: 0, scale: 0.82, y: 10, scaleX: 0.9, scaleY: 1.12 },
@@ -189,7 +194,7 @@ function LiveRee({ pose, size, className, style, live, aura, hop, moodKey, a11y 
   return (
     <span
       ref={rootRef}
-      className={`ree ree-live${tone ? " ree-toned" : ""} ${className}`}
+      className={`ree ree-live${tone ? " ree-toned" : ""}${tone && !OWN_PALETTE.has(shown) ? " ree-hue" : ""} ${className}`}
       style={{ width: Math.round(size * 0.95), height: h, ...toneVars, ...style }}
       onClick={animated ? () => setPoked((n) => n + 1) : undefined}
     >

@@ -195,7 +195,7 @@ select:focus {
   filter: blur(6px);
 }
 /* Mood response: she shifts colour like a chameleon, and her aura follows. */
-.ree-toned .ree-img {
+.ree-hue .ree-img {
   filter: hue-rotate(var(--ree-hue, 0deg)) saturate(var(--ree-sat, 1)) brightness(var(--ree-lum, 1)) drop-shadow(0 10px 14px rgba(4, 9, 22, 0.4));
   transition: filter 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
