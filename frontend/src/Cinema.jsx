@@ -299,7 +299,7 @@ export function MoodPicker({ activeKey, onPick }) {
             style={{ "--mood-ring": m.ring, "--mood-tint": m.tint }}
           >
             <span className="mood-card-photo">
-              <img src={MOOD_POSES[m.key]} alt="" aria-hidden="true" loading="lazy" width="394" height="383" />
+              <img src={MOOD_POSES[m.key]} alt="" aria-hidden="true" loading="lazy" width="560" height="492" />
               {active && <span className="mood-card-check" aria-hidden="true">✓</span>}
             </span>
             <span className="mood-card-name">{m.name}</span>
