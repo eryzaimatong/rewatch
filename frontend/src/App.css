@@ -1285,7 +1285,7 @@ input[type="range"] {
 /* Bento layout: the one qualitative stat (Active Archetype — a name, not a
    number) gets a wider, taller featured cell; the three numeric stats sit
    as a tighter row underneath. An equal-width grid of four identical boxes
-   was treating "Undecided Cinephile" and "12" as the same kind of fact,
+   was treating "The 'You Pick' Friend" and "12" as the same kind of fact,
    when one is the actual headline of this page. Falls back to a single
    column below the same breakpoint every other grid in this file uses. */
 .stat-grid {

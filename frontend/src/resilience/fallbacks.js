@@ -1,7 +1,7 @@
 /**
  * Structured stand-ins shown when the network can't deliver in time. They are
  * deliberately NEUTRAL and always flagged (`isFallback`) so the UI says so:
- * showing an invented "Cozy Nostalgic" profile as if it were the user's own
+ * showing an invented "Brain Smooth, Vibes Immaculate" profile as if it were the user's own
  * TasteDNA would be a lie, whereas a calm, clearly-labelled starting profile
  * is a trustworthy place to wait from.
  */
@@ -22,8 +22,8 @@ export const TASTE_PROFILE_FALLBACK = {
   traits: Object.fromEntries(
     Object.entries(TRAIT_LABELS).map(([k, label]) => [k, { val: 0.5, conf: 0.1, trend: 0, evid: 0, label }])
   ),
-  archetype: "Emotional Storyteller",
-  archetypeBlurb: "You enjoy balanced storytelling across multiple emotional tones.",
+  archetype: "The 'You Pick' Friend",
+  archetypeBlurb: "Your taste is a blank canvas. Rate a few movies so the algorithm can stop sweating.",
   meanConfidence: 0.1,
   ratingCount: 0,
   personalized: false

@@ -134,7 +134,7 @@ export default function TasteProfile() {
   });
   const profile = data ?? TASTE_PROFILE_FALLBACK;
   const traits = profile.traits ?? {};
-  const archetype = profile.archetype || "Emotional Storyteller";
+  const archetype = profile.archetype || "The 'You Pick' Friend";
   const archetypeBlurb = profile.archetypeBlurb || "";
   const meanConfidence = typeof profile.meanConfidence === "number" ? profile.meanConfidence : 0.1;
   const ratingCount = typeof profile.ratingCount === "number" ? profile.ratingCount : 0;

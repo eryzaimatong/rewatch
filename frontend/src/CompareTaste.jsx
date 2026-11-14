@@ -12,7 +12,7 @@ import {
 import "./App.css";
 
 // Shown by WakingState while the quiz loads — a real example (the exact
-// "Cozy Nostalgic" combo from ArchetypeService.java: comfort >= 0.80 &&
+// "Brain Smooth, Vibes Immaculate" combo from ArchetypeService.java: comfort >= 0.80 &&
 // nostalgia >= 0.80), not invented data, so a stranger waiting out a cold
 // boot gets a true preview of the product instead of a placeholder.
 const SAMPLE_TRAITS = [
@@ -255,11 +255,11 @@ export default function CompareTaste() {
                     fontSize: "0.72rem", textTransform: "uppercase",
                     color: "var(--text-faint)", margin: "0 0 8px"
                   }}>
-                    Example TasteDNA — "Cozy Nostalgic"
+                    Example TasteDNA — "Brain Smooth, Vibes Immaculate"
                   </p>
                   <TraitRadar
                     traits={SAMPLE_TRAITS}
-                    primary={{ label: "Cozy Nostalgic", color: "#45c5b4", values: SAMPLE_VALUES }}
+                    primary={{ label: "Brain Smooth, Vibes Immaculate", color: "#45c5b4", values: SAMPLE_VALUES }}
                     size={340}
                   />
                   <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginTop: "8px" }}>

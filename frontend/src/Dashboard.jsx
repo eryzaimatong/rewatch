@@ -106,7 +106,7 @@ export default function Dashboard() {
   const [confirmingDeleteFolderId, setconfirmingDeleteFolderId] = useState(null);
   const [followedcollections, setfollowedcollections] = useState([]);
 
-  const [archetype, setarchetype] = useState("Emotional Storyteller");
+  const [archetype, setarchetype] = useState("The 'You Pick' Friend");
   const [archetypeBlurb, setarchetypeBlurb] = useState("");
   const [confidence, setconfidence] = useState(0);
   const [ratedcount, setratedcount] = useState(0);
@@ -142,7 +142,7 @@ export default function Dashboard() {
     setseededFrom(dash.data);
     const d = dash.data;
     if (d.dna) {
-      setarchetype(d.dna.archetype || "Emotional Storyteller");
+      setarchetype(d.dna.archetype || "The 'You Pick' Friend");
       setarchetypeBlurb(d.dna.archetypeBlurb || "");
       setconfidence(Math.round((d.dna.meanConfidence || 0) * 100));
       setratedcount(d.dna.ratingCount || 0);
