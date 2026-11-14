@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
 import { POSES, canonicalUrl, iconUrl } from "./reeAssets";
+import { MOODS, MOOD_REE_POSE, MOOD_REE_TONE } from "./moods";
 
 /**
  * Ree — Re:Watch's companion chameleon (see the Figma "Mascot design system").
@@ -19,6 +20,13 @@ import { POSES, canonicalUrl, iconUrl } from "./reeAssets";
  *   <Ree pose="detective" size={160} />  // any of the 12 expression poses
  *   <Ree variant="canonical" size={420}/>// transparent cut-out hero render
  *   <Ree variant="icon" size={40} />     // flat app-icon version
+ *   <Ree moodKey="mysterious" />         // user's chosen mood: pose + colour shift
+ *
+ * Every asset is a true-alpha cut-out (no photo box, no tile), so Ree sits on
+ * the page's own background. Gaze: the art is raster, so "eyes follow the
+ * cursor" is done as a 3D head-turn of the whole figure (a few degrees of
+ * yaw/pitch plus parallax) — a separate eye layer from design would let the
+ * pupils move on their own later without touching this API.
  */
 // Semantic moods used across the app -> expression poses.
 const MOOD_TO_POSE = {
@@ -72,9 +80,10 @@ export default function Ree({
   style,
   live,
   aura = true,
-  hop = 0
+  hop = 0,
+  moodKey
 }) {
-  const resolvedPose = pose ?? MOOD_TO_POSE[mood] ?? "default";
+  const resolvedPose = pose ?? MOOD_REE_POSE[moodKey] ?? MOOD_TO_POSE[mood] ?? "default";
   // Board rule: below 48px, drop the shading and keep head, eyes, spiral.
   const kind = variant === "icon" || size < 48 ? "icon" : variant;
   const label = alt ?? (kind === "icon" ? "Ree" : POSE_ALT[resolvedPose]);
@@ -117,12 +126,13 @@ export default function Ree({
       live={live ?? size >= 110}
       aura={aura}
       hop={hop}
+      moodKey={moodKey}
       a11y={a11y}
     />
   );
 }
 
-function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
+function LiveRee({ pose, size, className, style, live, aura, hop, moodKey, a11y }) {
   const reduce = useReducedMotion();
   const rootRef = useRef(null);
   const [dozing, setDozing] = useState(false);
@@ -131,6 +141,9 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
   const lookY = useMotionValue(0);
   const x = useSpring(lookX, { stiffness: 90, damping: 14 });
   const y = useSpring(lookY, { stiffness: 90, damping: 14 });
+  // Head-turn: yaw follows horizontal gaze, pitch follows vertical (inverted).
+  const yaw = useTransform(x, (v) => v * 1.5);
+  const pitch = useTransform(y, (v) => v * -1.4);
   const animated = live && !reduce;
 
   // Look toward the pointer; doze off after ~40s without any interaction.
@@ -167,18 +180,27 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
   const h = size;
   const w = Math.round(size * ratio);
   const hopKey = hop + poked;
+  const tone = MOOD_REE_TONE[moodKey];
+  const moodInfo = MOODS.find((m) => m.key === moodKey);
+  const toneVars = tone
+    ? { "--ree-hue": `${tone.hue}deg`, "--ree-sat": tone.sat, "--ree-lum": tone.lum, "--ree-tint": moodInfo?.tint }
+    : undefined;
 
   return (
     <span
       ref={rootRef}
-      className={`ree ree-live ${className}`}
-      style={{ width: Math.round(size * 0.95), height: h, ...style }}
+      className={`ree ree-live${tone ? " ree-toned" : ""} ${className}`}
+      style={{ width: Math.round(size * 0.95), height: h, ...toneVars, ...style }}
       onClick={animated ? () => setPoked((n) => n + 1) : undefined}
     >
       {aura && <span className="ree-aura" aria-hidden="true" />}
       <motion.span
+        className="ree-look"
+        style={{ x: animated ? x : 0, y: animated ? y : 0, rotateY: animated ? yaw : 0, rotateX: animated ? pitch : 0, transformOrigin: "50% 80%" }}
+      >
+      <motion.span
         className="ree-body"
-        style={{ x: animated ? x : 0, y: animated ? y : 0, transformOrigin: "50% 100%" }}
+        style={{ transformOrigin: "50% 100%" }}
         animate={animated ? { y: [0, -size * 0.035, 0], rotate: [-0.8, 0.8, -0.8], scaleY: [1, 1.014, 1] } : undefined}
         transition={animated ? { duration: 5.2, repeat: Infinity, ease: "easeInOut" } : undefined}
       >
@@ -203,6 +225,7 @@ function LiveRee({ pose, size, className, style, live, aura, hop, a11y }) {
             />
           </AnimatePresence>
         </motion.span>
+      </motion.span>
       </motion.span>
       <span className="ree-shadow" aria-hidden="true" />
     </span>
